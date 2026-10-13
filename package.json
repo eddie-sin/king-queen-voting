@@ -1,0 +1,22 @@
+{
+  "name": "king-queen-voting",
+  "version": "1.0.0",
+  "description": "Simple King and Queen college voting API starter",
+  "main": "server.js",
+  "scripts": {
+    "dev": "cross-env NODE_ENV=development nodemon server.js",
+    "prod": "cross-env NODE_ENV=production node server.js"
+  },
+  "type": "commonjs",
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "mongoose": "^9.8.0",
+    "morgan": "^1.11.0"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "nodemon": "^3.1.14"
+  }
+}
