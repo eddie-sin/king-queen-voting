@@ -1,6 +1,10 @@
 const Candidate = require("../model/candidatesModel");
 const AppError = require("../utils/appError");
 const catchAsync = require("../utils/catchAsync");
+const { uploadImage } = require("../utils/s3");
+
+const uploadFiles = (files) =>
+  Promise.all(files.map((file) => uploadImage(file, "candidates")));
 
 exports.getAllCandidates = catchAsync(async (req, res) => {
   const candidates = await Candidate.find();
@@ -26,7 +30,12 @@ exports.getCandidate = catchAsync(async (req, res, next) => {
 });
 
 exports.createCandidate = catchAsync(async (req, res) => {
+  if (req.files && req.files.length) {
+    req.body.images = await uploadFiles(req.files);
+  }
+
   const candidate = await Candidate.create(req.body);
+  candidate.contactNumber = undefined; // keep the private number out of the response
 
   res.status(201).json({
     status: "success",
@@ -35,6 +44,10 @@ exports.createCandidate = catchAsync(async (req, res) => {
 });
 
 exports.updateCandidate = catchAsync(async (req, res, next) => {
+  if (req.files && req.files.length) {
+    req.body.images = await uploadFiles(req.files);
+  }
+
   const candidate = await Candidate.findByIdAndUpdate(req.params.id, req.body, {
     new: true,
     runValidators: true,

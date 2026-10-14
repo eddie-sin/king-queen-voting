@@ -10,10 +10,12 @@
   "type": "commonjs",
   "license": "ISC",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1151.0",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "mongoose": "^9.8.0",
-    "morgan": "^1.11.0"
+    "morgan": "^1.11.0",
+    "multer": "^2.4.0"
   },
   "devDependencies": {
     "cross-env": "^7.0.3",
