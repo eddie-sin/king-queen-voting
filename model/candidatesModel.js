@@ -17,15 +17,16 @@ const candidateSchema = new mongoose.Schema({
   },
   images: {
     type: [String],
-    required: [true, "Three candidate images are required"],
+    required: [true, "At least one candidate image is required"],
     validate: {
       validator(images) {
         return (
-          images.length === 3 &&
+          images.length >= 1 &&
+          images.length <= 3 &&
           images.every((image) => typeof image === "string" && image.trim())
         );
       },
-      message: "Exactly three non-empty candidate images are required",
+      message: "Candidates need 1 to 3 non-empty images",
     },
   },
   bio: {
@@ -48,6 +49,7 @@ const candidateSchema = new mongoose.Schema({
     type: String,
     required: [true, "Viber phone number or contact number is required"],
     trim: true,
+    select: false, // private: never expose in public API responses
   },
   category: {
     type: String,
