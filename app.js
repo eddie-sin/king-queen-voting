@@ -1,6 +1,7 @@
 const express = require("express");
 const morgan = require("morgan");
 
+const authRouter = require("./route/authRoutes");
 const candidatesRouter = require("./route/candidatesRoutes");
 const imagesRouter = require("./route/imagesRoutes");
 const AppError = require("./utils/appError");
@@ -13,6 +14,8 @@ if (process.env.NODE_ENV === "development") {
 }
 
 app.use(express.json());
+
+app.use("/api/v1/auth", authRouter);
 
 app.use("/api/v1/candidates", candidatesRouter);
 app.use("/api/v1/images", imagesRouter);
