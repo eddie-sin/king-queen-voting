@@ -1,6 +1,6 @@
 process.on("uncaughtException", (err) => {
   console.error("UNCAUGHT EXCEPTION! Shutting down...");
-  console.error(err.name, err.message);
+  console.error(err.stack);
   process.exit(1);
 });
 
@@ -64,7 +64,7 @@ mongoose
 
 process.on("unhandledRejection", (err) => {
   console.error("UNHANDLED REJECTION! Shutting down...");
-  console.error(err.name, err.message);
+  console.error(err.name,err.message);
 
   if (server) {
     server.close(() => process.exit(1));

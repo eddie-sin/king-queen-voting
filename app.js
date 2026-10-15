@@ -6,6 +6,7 @@ const candidatesRouter = require("./route/candidatesRoutes");
 const imagesRouter = require("./route/imagesRoutes");
 const AppError = require("./utils/appError");
 const globalErrorHandler = require("./controller/errorControllers");
+const votingRouter = require("./route/votingRoutes");
 
 const app = express();
 
@@ -15,6 +16,7 @@ if (process.env.NODE_ENV === "development") {
 
 app.use(express.json());
 
+app.use("/api/v1/voting", votingRouter);
 app.use("/api/v1/auth", authRouter);
 
 app.use("/api/v1/candidates", candidatesRouter);

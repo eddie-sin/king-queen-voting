@@ -8,26 +8,30 @@ const Ballot = require("../model/ballotsModel");
 
 exports.submitVote = async (req, res) => {
   try {
-    const { votingKey, kingCandidateId, queenCandidateId } = req.body;
+    const { votingKey, candidateId, contest } = req.body;
 
-    // 1. Check required fields
-    if (!votingKey || !kingCandidateId || !queenCandidateId) {
+    // 1. Validate required fields
+    if (!votingKey || !candidateId || !contest) {
       return res.status(400).json({
-        message: "Voting key, King candidate, and Queen candidate are required.",
+        message: "Voting key, candidate ID, and contest are required.",
       });
     }
 
-    // 2. Validate candidate ID formats
-    if (
-      !mongoose.isValidObjectId(kingCandidateId) ||
-      !mongoose.isValidObjectId(queenCandidateId)
-    ) {
+    // 2. Validate contest
+    if (!["king", "queen"].includes(contest)) {
+      return res.status(400).json({
+        message: "Contest must be king or queen.",
+      });
+    }
+
+    // 3. Validate candidate ID
+    if (!mongoose.isValidObjectId(candidateId)) {
       return res.status(400).json({
         message: "Invalid candidate ID.",
       });
     }
 
-    // 3. Hash the key and find its database record
+    // 4. Find the active voting credential
     const codeHash = crypto
       .createHash("sha256")
       .update(votingKey)
@@ -44,45 +48,38 @@ exports.submitVote = async (req, res) => {
       });
     }
 
-    // 4. Check that both candidates exist and are active
-    const king = await Candidate.findOne({
-      _id: kingCandidateId,
+    // 5. Check the candidate
+    const candidate = await Candidate.findOne({
+      _id: candidateId,
       isActive: true,
     });
 
-    const queen = await Candidate.findOne({
-      _id: queenCandidateId,
-      isActive: true,
-    });
-
-    if (!king || !queen) {
+    if (!candidate) {
       return res.status(400).json({
-        message: "One or both candidates do not exist or are inactive.",
+        message: "Candidate does not exist or is inactive.",
       });
     }
 
-    // 5. Ensure candidates belong to the correct categories
-    if (king.category !== "king" || queen.category !== "queen") {
+    if (candidate.category !== contest) {
       return res.status(400).json({
-        message: "Select one King candidate and one Queen candidate.",
+        message: `This candidate is not in the ${contest} category.`,
       });
     }
 
-    // 6. Save both choices in one ballot
+    // 6. Save this category's vote
     await Ballot.create({
       credential: credential._id,
-      kingCandidate: king._id,
-      queenCandidate: queen._id,
+      candidate: candidate._id,
+      contest,
     });
 
     return res.status(201).json({
-      message: "Your vote has been submitted successfully.",
+      message: `${contest} vote submitted successfully.`,
     });
   } catch (error) {
-    // Duplicate credential means a ballot already exists
     if (error.code === 11000) {
       return res.status(409).json({
-        message: "This voting key has already been used.",
+        message: `This voting key has already voted for this category.`,
       });
     }
 
