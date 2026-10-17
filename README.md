@@ -56,7 +56,7 @@ All routes start with `/api/v1`.
 | POST | `/auth/login` | Log in using email and password |
 | POST | `/auth/admin/login` | Log in using admin username and password |
 
-Registration body: `fullName`, `batchNumber`, `email`, `password` (at least eight characters). The key cannot be recovered; save it securely. Login returns `data.token`; send it as `Authorization: Bearer TOKEN` on protected routes.
+Registration and user login require only `email` and `password`. Registration requires a valid email and a password of at least eight characters; no name or batch number is collected. The voting key cannot be recovered; save it securely. Login returns `data.token`; send it as `Authorization: Bearer TOKEN` on protected routes.
 
 ## Voter endpoints
 

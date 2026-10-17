@@ -11,8 +11,6 @@ const { withElectionOperation } = require("../utils/election");
 
 const userResponse = (user) => ({
   id: user._id,
-  fullName: user.fullName,
-  batchNumber: user.batchNumber,
   email: user.email,
   hasVotedKing: user.hasVotedKing,
   hasVotedQueen: user.hasVotedQueen,
@@ -28,9 +26,9 @@ const tokenResponse = (payload) => ({
 });
 
 exports.register = catchAsync(async (req, res) => {
-  const { fullName, batchNumber, email, password } = req.body || {};
-  if (![fullName, batchNumber, email, password].every((value) => typeof value === "string" && value.trim())) {
-    throw new AppError("Full name, batch number, email, and password are required.", 400);
+  const { email, password } = req.body || {};
+  if (![email, password].every((value) => typeof value === "string" && value.trim())) {
+    throw new AppError("Email and password are required.", 400);
   }
   if (password.length < 8) throw new AppError("Password must be at least 8 characters.", 400);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) throw new AppError("A valid email is required.", 400);
@@ -41,7 +39,6 @@ exports.register = catchAsync(async (req, res) => {
       throw new AppError("Email is already registered.", 409);
     }
     const created = new User({
-      fullName: fullName.trim(), batchNumber: batchNumber.trim(),
       email: email.trim().toLowerCase(), passwordHash, credentialIssued: true,
     });
     const credential = new VotingCredential({

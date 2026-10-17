@@ -63,7 +63,7 @@ const request = async (method, endpoint, body, token) => {
 };
 
 const register = async (email = `${crypto.randomUUID()}@example.com`) => {
-  const result = await request("POST", "/auth/register", { fullName: "Test Voter", batchNumber: "1", email, password: "testing-password" });
+  const result = await request("POST", "/auth/register", { email, password: "testing-password" });
   assert.equal(result.status, 201, JSON.stringify(result.data));
   const login = await request("POST", "/auth/login", { email, password: "testing-password" });
   assert.equal(login.status, 200);
@@ -184,15 +184,19 @@ test("registration hides hashes, creates an account-bound key, and requires vali
   assert.equal(voter.user.hasVotedKing, false);
   assert.equal(voter.user.hasVotedQueen, false);
   const stored = await User.findById(voter.user.id).select("+passwordHash");
+  assert.equal(stored.fullName, undefined);
+  assert.equal(stored.batchNumber, undefined);
+  assert.equal(voter.user.fullName, undefined);
+  assert.equal(voter.user.batchNumber, undefined);
   assert(await bcrypt.compare("testing-password", stored.passwordHash));
   const credential = await Credential.findOne().lean();
   assert.equal(credential.userId, undefined);
   assert.equal(credential.user, undefined);
   assert.equal(credential.bindingVersion, 2);
   assert.notEqual(credential.codeHash, voter.votingKey);
-  const duplicate = await request("POST", "/auth/register", { fullName: "Another", batchNumber: "2", email: "VOTER@example.com", password: "testing-password" });
+  const duplicate = await request("POST", "/auth/register", { email: "VOTER@example.com", password: "testing-password" });
   assert.equal(duplicate.status, 409);
-  const invalid = await request("POST", "/auth/register", { fullName: {}, email: "bad", batchNumber: "1", password: "short" });
+  const invalid = await request("POST", "/auth/register", { email: "bad", password: "short" });
   assert.equal(invalid.status, 400);
   assert.equal(await User.countDocuments(), 1);
   assert.equal(await Credential.countDocuments(), 1);
@@ -205,7 +209,7 @@ test("account and credential creation roll back together on database failure", a
   const originalCreate = Credential.create;
   Credential.create = async () => { throw new (require("../utils/appError"))("Injected credential failure", 503); };
   try {
-    const result = await request("POST", "/auth/register", { fullName: "Failed", batchNumber: "1", email: "failed@example.com", password: "testing-password" });
+    const result = await request("POST", "/auth/register", { email: "failed@example.com", password: "testing-password" });
     assert.equal(result.status, 503);
     assert.equal(await User.countDocuments(), 0);
     assert.equal(await Credential.countDocuments(), 0);
@@ -285,7 +289,7 @@ test("all key operations are restricted to the exact voting period; registration
   setTime("2026-11-06T23:59:59.999+06:30");
   await register();
   setTime("2026-11-07T00:00:00+06:30");
-  const closed = await request("POST", "/auth/register", { fullName: "Late", batchNumber: "1", email: "late@example.com", password: "testing-password" });
+  const closed = await request("POST", "/auth/register", { email: "late@example.com", password: "testing-password" });
   assert.equal(closed.status, 403);
   assert.equal((await request("POST", "/auth/login", { email: voter.email, password: "testing-password" })).status, 200);
 });
@@ -593,4 +597,18 @@ test("candidate and gallery uploads save locally and are publicly served without
   assert.equal((await fetch(`${base}/api/v1/images`, {
     method: "POST", headers: { Authorization: `Bearer ${adminToken}` }, body: invalidForm,
   })).status, 400);
+});
+
+
+test("email-only registration rejects missing, malformed, and short credentials", async () => {
+  for (const body of [
+    {}, { email: "voter@example.com" }, { password: "testing-password" },
+    { email: {}, password: "testing-password" }, { email: "voter@example.com", password: {} },
+    { email: "invalid-email", password: "testing-password" },
+    { email: "voter@example.com", password: "short" },
+  ]) {
+    assert.equal((await request("POST", "/auth/register", body)).status, 400);
+  }
+  assert.equal(await User.countDocuments(), 0);
+  assert.equal(await Credential.countDocuments(), 0);
 });
