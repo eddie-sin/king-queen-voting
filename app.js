@@ -21,6 +21,14 @@ app.use((req, res, next) => {
   next();
 });
 
+if (process.env.NODE_ENV !== "production") {
+  app.use("/uploads", express.static(require("./utils/imageStorage").localUploadDirectory, {
+    dotfiles: "deny",
+    index: false,
+    setHeaders(res) { res.set("X-Content-Type-Options", "nosniff"); },
+  }));
+}
+
 app.use("/api/v1/voting", votingRouter);
 app.use("/api/v1/auth", authRouter);
 

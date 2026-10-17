@@ -11,6 +11,19 @@ Express/Mongoose backend. Candidate information and released finalist results ar
 
 Use your existing local MongoDB service and a normal connection string such as `mongodb://127.0.0.1:27017/king_queen_voting`. There is no replica-set initialization step.
 
+### Development and production services
+
+| Command | Database | Image storage |
+| --- | --- | --- |
+| `npm run dev` | `DATABASE_LOCAL` (your local MongoDB) | Files in the ignored `uploads/` directory |
+| `npm run prod` | `DATABASE` (your Atlas connection) | Your configured S3 bucket |
+
+Production replaces `<db_password>` in `DATABASE` with the URL-encoded `DATABASE_PASSWORD`. Include the database name in the Atlas URI, for example `/king_queen_voting`, so records are stored in the intended database. Neither database credentials nor AWS credentials belong in Git.
+
+Development image URLs start with `/uploads/` and the API serves these files publicly without login. If the frontend and API have different origins, resolve these paths against the API origin. Local uploads are never served by the production API. `LOCAL_UPLOAD_DIR` can optionally override the directory used for development files.
+
+Production uses `AWS_REGION`, `AWS_S3_BUCKET`, and the AWS SDK credential configuration (including `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` from `config.env`). Uploads return S3 public image URLs, or URLs under `AWS_S3_PUBLIC_URL` when you configure a CDN. The bucket/CDN must permit public image viewing. Production does not fall back to local files when S3 configuration is missing.
+
 On startup, the app builds required unique indexes and seeds the schedule and first admin automatically. `ADMIN_USERNAME` and an `ADMIN_PASSWORD` of at least eight characters are required when no admin exists. Passwords are bcrypt hashes. Subsequent startups preserve the admin password, edited dates, candidate lock, and saved finalists; changing environment variables does not reset an existing admin.
 
 Old development credentials using `hash(votingKey)` cannot be safely attached to accounts. Use fresh development accounts/data for this version; legacy keys are rejected and never claimed on a first-use basis. Normal startup never deletes data.

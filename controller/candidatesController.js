@@ -1,7 +1,7 @@
 const Candidate = require("../model/candidatesModel");
 const AppError = require("../utils/appError");
 const catchAsync = require("../utils/catchAsync");
-const { uploadImage } = require("../utils/s3");
+const { uploadImage } = require("../utils/imageStorage");
 const { withElectionOperation } = require("../utils/election");
 
 const editableFields = Object.keys(Candidate.schema.paths).filter((field) => !["_id", "__v"].includes(field));

@@ -1,7 +1,7 @@
 const Image = require("../model/imagesModel");
 const AppError = require("../utils/appError");
 const catchAsync = require("../utils/catchAsync");
-const { uploadImage } = require("../utils/s3");
+const { uploadImage } = require("../utils/imageStorage");
 
 exports.getImages = catchAsync(async (req, res) => {
   const filter = req.query.section ? { section: req.query.section } : {};
@@ -17,6 +17,9 @@ exports.getImages = catchAsync(async (req, res) => {
 exports.createImages = catchAsync(async (req, res, next) => {
   if (!req.files || req.files.length === 0) {
     return next(new AppError("Please upload at least one image", 400));
+  }
+  if (!Image.schema.path("section").enumValues.includes(req.body.section)) {
+    return next(new AppError("Image section must be memory, entertainment, lantern, or about.", 400));
   }
 
   const urls = await Promise.all(

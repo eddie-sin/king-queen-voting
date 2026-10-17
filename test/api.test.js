@@ -15,6 +15,8 @@ process.env.JWT_SECRET = crypto.randomBytes(32).toString("hex");
 process.env.ADMIN_USERNAME = "test-admin";
 process.env.ADMIN_PASSWORD = crypto.randomBytes(20).toString("hex");
 process.env.AWS_REGION = "ap-southeast-1";
+const testUploadDirectory = require("node:fs").mkdtempSync(path.join(os.tmpdir(), "king-queen-api-uploads-"));
+process.env.LOCAL_UPLOAD_DIR = testUploadDirectory;
 
 const app = require("../app");
 const User = require("../model/usersModel");
@@ -128,6 +130,7 @@ after(async () => {
   await mongoose.disconnect();
   if (mongo && mongo.exitCode === null) { mongo.kill("SIGTERM"); await mongoExit; }
   if (databasePath) await fs.rm(databasePath, { recursive: true, force: true });
+  await fs.rm(testUploadDirectory, { recursive: true, force: true });
 });
 
 test("startup seeds fixed Myanmar dates and a hashed admin without overwriting changes", async () => {
@@ -461,11 +464,17 @@ test("revoked keys are rejected and admin tokens cannot be used as voter tokens"
 });
 
 test("development and production start successfully with standalone MongoDB", async () => {
+  const storedImage = "startup-storage-check.png";
+  await fs.writeFile(path.join(testUploadDirectory, storedImage), Buffer.from("local-only"));
   for (const mode of ["development", "production"]) {
     const port = await freePort();
     const child = spawn(process.execPath, ["server.js"], {
       cwd: path.resolve(__dirname, ".."),
-      env: { ...process.env, NODE_ENV: mode, PORT: String(port), DATABASE: testDatabaseUri, DATABASE_LOCAL: testDatabaseUri },
+      env: {
+        ...process.env, NODE_ENV: mode, PORT: String(port),
+        DATABASE: mode === "production" ? testDatabaseUri : "mongodb://127.0.0.1:1/must_not_use",
+        DATABASE_LOCAL: mode === "development" ? testDatabaseUri : "mongodb://127.0.0.1:1/must_not_use",
+      },
       stdio: ["ignore", "pipe", "pipe"],
     });
     let output = "";
@@ -485,6 +494,8 @@ test("development and production start successfully with standalone MongoDB", as
         }
       }
       assert.match(output, /Server running/);
+      const localFile = await fetch(`http://127.0.0.1:${port}/uploads/${storedImage}`);
+      assert.equal(localFile.status, mode === "development" ? 200 : 404);
     } finally {
       if (child.exitCode === null) child.kill("SIGTERM");
       await closed;
@@ -544,4 +555,42 @@ test("concurrent independent finalist inserts retain the same saved draw on stan
   assert.deepEqual(ids(results[0]), ids(results[1]));
   assert.deepEqual(ids(results[0]), ids(results[2]));
   assert.equal(await Results.countDocuments(), 1);
+});
+
+
+test("candidate and gallery uploads save locally and are publicly served without an account", async () => {
+  const bytes = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a6T8AAAAASUVORK5CYII=", "base64");
+  const candidateForm = new FormData();
+  for (const [key, value] of Object.entries({ fullName: "Photo Candidate", batchNumber: "1", contactNumber: "0912345", category: "king" })) {
+    candidateForm.append(key, value);
+  }
+  candidateForm.append("images", new Blob([bytes], { type: "image/png" }), "photo.png");
+  const created = await fetch(`${base}/api/v1/candidates`, {
+    method: "POST", headers: { Authorization: `Bearer ${adminToken}` }, body: candidateForm,
+  });
+  assert.equal(created.status, 201);
+  const candidate = (await created.json()).data.candidate;
+  assert.match(candidate.images[0], /^\/uploads\/candidates\/[a-f0-9-]+\.png$/);
+  const image = await fetch(`${base}${candidate.images[0]}`);
+  assert.equal(image.status, 200);
+  assert.equal(image.headers.get("content-type"), "image/png");
+  assert.deepEqual(Buffer.from(await image.arrayBuffer()), bytes);
+
+  const galleryForm = new FormData();
+  galleryForm.append("section", "memory");
+  galleryForm.append("images", new Blob([bytes], { type: "image/png" }), "memory.png");
+  const gallery = await fetch(`${base}/api/v1/images`, {
+    method: "POST", headers: { Authorization: `Bearer ${adminToken}` }, body: galleryForm,
+  });
+  assert.equal(gallery.status, 201);
+  const url = (await gallery.json()).data.images[0].url;
+  assert.match(url, /^\/uploads\/gallery\/memory\/[a-f0-9-]+\.png$/);
+  assert.equal((await fetch(`${base}${url}`)).status, 200);
+
+  const invalidForm = new FormData();
+  invalidForm.append("section", "../../outside");
+  invalidForm.append("images", new Blob([bytes], { type: "image/png" }), "bad.png");
+  assert.equal((await fetch(`${base}/api/v1/images`, {
+    method: "POST", headers: { Authorization: `Bearer ${adminToken}` }, body: invalidForm,
+  })).status, 400);
 });
