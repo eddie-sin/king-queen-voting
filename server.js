@@ -10,6 +10,8 @@ const dotenv = require("dotenv");
 dotenv.config({ path: "./config.env" });
 
 const app = require("./app");
+const { seed } = require("./utils/seed");
+const { finalizeResultsIfDue } = require("./utils/results");
 
 let databaseConnection;
 
@@ -47,8 +49,29 @@ let server;
 
 mongoose
   .connect(databaseConnection)
-  .then(() => {
+  .then(async () => {
     console.log("Database connection successful");
+
+    const topology = await mongoose.connection.db.admin().command({ hello: 1 });
+    if (!topology.setName && topology.msg !== "isdbgrid") {
+      throw new Error("Voting requires MongoDB transactions. Use MongoDB Atlas or a local replica set; see README.md.");
+    }
+    await seed();
+    await finalizeResultsIfDue();
+
+    let maintaining = false;
+    const maintenance = setInterval(async () => {
+      if (maintaining) return;
+      maintaining = true;
+      try {
+        await finalizeResultsIfDue();
+      } catch (error) {
+        console.error("Election maintenance failed:", error.message);
+      } finally {
+        maintaining = false;
+      }
+    }, 15000);
+    maintenance.unref();
 
     const port = process.env.PORT || 5000;
     server = app.listen(port, () => {
@@ -56,9 +79,10 @@ mongoose
         `Server running on port ${port} in ${process.env.NODE_ENV} mode`,
       );
     });
+    server.on("close", () => clearInterval(maintenance));
   })
   .catch((err) => {
-    console.error("Database connection failed:", err.message);
+    console.error("Server startup failed:", err.message);
     process.exit(1);
   });
 

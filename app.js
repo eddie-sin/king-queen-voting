@@ -15,12 +15,20 @@ if (process.env.NODE_ENV === "development") {
 }
 
 app.use(express.json());
+app.use((req, res, next) => {
+  // Authenticated selections and unreleased results must not be cached.
+  res.set("Cache-Control", "no-store");
+  next();
+});
 
 app.use("/api/v1/voting", votingRouter);
 app.use("/api/v1/auth", authRouter);
 
 app.use("/api/v1/candidates", candidatesRouter);
 app.use("/api/v1/images", imagesRouter);
+app.use("/api/v1/admin", require("./route/adminRoutes"));
+app.get("/api/v1/settings", require("./controller/settingsController").getSettings);
+app.get("/api/v1/results", require("./controller/resultsController").getResults);
 
 app.use((req, res, next) => {
   next(new AppError(`Can't find ${req.originalUrl} on this server!`, 404));

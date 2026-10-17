@@ -9,7 +9,7 @@ const handleDuplicateFieldsDB = (err) => {
   const value = err.keyValue ? JSON.stringify(err.keyValue) : "";
   return new AppError(
     `Duplicate field value: ${value}. Please use another value!`,
-    400,
+    409,
   );
 };
 
@@ -52,6 +52,12 @@ module.exports = (err, req, res, next) => {
   if (error.code === 11000) error = handleDuplicateFieldsDB(error);
   if (error.name === "ValidationError") {
     error = handleValidationErrorDB(error);
+  }
+  if (error.type === "entity.parse.failed") {
+    error = new AppError("Request body must contain valid JSON.", 400);
+  }
+  if (error.name === "MulterError") {
+    error = new AppError(error.message, 400);
   }
 
   if ((process.env.NODE_ENV || "development") === "development") {

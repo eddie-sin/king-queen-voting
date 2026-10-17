@@ -11,6 +11,8 @@ const votingCredentialSchema = new mongoose.Schema({
     enum: ["active", "revoked"],
     default: "active",
   },
+  // Legacy, unbound credentials have no stored version and are never claimed.
+  bindingVersion: { type: Number, enum: [2], default: 2, required: true },
 });
 
 module.exports = mongoose.model("VotingCredential", votingCredentialSchema);

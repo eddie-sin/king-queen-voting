@@ -33,6 +33,9 @@ const userSchema = new mongoose.Schema({
     default: false,
   },
 
+  hasVotedKing: { type: Boolean, default: false },
+  hasVotedQueen: { type: Boolean, default: false },
+
   status: {
     type: String,
     enum: ["active", "disabled"],

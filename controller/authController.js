@@ -1,197 +1,93 @@
-
 const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
-
+const jwt = require("jsonwebtoken");
 const User = require("../model/usersModel");
+const Admin = require("../model/adminsModel");
 const VotingCredential = require("../model/voting_credentialsModel");
+const AppError = require("../utils/appError");
+const catchAsync = require("../utils/catchAsync");
+const { hashVotingKey } = require("../utils/votingKey");
+const { withElectionTransaction } = require("../utils/election");
 
-exports.register = async (req, res) => {
-  let savedUser;
+const userResponse = (user) => ({
+  id: user._id,
+  fullName: user.fullName,
+  batchNumber: user.batchNumber,
+  email: user.email,
+  hasVotedKing: user.hasVotedKing,
+  hasVotedQueen: user.hasVotedQueen,
+});
 
-  try {
-    const { fullName, batchNumber, email, password } = req.body;
+const tokenResponse = (payload) => ({
+  token: jwt.sign(payload, process.env.JWT_SECRET, {
+    algorithm: "HS256",
+    expiresIn: process.env.JWT_EXPIRES_IN || "5h",
+  }),
+  tokenType: "Bearer",
+  expiresIn: process.env.JWT_EXPIRES_IN || "5h",
+});
 
-    if (
-      !fullName?.trim() ||
-      !batchNumber?.trim() ||
-      !email?.trim() ||
-      !password
-    ) {
-      return res.status(400).json({
-        status: "fail",
-        message: "Full name, batch number, email, and password are required.",
-      });
-    }
-
-    if (password.length < 8) {
-      return res.status(400).json({
-        status: "fail",
-        message: "Password must be at least 8 characters.",
-      });
-    }
-
-    const normalizedEmail = email.trim().toLowerCase();
-
-    const existingUser = await User.findOne({
-      email: normalizedEmail,
-    });
-
-    if (existingUser) {
-      return res.status(409).json({
-        status: "fail",
-        message: "Email is already registered.",
-      });
-    }
-
-    const passwordHash = await bcrypt.hash(password, 12);
-
-    savedUser = await User.create({
-      fullName: fullName.trim(),
-      batchNumber: batchNumber.trim(),
-      email: normalizedEmail,
-      passwordHash,
-      credentialIssued: true,
-    });
-
-    const votingKey = crypto.randomBytes(32).toString("hex");
-
-    const codeHash = crypto
-      .createHash("sha256")
-      .update(votingKey)
-      .digest("hex");
-
-    try {
-      await VotingCredential.create({ codeHash });
-    } catch (error) {
-      await User.deleteOne({ _id: savedUser._id });
-      throw error;
-    }
-
-    return res.status(201).json({
-      status: "success",
-      message: "Account created successfully.",
-      data: {
-        user: {
-          id: savedUser._id,
-          fullName: savedUser.fullName,
-          batchNumber: savedUser.batchNumber,
-          email: savedUser.email,
-        },
-        votingKey,
-      },
-    });
-  } catch (error) {
-    if (error.code === 11000) {
-      return res.status(409).json({
-        status: "fail",
-        message: "Email is already registered.",
-      });
-    }
-
-    console.error("Registration error:", error.message);
-
-    return res.status(500).json({
-      status: "error",
-      message: "Could not create account.",
-    });
+exports.register = catchAsync(async (req, res) => {
+  const { fullName, batchNumber, email, password } = req.body || {};
+  if (![fullName, batchNumber, email, password].every((value) => typeof value === "string" && value.trim())) {
+    throw new AppError("Full name, batch number, email, and password are required.", 400);
   }
-};
-
-
-exports.login = async (req, res) => {
-  try {
-    const { email, password } = req.body;
-
-    if (!email?.trim() || !password) {
-      return res.status(400).json({
-        status: "fail",
-        message: "Email and password are required.",
-      });
+  if (password.length < 8) throw new AppError("Password must be at least 8 characters.", 400);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) throw new AppError("A valid email is required.", 400);
+  const passwordHash = await bcrypt.hash(password, 12);
+  const votingKey = crypto.randomBytes(32).toString("hex");
+  const user = await withElectionTransaction("registration", async ({ session }) => {
+    if (await User.exists({ email: email.trim().toLowerCase() }).session(session)) {
+      throw new AppError("Email is already registered.", 409);
     }
+    const [created] = await User.create([{
+      fullName: fullName.trim(), batchNumber: batchNumber.trim(),
+      email: email.trim().toLowerCase(), passwordHash, credentialIssued: true,
+    }], { session });
+    await VotingCredential.create([{
+      codeHash: hashVotingKey(created._id, votingKey), bindingVersion: 2,
+    }], { session });
+    return created;
+  });
+  res.status(201).json({
+    status: "success",
+    message: "Account created. Keep your voting key securely; it is shown only once and cannot be recovered.",
+    data: { user: userResponse(user), votingKey },
+  });
+});
 
-    const user = await User.findOne({
-      email: email.trim().toLowerCase(),
-    }).select("+passwordHash");
-
-    if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
-      return res.status(401).json({
-        status: "fail",
-        message: "Invalid email or password.",
-      });
-    }
-
-    if (user.status !== "active") {
-      return res.status(403).json({
-        status: "fail",
-        message: "This account is disabled.",
-      });
-    }
-
-    if (!process.env.JWT_SECRET) {
-      throw new Error("JWT_SECRET is not configured.");
-    }
-
-    const jwt = require("jsonwebtoken");
-
-    const token = jwt.sign(
-      { userId: user._id.toString() },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN || "5h" }
-    );
-
-    return res.status(200).json({
-      status: "success",
-      message: "Login successful.",
-      data: {
-        token,
-        tokenType: "Bearer",
-        expiresIn: process.env.JWT_EXPIRES_IN || "5h",
-        user: {
-          id: user._id,
-          fullName: user.fullName,
-          batchNumber: user.batchNumber,
-          email: user.email,
-        },
-      },
-    });
-  } catch (error) {
-    console.error("Login error:", error.message);
-
-    return res.status(500).json({
-      status: "error",
-      message: "Could not log in.",
-    });
+exports.login = catchAsync(async (req, res) => {
+  const { email, password } = req.body || {};
+  if (typeof email !== "string" || !email.trim() || typeof password !== "string" || !password) {
+    throw new AppError("Email and password are required.", 400);
   }
-};
-
-
-exports.getMe = async (req, res) => {
-  try {
-    const user = await User.findById(req.userId);
-
-    if (!user) {
-      return res.status(404).json({
-        status: "fail",
-        message: "User not found.",
-      });
-    }
-
-    return res.status(200).json({
-      status: "success",
-      data: {
-        user: {
-          id: user._id,
-          fullName: user.fullName,
-          batchNumber: user.batchNumber,
-          email: user.email,
-        },
-      },
-    });
-  } catch (error) {
-    return res.status(500).json({
-      status: "error",
-      message: "Could not retrieve profile.",
-    });
+  const user = await User.findOne({ email: email.trim().toLowerCase() }).select("+passwordHash");
+  if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
+    throw new AppError("Invalid email or password.", 401);
   }
-};
+  if (user.status !== "active") throw new AppError("This account is disabled.", 403);
+  res.status(200).json({
+    status: "success", message: "Login successful.",
+    data: { ...tokenResponse({ userId: user._id.toString(), role: "user" }), user: userResponse(user) },
+  });
+});
 
+exports.adminLogin = catchAsync(async (req, res) => {
+  const { username, password } = req.body || {};
+  if (typeof username !== "string" || !username.trim() || typeof password !== "string" || !password) {
+    throw new AppError("Username and password are required.", 400);
+  }
+  const admin = await Admin.findOne({ username: username.trim() }).select("+passwordHash");
+  if (!admin || !(await bcrypt.compare(password, admin.passwordHash))) {
+    throw new AppError("Invalid username or password.", 401);
+  }
+  if (admin.status !== "active") throw new AppError("This admin account is disabled.", 403);
+  res.status(200).json({
+    status: "success",
+    data: { ...tokenResponse({ adminId: admin._id.toString(), role: "admin" }), admin: { username: admin.username } },
+  });
+});
+
+exports.getMe = catchAsync(async (req, res) => {
+  res.status(200).json({ status: "success", data: { user: userResponse(req.user) } });
+});
