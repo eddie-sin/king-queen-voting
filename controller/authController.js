@@ -7,7 +7,7 @@ const VotingCredential = require("../model/voting_credentialsModel");
 const AppError = require("../utils/appError");
 const catchAsync = require("../utils/catchAsync");
 const { hashVotingKey } = require("../utils/votingKey");
-const { withElectionTransaction } = require("../utils/election");
+const { withElectionOperation } = require("../utils/election");
 
 const userResponse = (user) => ({
   id: user._id,
@@ -36,17 +36,21 @@ exports.register = catchAsync(async (req, res) => {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) throw new AppError("A valid email is required.", 400);
   const passwordHash = await bcrypt.hash(password, 12);
   const votingKey = crypto.randomBytes(32).toString("hex");
-  const user = await withElectionTransaction("registration", async ({ session }) => {
-    if (await User.exists({ email: email.trim().toLowerCase() }).session(session)) {
+  const user = await withElectionOperation("registration", async ({ onRollback }) => {
+    if (await User.exists({ email: email.trim().toLowerCase() })) {
       throw new AppError("Email is already registered.", 409);
     }
-    const [created] = await User.create([{
+    const created = new User({
       fullName: fullName.trim(), batchNumber: batchNumber.trim(),
       email: email.trim().toLowerCase(), passwordHash, credentialIssued: true,
-    }], { session });
-    await VotingCredential.create([{
+    });
+    const credential = new VotingCredential({
       codeHash: hashVotingKey(created._id, votingKey), bindingVersion: 2,
-    }], { session });
+    });
+    onRollback(() => User.deleteOne({ _id: created._id }));
+    onRollback(() => VotingCredential.deleteOne({ _id: credential._id }));
+    await created.save();
+    await VotingCredential.create(credential.toObject());
     return created;
   });
   res.status(201).json({

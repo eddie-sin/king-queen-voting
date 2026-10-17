@@ -52,10 +52,6 @@ mongoose
   .then(async () => {
     console.log("Database connection successful");
 
-    const topology = await mongoose.connection.db.admin().command({ hello: 1 });
-    if (!topology.setName && topology.msg !== "isdbgrid") {
-      throw new Error("Voting requires MongoDB transactions. Use MongoDB Atlas or a local replica set; see README.md.");
-    }
     await seed();
     await finalizeResultsIfDue();
 

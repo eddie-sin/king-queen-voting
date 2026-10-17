@@ -1,4 +1,3 @@
-const mongoose = require("mongoose");
 const Election = require("../model/electionModel");
 const AppError = require("./appError");
 const clock = require("./clock");
@@ -33,23 +32,44 @@ exports.checkPeriod = (election, action, now) => {
   }
 };
 
-exports.withElectionTransaction = async (action, callback) => {
-  await exports.getElection();
-  return mongoose.connection.transaction(async (session) => {
-    const election = await Election.findById("election").session(session);
+// One API process handles election operations in order. No database sessions,
+// transactions, replica-set configuration, or persistent identity links are used.
+let pendingOperation = Promise.resolve();
+
+exports.withElectionOperation = (action, callback) => {
+  const operation = pendingOperation.then(async () => {
+    const election = await exports.getElection();
     const now = clock.now();
-    if (now >= election.votingOpensAt) election.candidateManagementLocked = true;
-    exports.checkPeriod(election, action, now);
-    election.operationVersion += 1;
-    await election.save({ session });
-    const result = await callback({ election, session, now });
-    // Roll back slow requests that cross a deadline while doing database work.
-    const finishedAt = clock.now();
-    if (finishedAt >= election.votingOpensAt && !election.candidateManagementLocked) {
+    if (now >= election.votingOpensAt) {
       election.candidateManagementLocked = true;
-      await election.save({ session });
+      await Election.updateOne({ _id: "election" }, { $set: { candidateManagementLocked: true } });
     }
-    exports.checkPeriod(election, action, finishedAt);
-    return result;
+    exports.checkPeriod(election, action, now);
+    const undo = [];
+    try {
+      const result = await callback({ election, now, onRollback: (restore) => undo.push(restore) });
+      const finishedAt = clock.now();
+      if (finishedAt >= election.votingOpensAt) {
+        election.candidateManagementLocked = true;
+        await Election.updateOne({ _id: "election" }, { $set: { candidateManagementLocked: true } });
+      }
+      exports.checkPeriod(election, action, finishedAt);
+      return result;
+    } catch (error) {
+      // Compensate completed writes on ordinary errors or crossed deadlines.
+      // Unlike a database transaction, this cannot cover a process/power failure.
+      let rollbackFailed = false;
+      for (const restore of undo.reverse()) {
+        try { await restore(); } catch { rollbackFailed = true; }
+      }
+      if (rollbackFailed) {
+        console.error("Could not fully undo an incomplete election operation.");
+        throw new AppError("Could not safely complete this action. Please retry.", 503);
+      }
+      throw error;
+    }
   });
+  // A failed request must not stop the queue from processing later requests.
+  pendingOperation = operation.catch(() => {});
+  return operation;
 };

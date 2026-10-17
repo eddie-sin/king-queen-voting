@@ -7,8 +7,6 @@ const electionSchema = new mongoose.Schema({
   votingClosesAt: { type: Date, required: true },
   resultsPublishedAt: { type: Date, required: true },
   candidateManagementLocked: { type: Boolean, default: false },
-  // Serializes schedule changes with candidate writes, voting, and finalization.
-  operationVersion: { type: Number, default: 0 },
 });
 
 electionSchema.pre("validate", function () {

@@ -6,10 +6,10 @@ Express/Mongoose backend. Candidate information and released finalist results ar
 
 1. Install dependencies with `npm ci`.
 2. Copy `config.example.env` to the ignored `config.env`, then fill in your database, JWT secret, initial admin username/password, and S3 configuration.
-3. Use MongoDB Atlas or a MongoDB replica set. Transactions keep ballots and participation flags consistent and prevent candidate/schedule changes from racing with voting or finalization. A standalone MongoDB server is rejected at startup.
+3. Use a normal standalone MongoDB server, locally or remotely. No replica set, database transactions, or special MongoDB setup is required.
 4. Start development with `npm run dev`, or production with `npm run prod`.
 
-For a **new local development database**, start a MongoDB process with `mongod --dbpath /your/development/db --replSet rs0 --bind_ip 127.0.0.1`, then run `mongosh --eval 'rs.initiate()'` once. Do not run another process against a database directory already in use.
+Use your existing local MongoDB service and a normal connection string such as `mongodb://127.0.0.1:27017/king_queen_voting`. There is no replica-set initialization step.
 
 On startup, the app builds required unique indexes and seeds the schedule and first admin automatically. `ADMIN_USERNAME` and an `ADMIN_PASSWORD` of at least eight characters are required when no admin exists. Passwords are bcrypt hashes. Subsequent startups preserve the admin password, edited dates, candidate lock, and saved finalists; changing environment variables does not reset an existing admin.
 
@@ -59,7 +59,7 @@ These endpoints require a **user** JWT. `/auth/me` works outside the voting peri
 
 `contest` is `king` or `queen`. All four key-protected operations are available only during the voting period, including viewing chosen candidates. Keys are sent in JSON bodies rather than URLs. Each account may hold one vote per contest; after removal it may vote again. Inactive candidates and category mismatches are rejected. Disabled/deleted accounts cannot reuse an existing JWT.
 
-Credentials store SHA-256 of `accountId + ":" + votingKey`, using the account ID from the verified JWT. Another account cannot use the same key. No account ID is stored in credentials or ballots, and chosen candidate IDs are not stored on users. This avoids a direct database account-to-choice link; it does not provide anonymity against the running server, request logging, transaction-log inspection, or inference from participation flags. Do not log request bodies containing voting keys.
+Credentials store SHA-256 of `accountId + ":" + votingKey`, using the account ID from the verified JWT. Another account cannot use the same key. No account ID is stored in credentials or ballots, and chosen candidate IDs are not stored on users. This avoids a direct database account-to-choice link; it does not provide anonymity against the running server, request logging, database write-log inspection, or inference from participation flags. Do not log request bodies containing voting keys.
 
 ## Admin endpoints
 
@@ -102,8 +102,14 @@ Active candidates are ranked by votes, separately for kings and queens. If a tie
 
 Zero-vote active candidates remain eligible, including for a cutoff tie. If fewer than five active candidates exist in a contest, all are returned. Once finalists are saved, voting start/end cannot change or reopen voting; the registration deadline and result release time can still be edited. This prevents a saved selection from becoming stale.
 
+## Standalone database consistency
+
+Run one API process per election database (the default `npm run dev` or `npm run prod` setup). The process handles election operations in order so overlapping requests cannot race with schedule edits, candidate locking, or finalization. Do not use multiple workers/cluster mode against the same election database with this implementation.
+
+Unique database indexes still enforce one ballot per credential/contest and one saved finalist result. When a request fails or crosses its deadline, the application attempts to undo its partial writes. These compensating writes are not database transactions: a process/power failure or an unavailable database during cleanup can leave partial state. A later successful key-protected request reconciles that account's participation flags with its ballots. Account flags alone cannot be repaired globally without keys while preserving the absence of account-to-ballot links.
+
 ## Verification
 
-Run `npm test`. Node's built-in test runner starts an isolated temporary MongoDB replica set and HTTP server, then removes the test database. A local `mongod` executable must be available; set `MONGOD_BINARY` if it is elsewhere. The tests never connect to the databases configured in `config.env`.
+Run `npm test`. Node's built-in test runner starts an isolated temporary **standalone MongoDB** server and HTTP server, then removes the test database. A local `mongod` executable must be available; set `MONGOD_BINARY` if it is elsewhere. The tests never connect to the databases configured in `config.env`.
 
 Tests cover public/private access, seeding, password hashing, key ownership, anonymous storage, vote changes/removal, exact deadlines, disabled accounts, rollback, concurrent requests, the irreversible candidate lock, immutable settings, and saved tie-break results.

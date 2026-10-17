@@ -27,7 +27,7 @@ const Results = require("../model/resultsModel");
 const clock = require("../utils/clock");
 const { seed } = require("../utils/seed");
 const { finalizeResultsIfDue } = require("../utils/results");
-const { withElectionTransaction } = require("../utils/election");
+const { withElectionOperation } = require("../utils/election");
 
 let mongo;
 let mongoExit;
@@ -85,7 +85,7 @@ before(async () => {
   databasePath = await fs.mkdtemp(path.join(os.tmpdir(), "king-queen-api-test-"));
   const port = await freePort();
   mongo = spawn(process.env.MONGOD_BINARY || "mongod", [
-    "--replSet", "voting-test", "--bind_ip", "127.0.0.1", "--port", String(port),
+    "--bind_ip", "127.0.0.1", "--port", String(port),
     "--dbpath", databasePath, "--logpath", path.join(databasePath, "mongod.log"),
   ], { stdio: ["ignore", "ignore", "pipe"] });
   let spawnError;
@@ -101,15 +101,10 @@ before(async () => {
       await sleep(100);
     }
   }
-  await client.db("admin").command({ replSetInitiate: { _id: "voting-test", members: [{ _id: 0, host: `127.0.0.1:${port}` }] } });
-  for (let attempt = 0; ; attempt++) {
-    const hello = await client.db("admin").command({ hello: 1 });
-    if (hello.isWritablePrimary) break;
-    if (attempt >= 100) throw Error("Temporary replica set did not become primary.");
-    await sleep(100);
-  }
+  const hello = await client.db("admin").command({ hello: 1 });
+  assert.equal(hello.setName, undefined, "Tests must use standalone MongoDB");
   await client.close();
-  testDatabaseUri = `${uri}/voting_test?replicaSet=voting-test`;
+  testDatabaseUri = `${uri}/voting_test`;
   await mongoose.connect(testDatabaseUri);
   currentTime = new Date("2026-10-20T09:00:00+06:30");
   await seed();
@@ -180,7 +175,7 @@ test("candidate and gallery mutations require an admin, not a normal user", asyn
   assert.equal((await request("PATCH", "/admin/settings", {}, voter.token)).status, 403);
 });
 
-test("registration is atomic, hides hashes, and requires valid input", async () => {
+test("registration hides hashes, creates an account-bound key, and requires valid input", async () => {
   const voter = await register("voter@example.com");
   assert.equal(voter.votingKey.length, 64);
   assert.equal(voter.user.hasVotedKing, false);
@@ -324,7 +319,14 @@ test("a status update failure rolls back the corresponding ballot", async () => 
   const king = await makeCandidate();
   openVoting();
   const originalUpdate = User.updateOne;
-  User.updateOne = async () => { throw new (require("../utils/appError"))("Injected status failure", 503); };
+  let injected = false;
+  User.updateOne = (...args) => {
+    if (!injected) {
+      injected = true;
+      throw new (require("../utils/appError"))("Injected status failure", 503);
+    }
+    return originalUpdate.apply(User, args);
+  };
   try {
     assert.equal((await vote(voter, king)).status, 503);
     assert.equal(await Ballot.countDocuments(), 0);
@@ -351,7 +353,7 @@ test("candidate management stays permanently locked after moving the start into 
 test("candidate writes recheck the lock after upload and serialize with schedule changes", async () => {
   const king = await makeCandidate();
   openVoting();
-  await assert.rejects(withElectionTransaction("candidate", async () => Candidate.deleteOne({ _id: king._id })), { statusCode: 403 });
+  await assert.rejects(withElectionOperation("candidate", async () => Candidate.deleteOne({ _id: king._id })), { statusCode: 403 });
   assert(await Candidate.exists({ _id: king._id }));
 });
 
@@ -419,21 +421,34 @@ test("legacy unbound keys are rejected instead of being claimed by an arbitrary 
   assert.equal((await vote(voter, king)).status, 401);
 });
 
-test("requests crossing a deadline roll back their writes before commit", async () => {
+test("requests crossing a deadline compensate candidate and ballot writes", async () => {
   const king = await makeCandidate();
+  const voter = await register();
+  const originalCandidateSave = Candidate.prototype.save;
   setTime("2026-10-28T08:59:59.999+06:30");
-  await assert.rejects(withElectionTransaction("candidate", async ({ session }) => {
-    await Candidate.deleteOne({ _id: king._id }, { session });
+  Candidate.prototype.save = async function (...args) {
+    const result = await originalCandidateSave.apply(this, args);
     openVoting();
-  }), { statusCode: 403 });
-  assert(await Candidate.exists({ _id: king._id }));
+    return result;
+  };
+  try {
+    assert.equal((await request("PATCH", `/candidates/${king._id}`, { bio: "must undo" }, adminToken)).status, 403);
+    assert.equal((await Candidate.findById(king._id)).bio, undefined);
+    assert.equal((await Election.findById("election")).candidateManagementLocked, true);
+  } finally { Candidate.prototype.save = originalCandidateSave; }
 
+  const originalBallotSave = Ballot.prototype.save;
   setTime("2026-11-02T23:59:59.999+06:30");
-  await assert.rejects(withElectionTransaction("voting", async ({ session }) => {
-    await Candidate.updateOne({ _id: king._id }, { bio: "must roll back" }, { session });
+  Ballot.prototype.save = async function (...args) {
+    const result = await originalBallotSave.apply(this, args);
     setTime("2026-11-03T00:00:00+06:30");
-  }), { statusCode: 403 });
-  assert.equal((await Candidate.findById(king._id)).bio, undefined);
+    return result;
+  };
+  try {
+    assert.equal((await vote(voter, king)).status, 403);
+    assert.equal(await Ballot.countDocuments(), 0);
+    assert.equal((await User.findById(voter.user.id)).hasVotedKing, false);
+  } finally { Ballot.prototype.save = originalBallotSave; }
 });
 
 test("revoked keys are rejected and admin tokens cannot be used as voter tokens", async () => {
@@ -445,32 +460,88 @@ test("revoked keys are rejected and admin tokens cannot be used as voter tokens"
   assert.equal((await request("POST", "/voting/my-votes", { votingKey: voter.votingKey }, adminToken)).status, 403);
 });
 
-test("the production entry point starts, seeds, and serves the isolated database", async () => {
-  const port = await freePort();
-  const child = spawn(process.execPath, ["server.js"], {
-    cwd: path.resolve(__dirname, ".."),
-    env: { ...process.env, NODE_ENV: "production", PORT: String(port), DATABASE: testDatabaseUri, DATABASE_LOCAL: testDatabaseUri },
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  let output = "";
-  child.stdout.on("data", (chunk) => { output += chunk; });
-  child.stderr.on("data", (chunk) => { output += chunk; });
-  const closed = new Promise((resolve) => child.once("exit", resolve));
-  try {
-    for (let attempt = 0; ; attempt++) {
-      try {
-        const response = await fetch(`http://127.0.0.1:${port}/api/v1/settings`);
-        assert.equal(response.status, 200);
-        assert.equal((await response.json()).data.schedule.timezone, "Asia/Yangon");
-        break;
-      } catch (error) {
-        if (child.exitCode !== null || attempt >= 100) throw Error(`Production startup failed: ${output} ${error.message}`);
-        await sleep(100);
+test("development and production start successfully with standalone MongoDB", async () => {
+  for (const mode of ["development", "production"]) {
+    const port = await freePort();
+    const child = spawn(process.execPath, ["server.js"], {
+      cwd: path.resolve(__dirname, ".."),
+      env: { ...process.env, NODE_ENV: mode, PORT: String(port), DATABASE: testDatabaseUri, DATABASE_LOCAL: testDatabaseUri },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let output = "";
+    child.stdout.on("data", (chunk) => { output += chunk; });
+    child.stderr.on("data", (chunk) => { output += chunk; });
+    const closed = new Promise((resolve) => child.once("exit", resolve));
+    try {
+      for (let attempt = 0; ; attempt++) {
+        try {
+          const response = await fetch(`http://127.0.0.1:${port}/api/v1/settings`);
+          assert.equal(response.status, 200);
+          assert.equal((await response.json()).data.schedule.timezone, "Asia/Yangon");
+          break;
+        } catch (error) {
+          if (child.exitCode !== null || attempt >= 100) throw Error(`${mode} startup failed: ${output} ${error.message}`);
+          await sleep(100);
+        }
       }
-    }
-    assert.match(output, /Server running/);
-  } finally {
-    if (child.exitCode === null) child.kill("SIGTERM");
-    await closed;
+      assert.match(output, /Server running/);
+    } finally {
+      if (child.exitCode === null) child.kill("SIGTERM");
+      await closed;
   }
+  }
+});
+
+
+test("failed vote changes and removals restore the existing ballot and participation flag", async () => {
+  const voter = await register();
+  const king = await makeCandidate();
+  const other = await makeCandidate();
+  openVoting();
+  assert.equal((await vote(voter, king)).status, 201);
+  for (const [method, endpoint, body] of [
+    ["PATCH", "/voting/change", { candidateId: other._id }],
+    ["DELETE", "/voting/remove", {}],
+  ]) {
+    const originalUpdate = User.updateOne;
+    let failOnce = true;
+    User.updateOne = (...args) => {
+      if (failOnce) {
+        failOnce = false;
+        throw new (require("../utils/appError"))("Injected flag failure", 503);
+      }
+      return originalUpdate.apply(User, args);
+    };
+    try {
+      const result = await request(method, endpoint, { ...body, votingKey: voter.votingKey, contest: "king" }, voter.token);
+      assert.equal(result.status, 503);
+      assert.equal(await Ballot.countDocuments(), 1);
+      assert.equal((await Ballot.findOne()).candidate.toString(), king._id);
+      assert.equal((await User.findById(voter.user.id)).hasVotedKing, true);
+    } finally { User.updateOne = originalUpdate; }
+  }
+});
+
+test("a successful key request repairs participation flags left by an interrupted process", async () => {
+  const voter = await register();
+  const king = await makeCandidate();
+  openVoting();
+  assert.equal((await vote(voter, king)).status, 201);
+  await User.updateOne({ _id: voter.user.id }, { hasVotedKing: false, hasVotedQueen: true });
+  const result = await request("POST", "/voting/my-votes", { votingKey: voter.votingKey }, voter.token);
+  assert.equal(result.status, 200);
+  const me = await request("GET", "/auth/me", undefined, voter.token);
+  assert.equal(me.data.data.user.hasVotedKing, true);
+  assert.equal(me.data.data.user.hasVotedQueen, false);
+});
+
+test("concurrent independent finalist inserts retain the same saved draw on standalone MongoDB", async () => {
+  for (let i = 0; i < 7; i++) await makeCandidate();
+  setTime("2026-11-03T09:00:00+06:30");
+  const { getOrCreateResults } = require("../utils/results");
+  const results = await Promise.all([0, 1, 2].map(() => getOrCreateResults({ now: clock.now() })));
+  const ids = (result) => result.kings.map((entry) => entry.candidate.toString());
+  assert.deepEqual(ids(results[0]), ids(results[1]));
+  assert.deepEqual(ids(results[0]), ids(results[2]));
+  assert.equal(await Results.countDocuments(), 1);
 });

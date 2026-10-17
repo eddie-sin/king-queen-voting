@@ -2,7 +2,7 @@ const Candidate = require("../model/candidatesModel");
 const AppError = require("../utils/appError");
 const catchAsync = require("../utils/catchAsync");
 const { uploadImage } = require("../utils/s3");
-const { withElectionTransaction } = require("../utils/election");
+const { withElectionOperation } = require("../utils/election");
 
 const editableFields = Object.keys(Candidate.schema.paths).filter((field) => !["_id", "__v"].includes(field));
 const candidateInput = async (req) => {
@@ -40,8 +40,10 @@ exports.getAdminCandidate = catchAsync(async (req, res) => {
 
 exports.createCandidate = catchAsync(async (req, res) => {
   const input = await candidateInput(req);
-  const candidate = await withElectionTransaction("candidate", async ({ session }) => {
-    const [created] = await Candidate.create([input], { session });
+  const candidate = await withElectionOperation("candidate", async ({ onRollback }) => {
+    const created = new Candidate(input);
+    onRollback(() => Candidate.deleteOne({ _id: created._id }));
+    await created.save();
     return created;
   });
   res.status(201).json({ status: "success", data: { candidate } });
@@ -49,20 +51,24 @@ exports.createCandidate = catchAsync(async (req, res) => {
 
 exports.updateCandidate = catchAsync(async (req, res) => {
   const input = await candidateInput(req);
-  const candidate = await withElectionTransaction("candidate", async ({ session }) => {
-    const existing = await Candidate.findById(req.params.id).select("+contactNumber").session(session);
+  const candidate = await withElectionOperation("candidate", async ({ onRollback }) => {
+    const existing = await Candidate.findById(req.params.id).select("+contactNumber");
     if (!existing) throw new AppError("No candidate found with that ID", 404);
+    const before = existing.toObject();
+    onRollback(() => Candidate.replaceOne({ _id: existing._id }, before, { upsert: true }));
     Object.assign(existing, input);
-    await existing.save({ session });
+    await existing.save();
     return existing;
   });
   res.status(200).json({ status: "success", data: { candidate } });
 });
 
 exports.deleteCandidate = catchAsync(async (req, res) => {
-  await withElectionTransaction("candidate", async ({ session }) => {
-    const candidate = await Candidate.findByIdAndDelete(req.params.id, { session });
+  await withElectionOperation("candidate", async ({ onRollback }) => {
+    const candidate = await Candidate.findById(req.params.id).select("+contactNumber").lean();
     if (!candidate) throw new AppError("No candidate found with that ID", 404);
+    onRollback(() => Candidate.replaceOne({ _id: candidate._id }, candidate, { upsert: true }));
+    await Candidate.deleteOne({ _id: candidate._id });
   });
   res.status(204).send();
 });
