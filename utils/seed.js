@@ -5,11 +5,12 @@ const Ballot = require("../model/ballotsModel");
 const User = require("../model/usersModel");
 const Credential = require("../model/voting_credentialsModel");
 const Results = require("../model/resultsModel");
+const Wish = require("../model/wishesModel");
 
 exports.seed = async () => {
   if (!process.env.JWT_SECRET) throw new Error("JWT_SECRET is required.");
   // Build the unique ballot index before accepting any requests.
-  await Promise.all([Admin.init(), Election.init(), Ballot.init(), User.init(), Credential.init(), Results.init()]);
+  await Promise.all([Admin.init(), Election.init(), Ballot.init(), User.init(), Credential.init(), Results.init(), Wish.init()]);
   if (!(await Admin.exists({}))) {
     const username = process.env.ADMIN_USERNAME?.trim();
     const password = process.env.ADMIN_PASSWORD;

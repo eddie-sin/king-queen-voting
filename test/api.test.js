@@ -26,6 +26,7 @@ const Candidate = require("../model/candidatesModel");
 const Ballot = require("../model/ballotsModel");
 const Credential = require("../model/voting_credentialsModel");
 const Results = require("../model/resultsModel");
+const Wish = require("../model/wishesModel");
 const clock = require("../utils/clock");
 const { seed } = require("../utils/seed");
 const { finalizeResultsIfDue } = require("../utils/results");
@@ -120,7 +121,7 @@ before(async () => {
 
 beforeEach(async () => {
   setTime("2026-10-20T09:00:00+06:30");
-  for (const Model of [User, Credential, Candidate, Ballot, Election, Results]) await Model.deleteMany({});
+  for (const Model of [User, Credential, Candidate, Ballot, Election, Results, Wish]) await Model.deleteMany({});
   await seed();
 });
 
@@ -611,4 +612,43 @@ test("email-only registration rejects missing, malformed, and short credentials"
   }
   assert.equal(await User.countDocuments(), 0);
   assert.equal(await Credential.countDocuments(), 0);
+});
+
+
+test("Wish Sky gates public viewing and authenticated writing to the Myanmar event date", async () => {
+  process.env.WISH_SKY_EVENT_DATE = "2026-10-28";
+  try {
+    const voter = await register();
+    assert.equal((await request("GET", "/wishes/status")).data.data.wishSky.isOpen, false);
+    assert.equal((await request("GET", "/wishes")).status, 403);
+    assert.equal((await request("POST", "/wishes", { message: "Hello" }, voter.token)).status, 403);
+    setTime("2026-10-28T00:00:00+06:30");
+    assert.equal((await request("POST", "/wishes", { message: "Hello" })).status, 401);
+    assert.equal((await request("POST", "/wishes", { message: "Hello" }, adminToken)).status, 403);
+    for (const body of [{}, { message: " " }, { message: 123 }, { message: "a".repeat(501) }, { message: "Hi", user: voter.user.id }]) {
+      assert.equal((await request("POST", "/wishes", body, voter.token)).status, 400);
+    }
+    const submissions = await Promise.all(Array.from({ length: 8 }, (_, i) => request("POST", "/wishes", { message: `Wish ${i}` }, voter.token)));
+    assert.equal(submissions.filter((result) => result.status === 201).length, 3);
+    assert.equal(submissions.filter((result) => result.status === 409).length, 5);
+    assert.equal(await Wish.countDocuments({ user: voter.user.id }), 3);
+    const other = await register();
+    assert.equal((await request("POST", "/wishes", { message: " Another wish " }, other.token)).status, 201);
+    const publicList = await request("GET", "/wishes");
+    assert.equal(publicList.status, 200);
+    assert.equal(publicList.data.results, 4);
+    assert(publicList.data.data.wishes.every((wish) => !wish.user && !wish.slot && !wish.email));
+    assert.equal((await request("GET", "/wishes?page=0")).status, 400);
+    await User.updateOne({ _id: other.user.id }, { status: "disabled" });
+    assert.equal((await request("POST", "/wishes", { message: "Blocked" }, other.token)).status, 403);
+    setTime("2026-10-28T23:59:59.999+06:30");
+    assert.equal((await request("GET", "/wishes")).status, 200);
+    setTime("2026-10-29T00:00:00+06:30");
+    assert.equal((await request("GET", "/wishes")).status, 403);
+    assert.equal((await request("POST", "/wishes", { message: "Late" }, voter.token)).status, 403);
+    process.env.WISH_SKY_EVENT_DATE = "2026-02-30";
+    assert.equal((await request("GET", "/wishes")).status, 503);
+    delete process.env.WISH_SKY_EVENT_DATE;
+    assert.equal((await request("GET", "/wishes")).status, 503);
+  } finally { delete process.env.WISH_SKY_EVENT_DATE; }
 });
