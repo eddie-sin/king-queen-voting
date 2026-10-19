@@ -9,3 +9,12 @@ yarn-error.log*
 .DS_Store
 .vscode/
 .idea/
+/Candidates/
+# Frontend build output
+frontend/dist/
+
+# Local frontend test previews
+frontend/test-artifacts/
+
+# Public fixture-mode flags shipped with the React handoff (no credentials)
+!frontend/.env.fixtures

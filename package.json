@@ -6,7 +6,8 @@
   "scripts": {
     "test": "node --test test/*.test.js",
     "dev": "cross-env NODE_ENV=development nodemon server.js",
-    "prod": "cross-env NODE_ENV=production node server.js"
+    "prod": "cross-env NODE_ENV=production node server.js",
+    "import:queens": "node scripts/importQueenCandidates.js"
   },
   "type": "commonjs",
   "license": "ISC",

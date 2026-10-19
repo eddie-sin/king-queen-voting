@@ -126,15 +126,3 @@ Unique database indexes still enforce one ballot per credential/contest and one 
 Run `npm test`. Node's built-in test runner starts an isolated temporary **standalone MongoDB** server and HTTP server, then removes the test database. A local `mongod` executable must be available; set `MONGOD_BINARY` if it is elsewhere. The tests never connect to the databases configured in `config.env`.
 
 Tests cover public/private access, seeding, password hashing, key ownership, anonymous storage, vote changes/removal, exact deadlines, disabled accounts, rollback, concurrent requests, the irreversible candidate lock, immutable settings, and saved tie-break results.
-
-## Wish Sky
-
-Set `WISH_SKY_EVENT_DATE=YYYY-MM-DD` in `config.env` and restart the server. The date is independent of the voting schedule. Viewing and writing open at 00:00 Myanmar time on that date and close at 00:00 the next day. An unset or invalid date keeps Wish Sky unavailable (503); other features continue working.
-
-| Method | Path | Access |
-| --- | --- | --- |
-| GET | `/api/v1/wishes/status` | Public availability, event date, timezone, and account limit; available outside the event date |
-| GET | `/api/v1/wishes?page=1` | Public wishes during the event date; newest first, 50 per page |
-| POST | `/api/v1/wishes` | Active user Bearer JWT required, during the event date |
-
-Create a wish with `{"message":"May everyone be happy!"}`. Messages are trimmed and must contain 1–500 characters. Each account may submit a maximum of three wishes total, including concurrent submissions. Changing the configured event date does not reset this lifetime limit. No editing or deletion endpoints are provided. Public responses contain only wish ID, message, and creation time; account details are not exposed. Render messages as plain text in the frontend.
