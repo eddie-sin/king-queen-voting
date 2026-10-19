@@ -8,7 +8,6 @@ const candidateSchema = new mongoose.Schema({
   },
   batchNumber: {
     type: String,
-    required: [true, "Candidate batch number is required"],
     trim: true,
   },
   nickname: {
@@ -47,7 +46,6 @@ const candidateSchema = new mongoose.Schema({
   },
   contactNumber: {
     type: String,
-    required: [true, "Viber phone number or contact number is required"],
     trim: true,
     select: false, // private: never expose in public API responses
   },

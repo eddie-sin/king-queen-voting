@@ -126,3 +126,7 @@ Unique database indexes still enforce one ballot per credential/contest and one 
 Run `npm test`. Node's built-in test runner starts an isolated temporary **standalone MongoDB** server and HTTP server, then removes the test database. A local `mongod` executable must be available; set `MONGOD_BINARY` if it is elsewhere. The tests never connect to the databases configured in `config.env`.
 
 Tests cover public/private access, seeding, password hashing, key ownership, anonymous storage, vote changes/removal, exact deadlines, disabled accounts, rollback, concurrent requests, the irreversible candidate lock, immutable settings, and saved tie-break results.
+
+## React voting page
+
+The local React frontend lives in [`frontend/`](frontend/README.md). It uses the supplied React design from `thadingyut-react-source-matched.zip` and the existing public/auth/voting APIs. See its README for startup commands, test data preparation, and a manual voting checklist. No deployment or push is performed by the frontend scripts.

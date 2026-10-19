@@ -1,0 +1,57 @@
+/* Adapted from original Netlify sky-rise, cloud-drift and firefly-drift animations.
+   Completely decorative; intentionally outside the API / voting workflow. */
+.source-app .festival-atmosphere {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  overflow: hidden; contain: paint;
+}
+.source-app .festival-atmosphere .atmosphere-floating-light {
+  position: absolute; left: var(--x); bottom: -105px;
+  width: var(--size); height: calc(var(--size) * 1.45);
+  opacity: 0; will-change: transform, opacity;
+  animation: festival-light-rise var(--rise-duration) var(--rise-delay) linear infinite;
+}
+.source-app .festival-atmosphere .lantern {
+  left: 0 !important; top: 0 !important; width: var(--size);
+  animation: festival-lantern-breathe 7s ease-in-out infinite;
+  transform-origin: 50% 85%; filter: drop-shadow(0 0 12px #ed994a77);
+}
+.source-app .atmosphere-cloud {
+  position: absolute; width: min(70vw, 900px); height: 150px;
+  border-radius: 50%; filter: blur(38px); opacity: .18;
+  background: radial-gradient(ellipse, #5a82af, transparent 65%);
+  animation: festival-cloud-drift 34s ease-in-out infinite;
+}
+.source-app .atmosphere-cloud-one { top: 16%; left: -20%; }
+.source-app .atmosphere-cloud-two { top: 51%; right: -20%; animation-delay: -17s; }
+.source-app .atmosphere-firefly {
+  position: absolute; width: 3px; height: 3px; border-radius: 50%;
+  background: #ffe4a8; box-shadow: 0 0 10px #ffca72;
+  animation: festival-firefly-drift 9s ease-in-out infinite;
+}
+@keyframes festival-light-rise {
+  0% { transform: translate3d(0, 0, 0); opacity: 0; }
+  13%, 80% { opacity: var(--light-opacity); }
+  100% { transform: translate3d(var(--drift), calc(-100vh - 200px), 0); opacity: 0; }
+}
+@keyframes festival-lantern-breathe {
+  0%, 100% { transform: rotate(-4deg) translateX(-2px); }
+  50% { transform: rotate(4deg) translateX(5px); }
+}
+@keyframes festival-cloud-drift { 50% { transform: translate(20%, -25px); } }
+@keyframes festival-firefly-drift {
+  0%,100% { transform: translate(0,0); opacity: .1; }
+  50% { transform: translate(20px,-35px); opacity: .85; }
+}
+/* The atmosphere stays behind the page and cannot block any controls. */
+.source-app > .site-header, .source-app > main, .source-app > .site-footer,
+.source-app > .motion-button { position: relative; z-index: 1; }
+.source-app.motion-paused .festival-atmosphere *,
+.source-app.motion-paused .festival-atmosphere { animation-play-state: paused !important; }
+@media (max-width: 580px) {
+  .source-app .festival-atmosphere .atmosphere-floating-light:nth-of-type(n+11) { display: none; }
+  .source-app .atmosphere-cloud { filter: blur(28px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .source-app .festival-atmosphere * { animation: none !important; }
+  .source-app .festival-atmosphere .atmosphere-floating-light { display: none; }
+}
