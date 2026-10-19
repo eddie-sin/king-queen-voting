@@ -130,3 +130,47 @@ Tests cover public/private access, seeding, password hashing, key ownership, ano
 ## React voting page
 
 The local React frontend lives in [`frontend/`](frontend/README.md). It uses the supplied React design from `thadingyut-react-source-matched.zip` and the existing public/auth/voting APIs. See its README for startup commands, test data preparation, and a manual voting checklist. No deployment or push is performed by the frontend scripts.
+
+
+# Separate Thadingyut admin frontend
+
+This add-on folder `admin-frontend/` is a standalone React + Vite administration application. **Do not replace the existing `frontend/`**; the public voter site stays unchanged. Place `admin-frontend/` beside `frontend/` and `app.js` at the root of `king-queen-voting`.
+
+## Setup
+
+1. Run the existing backend as usual from the repo root (`npm ci`, configure ignored `config.env`, start MongoDB, `npm run dev`). Initial admin credentials are created by your existing backend using the `ADMIN_USERNAME` and `ADMIN_PASSWORD` config on first startup. Do not put those credentials in frontend code.
+2. Open a new terminal, run `cd admin-frontend && npm install && npm run dev`.
+3. Open the Vite URL (normally `http://127.0.0.1:5174`) and sign in using **admin username** and **admin password**. This app has no public registration and uses no voter login.
+4. Run `npm run build` in `admin-frontend/` to produce `dist/` for deployment.
+
+The development Vite proxy forwards `/api` and `/uploads` to the backend, using `PORT` from `../config.env` (default 5000) or `VOTING_API_TARGET`. The admin app stores the admin JWT **in React state only**, not localStorage/sessionStorage. Refreshing the page logs you out.
+
+## Production deployment
+
+Serve `admin-frontend/dist/` at an admin-only hostname, e.g. `admin.example.com`, and the existing voter frontend at the public hostname. **Do not put an admin link on the public site.** Both sites may share the same Express API via a reverse proxy:
+
+- `https://admin.example.com/api/v1/...` → `https://api.example.com/api/v1/...`
+- `https://admin.example.com/uploads/...` → API `/uploads/...` (development only; production uses S3 URLs)
+
+Alternatively set `VITE_API_BASE_URL=https://api.example.com` at **build time**, then explicitly configure an allowlisted CORS policy on the Express server (the current backend does **not** include CORS middleware). The easiest safe deployment is a same-origin `/api` reverse proxy to avoid CORS. Do not enable permissive credentialed CORS.
+
+For a private login *page* (not just protected API) configure a hosting access policy such as Cloudflare Access with your team members' identities. `noindex` is only a crawler directive, **not security**. The existing backend admin-JWT authorization is still required.
+
+Use HTTPS, and avoid caching authenticated API responses. Do not deploy the dev server itself.
+
+## Supported features
+
+- Admin sign-in through `POST /api/v1/auth/admin/login`.
+- Candidate list through `GET /api/v1/admin/candidates` (includes inactive candidates and their admin-only contact numbers).
+- Add via `POST /api/v1/candidates`; edit/activate/deactivate via `PATCH /api/v1/candidates/:id`; delete via `DELETE /api/v1/candidates/:id`.
+- Search and King/Queen filters, details/preview, confirmation dialogs, status messages, schedule lock via `GET /api/v1/admin/settings`.
+- JSON image URL editing **or** 1–3 JPG/PNG/WebP uploads, max 5 MB each. Uploading new images **replaces the entire photo array** according to the current backend controller. Images require at least one photo.
+- The backend permanently locks all candidate mutations after voting begins. This app disables those controls but cannot bypass the server-side lock. Schedule is shown read-only; no schedule editing is provided.
+
+### Current backend API contract caveat
+
+The controller handles multipart photo uploads with field name `images`. For the optional `hobbiesAndInterests` array the admin app submits repeated fields when present; Multer produces strings/arrays accordingly and Mongoose casts a string to an array. No backend changes are needed for the tested JSON path. If you need to mix **existing photo URLs with uploaded files in one save**, extend the backend contract first; the current controller does not support that combination.
+
+### Production privacy and access
+
+The admin application is deliberately separate and does not expose the admin login through the voter app. Admin credentials are never embedded in source. Never commit `config.env`, `uploads/`, or other sensitive candidate records. The backend remains the security authority; an access gate at the admin subdomain can additionally restrict visibility of the login page.
