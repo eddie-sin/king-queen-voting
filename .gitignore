@@ -1,5 +1,6 @@
 node_modules/
 /uploads/
+/.memory-photo-private/
 config.env
 .env
 .env.*

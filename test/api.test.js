@@ -17,6 +17,11 @@ process.env.ADMIN_PASSWORD = crypto.randomBytes(20).toString("hex");
 process.env.AWS_REGION = "ap-southeast-1";
 const testUploadDirectory = require("node:fs").mkdtempSync(path.join(os.tmpdir(), "king-queen-api-uploads-"));
 process.env.LOCAL_UPLOAD_DIR = testUploadDirectory;
+const memoryPhotoDirectory = require("node:fs").mkdtempSync(path.join(os.tmpdir(), "king-queen-memory-photos-"));
+process.env.MEMORY_PHOTO_STORAGE_DRIVER = "local";
+process.env.MEMORY_PHOTO_LOCAL_STORAGE_DIR = memoryPhotoDirectory;
+process.env.MEMORY_PHOTO_LOCAL_SIGNING_SECRET = "l".repeat(32);
+process.env.MEMORY_PHOTO_UPLOAD_FINGERPRINT_SECRET = "f".repeat(32);
 
 const app = require("../app");
 const User = require("../model/usersModel");
@@ -26,6 +31,10 @@ const Candidate = require("../model/candidatesModel");
 const Ballot = require("../model/ballotsModel");
 const Credential = require("../model/voting_credentialsModel");
 const Results = require("../model/resultsModel");
+const MemoryPhoto = require("../model/memoryPhotosModel");
+const MemoryPhotoLike = require("../model/memoryPhotoLikesModel");
+const MemoryPhotoSettings = require("../model/memoryPhotoSettingsModel");
+const MemoryPhotoStorageObject = require("../model/memoryPhotoStorageObjectsModel");
 const clock = require("../utils/clock");
 const { seed } = require("../utils/seed");
 const { finalizeResultsIfDue } = require("../utils/results");
@@ -60,6 +69,13 @@ const request = async (method, endpoint, body, token) => {
   });
   const data = response.status === 204 ? null : await response.json();
   return { status: response.status, data, headers: response.headers };
+};
+
+const uploadMemoryPhoto = async (token, buffer, name = "photo.png") => {
+  const form = new FormData();
+  form.append("photo", new Blob([buffer], { type: "image/png" }), name);
+  const response = await fetch(`${base}/api/v1/memory-photos`, { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: form });
+  return { status: response.status, data: await response.json() };
 };
 
 const register = async (email = `${crypto.randomUUID()}@example.com`) => {
@@ -120,7 +136,7 @@ before(async () => {
 
 beforeEach(async () => {
   setTime("2026-10-20T09:00:00+06:30");
-  for (const Model of [User, Credential, Candidate, Ballot, Election, Results]) await Model.deleteMany({});
+  for (const Model of [User, Credential, Candidate, Ballot, Election, Results, MemoryPhoto, MemoryPhotoLike, MemoryPhotoSettings, MemoryPhotoStorageObject]) await Model.deleteMany({});
   await seed();
 });
 
@@ -131,6 +147,7 @@ after(async () => {
   if (mongo && mongo.exitCode === null) { mongo.kill("SIGTERM"); await mongoExit; }
   if (databasePath) await fs.rm(databasePath, { recursive: true, force: true });
   await fs.rm(testUploadDirectory, { recursive: true, force: true });
+  await fs.rm(memoryPhotoDirectory, { recursive: true, force: true });
 });
 
 test("startup seeds fixed Myanmar dates and a hashed admin without overwriting changes", async () => {
@@ -611,4 +628,111 @@ test("email-only registration rejects missing, malformed, and short credentials"
   }
   assert.equal(await User.countDocuments(), 0);
   assert.equal(await Credential.countDocuments(), 0);
+});
+
+test("Memory Photo MVP enforces windows, quota, moderation, private reads, gallery, and likes", async () => {
+  const sharp = require("sharp");
+  const owner = await register();
+  const voter = await register();
+  const png = await sharp({ create: { width: 12, height: 10, channels: 3, background: "gold" } }).png().toBuffer();
+
+  assert.equal((await request("GET", "/memory-photos/me")).status, 401);
+  const emptySlots = await request("GET", "/memory-photos/me", undefined, owner.token);
+  assert.deepEqual(emptySlots.data.data.photos, [
+    { slot: 1, status: "empty" }, { slot: 2, status: "empty" }, { slot: 3, status: "empty" },
+  ]);
+  assert.equal((await uploadMemoryPhoto(owner.token, png)).status, 403);
+
+  const configured = await request("PATCH", "/admin/memory-photos/settings", {
+    enabled: true,
+    opensAt: "2026-10-20T08:00:00+06:30",
+    uploadsCloseAt: "2026-10-20T10:00:00+06:30",
+    likesCloseAt: "2026-10-20T11:00:00+06:30",
+    galleryClosesAt: "2026-10-20T12:00:00+06:30",
+  }, adminToken);
+  assert.equal(configured.status, 200, JSON.stringify(configured.data));
+
+  const first = await uploadMemoryPhoto(owner.token, png, "one.png");
+  const second = await uploadMemoryPhoto(owner.token, png, "two.png");
+  const third = await uploadMemoryPhoto(owner.token, png, "three.png");
+  assert.deepEqual([first.status, second.status, third.status], [201, 201, 201]);
+  assert.equal((await uploadMemoryPhoto(owner.token, png, "four.png")).status, 409);
+
+  const mine = await request("GET", "/memory-photos/me", undefined, owner.token);
+  assert.equal(mine.status, 200);
+  assert.deepEqual(mine.data.data.photos.map((photo) => photo.slot), [1, 2, 3]);
+  assert(mine.data.data.photos.every((photo) => photo.status === "pending" && !photo.storageKey));
+
+  assert.equal((await request("GET", "/admin/memory-photos/pending", undefined, owner.token)).status, 403);
+  const pending = await request("GET", "/admin/memory-photos/pending", undefined, adminToken);
+  assert.equal(pending.status, 200);
+  assert.equal(pending.data.results, 3);
+
+  const firstId = first.data.data.photo.id;
+  const secondId = second.data.data.photo.id;
+  assert.equal((await request("POST", `/memory-photos/${firstId}/access`, {}, voter.token)).status, 404);
+  assert.equal((await request("POST", `/memory-photos/gallery/${firstId}/access`, {})).status, 404);
+  assert.equal((await request("GET", "/memory-photos/gallery")).data.data.photos.length, 0);
+  const adminGrant = await request("POST", `/admin/memory-photos/${firstId}/access`, {}, adminToken);
+  assert.equal(adminGrant.status, 200);
+  const adminImage = await fetch(`${base}${adminGrant.data.data.access.url}`);
+  assert.equal(adminImage.status, 200);
+  assert.equal(adminImage.headers.get("content-type"), "image/webp");
+  assert.equal((await request("PATCH", `/admin/memory-photos/${firstId}/review`, { status: "rejected" }, adminToken)).status, 400);
+  assert.equal((await request("PATCH", `/admin/memory-photos/${firstId}/review`, { status: "rejected", rejectionReason: "Too dark" }, adminToken)).status, 200);
+  assert.equal((await request("POST", `/memory-photos/${firstId}/access`, {}, voter.token)).status, 404);
+  assert.equal((await request("PATCH", `/admin/memory-photos/${secondId}/review`, { status: "approved" }, owner.token)).status, 403);
+  assert.equal((await request("PATCH", `/admin/memory-photos/${secondId}/review`, { status: "approved" }, adminToken)).status, 200);
+  assert.equal((await request("PATCH", `/admin/memory-photos/${third.data.data.photo.id}/review`, { status: "approved" }, adminToken)).status, 200);
+
+  const ownerView = await request("GET", "/memory-photos/me", undefined, owner.token);
+  const rejected = ownerView.data.data.photos.find((photo) => photo.id === firstId);
+  assert.equal(rejected.rejectionReason, "Too dark");
+  const ownerGrant = await request("POST", `/memory-photos/${firstId}/access`, {}, owner.token);
+  assert.equal(ownerGrant.status, 200);
+  const ownerImage = await fetch(`${base}${ownerGrant.data.data.access.url}`);
+  assert.equal(ownerImage.status, 200);
+  assert.equal(ownerImage.headers.get("content-type"), "image/webp");
+
+  const gallery = await request("GET", "/memory-photos/gallery?limit=1");
+  assert.equal(gallery.status, 200);
+  assert.equal(gallery.data.data.photos.length, 1);
+  assert(gallery.data.data.nextCursor);
+  assert.equal(gallery.data.data.photos[0].likeCount, 0);
+  assert.equal(JSON.stringify(gallery.data).includes("storageKey"), false);
+  const galleryNext = await request("GET", `/memory-photos/gallery?limit=1&after=${gallery.data.data.nextCursor}`);
+  assert.equal(galleryNext.data.data.photos.length, 1);
+  assert.notEqual(galleryNext.data.data.photos[0].id, gallery.data.data.photos[0].id);
+
+  const publicGrant = await request("POST", `/memory-photos/gallery/${secondId}/access`, {});
+  assert.equal(publicGrant.status, 200);
+  assert.equal((await request("POST", `/memory-photos/gallery/${firstId}/access`, {})).status, 404);
+
+  const liked = await request("POST", `/memory-photos/${secondId}/likes`, {}, voter.token);
+  const duplicate = await request("POST", `/memory-photos/${secondId}/likes`, {}, voter.token);
+  assert.equal(liked.status, 200);
+  assert.equal(duplicate.data.data.likeCount, 1);
+  assert.equal((await request("DELETE", `/memory-photos/${secondId}/likes`, undefined, voter.token)).data.data.likeCount, 0);
+
+  setTime("2026-10-20T12:00:00+06:30");
+  assert.equal((await request("GET", "/memory-photos/gallery")).status, 403);
+  assert.equal((await request("POST", `/memory-photos/${secondId}/likes`, {}, voter.token)).status, 403);
+  assert.equal((await uploadMemoryPhoto(voter.token, png)).status, 403);
+});
+
+test("Memory Photo rejected slots can be replaced while approved slots remain occupied", async () => {
+  const sharp = require("sharp");
+  const owner = await register();
+  const png = await sharp({ create: { width: 8, height: 8, channels: 3, background: "navy" } }).png().toBuffer();
+  await request("PATCH", "/admin/memory-photos/settings", { enabled: true, opensAt: "2026-10-20T08:00:00+06:30", uploadsCloseAt: "2026-10-20T10:00:00+06:30" }, adminToken);
+  const uploads = [];
+  for (let index = 0; index < 3; index += 1) uploads.push(await uploadMemoryPhoto(owner.token, png, `${index}.png`));
+  await request("PATCH", `/admin/memory-photos/${uploads[0].data.data.photo.id}/review`, { status: "rejected", rejectionReason: "Try again" }, adminToken);
+  await request("PATCH", `/admin/memory-photos/${uploads[1].data.data.photo.id}/review`, { status: "approved" }, adminToken);
+
+  const replacement = await uploadMemoryPhoto(owner.token, png, "replacement.png");
+  assert.equal(replacement.status, 201);
+  assert.equal(replacement.data.data.photo.slot, 1);
+  assert.equal(replacement.data.data.photo.status, "pending");
+  assert.equal((await uploadMemoryPhoto(owner.token, png, "over-limit.png")).status, 409);
 });

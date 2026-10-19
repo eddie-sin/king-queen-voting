@@ -34,6 +34,7 @@ app.use("/api/v1/auth", authRouter);
 
 app.use("/api/v1/candidates", candidatesRouter);
 app.use("/api/v1/images", imagesRouter);
+app.use("/api/v1/memory-photos", require("./route/memoryPhotoRoutes"));
 app.use("/api/v1/admin", require("./route/adminRoutes"));
 app.get("/api/v1/settings", require("./controller/settingsController").getSettings);
 app.get("/api/v1/results", require("./controller/resultsController").getResults);

@@ -1,5 +1,7 @@
 # King and Queen Voting API
 
+Memory Photo backend integration is documented in [`docs/memory-photo-api.md`](docs/memory-photo-api.md).
+
 Express/Mongoose backend. Candidate information and released finalist results are public. Voting requires a registered, active account, a Bearer JWT, and that account's voting key. This repository does not contain a frontend.
 
 ## Setup
@@ -23,6 +25,16 @@ Production replaces `<db_password>` in `DATABASE` with the URL-encoded `DATABASE
 Development image URLs start with `/uploads/` and the API serves these files publicly without login. If the frontend and API have different origins, resolve these paths against the API origin. Local uploads are never served by the production API. `LOCAL_UPLOAD_DIR` can optionally override the directory used for development files.
 
 Production uses `AWS_REGION`, `AWS_S3_BUCKET`, and the AWS SDK credential configuration (including `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` from `config.env`). Uploads return S3 public image URLs, or URLs under `AWS_S3_PUBLIC_URL` when you configure a CDN. The bucket/CDN must permit public image viewing. Production does not fall back to local files when S3 configuration is missing.
+
+### Memory Photo private storage
+
+Memory Photo uses an independent private-storage configuration and never falls back to the public candidate/gallery bucket. Production requires a separate private S3 bucket with all Block Public Access settings enabled, `BucketOwnerEnforced` object ownership, and SSE-S3. The application role is limited to the fixed `memory-photos/v1/` prefix. Memory Photo records store opaque object keys; display access uses five-minute presigned GET URLs after application authorization.
+
+Local Memory Photo files use `MEMORY_PHOTO_LOCAL_STORAGE_DIR`, which must be outside `uploads/` and is never mounted with `express.static`. Local read access uses short-lived signed grants. The local signing and upload-fingerprint secrets must be at least 32 characters and must never be committed.
+
+Choose a dedicated directory outside the repository for custom local storage. Configuration rejects the effective `LOCAL_UPLOAD_DIR`, frontend public directories, overlapping roots, and existing symlink/junction aliases. If a repository-local custom directory is unavoidable, add that exact directory to the developer's local Git exclude before storing files; only the default `/.memory-photo-private/` path is covered by this repository's `.gitignore`.
+
+Memory Photo API routes are documented in [`docs/memory-photo-api.md`](docs/memory-photo-api.md). No AWS resources are created by the application. Orphan inspection is explicit, manual, and dry-run-only with an initial 48-hour grace period. It never deletes objects, and current, historical, active-reservation, and uncertain objects remain protected. Post-event photo and account retention remains undecided.
 
 On startup, the app builds required unique indexes and seeds the schedule and first admin automatically. `ADMIN_USERNAME` and an `ADMIN_PASSWORD` of at least eight characters are required when no admin exists. Passwords are bcrypt hashes. Subsequent startups preserve the admin password, edited dates, candidate lock, and saved finalists; changing environment variables does not reset an existing admin.
 
