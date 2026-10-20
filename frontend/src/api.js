@@ -1,4 +1,4 @@
-import { publicCandidate } from './domain.js';
+import { publicCandidate, publicLantern } from './domain.js';
 
 export class ApiError extends Error {
   constructor(message, { status = 0, interrupted = false } = {}) {
@@ -41,6 +41,11 @@ export function createApi({ baseUrl = '/api/v1', fetchImpl = (...args) => fetch(
       const { data } = await request('/candidates', options);
       if (!Array.isArray(data?.candidates)) throw new ApiError('Candidate data is unavailable.');
       return data.candidates.map(publicCandidate).filter(c => c?._id && c.category && c.isActive);
+    },
+    async lanterns(options) {
+      const { data } = await request('/images?section=lantern', options);
+      if (!Array.isArray(data?.images)) throw new ApiError('Lantern gallery data is unavailable.');
+      return data.images.map(publicLantern).filter(Boolean);
     },
     async settings(options) { return (await request('/settings', options)).data?.schedule ?? null; },
     async register(email, password) { return (await request('/auth/register', { method: 'POST', body: { email, password } })).data; },

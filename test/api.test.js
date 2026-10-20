@@ -27,6 +27,7 @@ const Ballot = require("../model/ballotsModel");
 const Credential = require("../model/voting_credentialsModel");
 const Results = require("../model/resultsModel");
 const Wish = require("../model/wishesModel");
+const Image = require("../model/imagesModel");
 const clock = require("../utils/clock");
 const { seed } = require("../utils/seed");
 const { finalizeResultsIfDue } = require("../utils/results");
@@ -121,7 +122,7 @@ before(async () => {
 
 beforeEach(async () => {
   setTime("2026-10-20T09:00:00+06:30");
-  for (const Model of [User, Credential, Candidate, Ballot, Election, Results, Wish]) await Model.deleteMany({});
+  for (const Model of [User, Credential, Candidate, Ballot, Election, Results, Wish, Image]) await Model.deleteMany({});
   await seed();
 });
 
@@ -598,6 +599,84 @@ test("candidate and gallery uploads save locally and are publicly served without
   assert.equal((await fetch(`${base}/api/v1/images`, {
     method: "POST", headers: { Authorization: `Bearer ${adminToken}` }, body: invalidForm,
   })).status, 400);
+});
+
+test("admin creates one titled lantern and public visitors receive its matching information", async () => {
+  const bytes = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a6T8AAAAASUVORK5CYII=", "base64");
+  const form = new FormData();
+  form.append("section", "lantern");
+  form.append("title", "  Golden Moon Lantern  ");
+  form.append("description", "  Handmade with bamboo and gold paper.  ");
+  form.append("images", new Blob([bytes], { type: "image/png" }), "lantern.png");
+  const createdResponse = await fetch(`${base}/api/v1/images`, { method: "POST", headers: { Authorization: `Bearer ${adminToken}` }, body: form });
+  assert.equal(createdResponse.status, 201);
+  const created = (await createdResponse.json()).data.images;
+  assert.equal(created.length, 1);
+  assert.equal(created[0].title, "Golden Moon Lantern");
+  assert.equal(created[0].description, "Handmade with bamboo and gold paper.");
+  assert.match(created[0].url, /^\/uploads\/gallery\/lantern\/[a-f0-9-]+\.png$/);
+
+  const publicResponse = await request("GET", "/images?section=lantern");
+  assert.equal(publicResponse.status, 200);
+  assert.equal(publicResponse.data.results, 1);
+  assert.deepEqual(publicResponse.data.data.images.map(({ title, description, url }) => ({ title, description, url })), [{
+    title: "Golden Moon Lantern", description: "Handmade with bamboo and gold paper.", url: created[0].url,
+  }]);
+  assert.equal((await fetch(`${base}${created[0].url}`)).status, 200);
+});
+
+test("lantern writes require admins, one image, and valid correctly associated metadata", async () => {
+  const user = await register();
+  const bytes = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a6T8AAAAASUVORK5CYII=", "base64");
+  const upload = async ({ token, title = "Lantern", description = "Details", files = 1 } = {}) => {
+    const form = new FormData(); form.append("section", "lantern"); form.append("title", title); form.append("description", description);
+    for (let index = 0; index < files; index += 1) form.append("images", new Blob([bytes], { type: "image/png" }), `${index}.png`);
+    return fetch(`${base}/api/v1/images`, { method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : {}, body: form });
+  };
+  assert.equal((await upload()).status, 401);
+  assert.equal((await upload({ token: user.token })).status, 403);
+  for (const invalid of [
+    { token: adminToken, title: "   " }, { token: adminToken, title: "x".repeat(121) },
+    { token: adminToken, description: "x".repeat(1001) }, { token: adminToken, files: 2 },
+  ]) assert.equal((await upload(invalid)).status, 400);
+  assert.equal(await Image.countDocuments(), 0);
+
+  const first = await upload({ token: adminToken, title: "First", description: "First details" });
+  const second = await upload({ token: adminToken, title: "Second", description: "Second details" });
+  assert.equal(first.status, 201); assert.equal(second.status, 201);
+  const listed = (await request("GET", "/images?section=lantern")).data.data.images;
+  assert.deepEqual(new Map(listed.map(image => [image.title, image.description])), new Map([["First", "First details"], ["Second", "Second details"]]));
+});
+
+test("only admins edit or delete lantern metadata while legacy galleries remain compatible", async () => {
+  const user = await register();
+  const legacyLantern = await Image.collection.insertOne({ section: "lantern", url: "/uploads/gallery/lantern/legacy.png", caption: "Legacy", createdAt: new Date() });
+  const memory = await Image.create({ section: "memory", url: "/uploads/gallery/memory/old.png", caption: "Old memory" });
+  const publicLegacy = await request("GET", "/images?section=lantern");
+  assert.equal(publicLegacy.status, 200);
+  assert.equal(publicLegacy.data.data.images[0].title, undefined);
+
+  const id = legacyLantern.insertedId.toString();
+  assert.equal((await request("PATCH", `/images/${id}`, { title: "Lit Legacy" })).status, 401);
+  assert.equal((await request("PATCH", `/images/${id}`, { title: "Lit Legacy" }, user.token)).status, 403);
+  assert.equal((await request("DELETE", `/images/${id}`, undefined, user.token)).status, 403);
+  assert.equal((await request("PATCH", `/images/${memory._id}`, { title: "Not allowed" }, adminToken)).status, 400);
+  assert.equal((await request("PATCH", `/images/${id}`, { section: "memory", title: "Not allowed" }, adminToken)).status, 400);
+  assert.equal((await request("PATCH", `/images/${id}`, { title: "   " }, adminToken)).status, 400);
+  assert.equal((await request("PATCH", `/images/${id}`, { title: "Valid", description: 7 }, adminToken)).status, 400);
+
+  const edited = await request("PATCH", `/images/${id}`, { title: "  Lit Legacy  ", description: "  Restored for the festival.  " }, adminToken);
+  assert.equal(edited.status, 200);
+  assert.equal(edited.data.data.image.title, "Lit Legacy");
+  assert.equal(edited.data.data.image.description, "Restored for the festival.");
+  assert.equal(edited.data.data.image.url, "/uploads/gallery/lantern/legacy.png");
+  assert.equal((await request("DELETE", `/images/${id}`)).status, 401);
+  assert.equal((await request("DELETE", `/images/${id}`, undefined, adminToken)).status, 204);
+  assert.equal(await Image.exists({ _id: id }), null);
+
+  const oldGallery = await request("GET", "/images?section=memory");
+  assert.equal(oldGallery.status, 200);
+  assert.equal(oldGallery.data.data.images[0].caption, "Old memory");
 });
 
 

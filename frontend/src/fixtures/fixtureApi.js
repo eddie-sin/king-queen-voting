@@ -37,6 +37,7 @@ export function createFixtureApi({ scenario = 'open', delayMs = 300 } = {}) {
   };
   return {
     async candidates() { await wait(); if (scenario === 'error') fail('Sample candidate service is unavailable.', 503); return scenario === 'empty' ? [] : candidates; },
+    async lanterns() { await wait(); return []; },
     async settings() { await wait(); if (scenario === 'schedule-error') fail('Sample schedule service is unavailable.', 503); return schedule; },
     async register(email, password) {
       await wait(); if (scheduleState(schedule).registration !== 'open') fail('Registration is closed.', 403);

@@ -10,6 +10,8 @@ router
   .get(imagesController.getImages)
   .post(admin, galleryImages, imagesController.createImages);
 
-router.route("/:id").delete(admin, imagesController.deleteImage);
+router.route("/:id")
+  .patch(admin, imagesController.updateLantern)
+  .delete(admin, imagesController.deleteImage);
 
 module.exports = router;

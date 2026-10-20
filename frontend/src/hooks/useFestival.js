@@ -6,6 +6,9 @@ export function useFestival(api) {
   const [candidates, setCandidates] = useState([]);
   const [candidateState, setCandidateState] = useState('loading');
   const [candidateError, setCandidateError] = useState('');
+  const [lanterns, setLanterns] = useState([]);
+  const [lanternState, setLanternState] = useState('loading');
+  const [lanternError, setLanternError] = useState('');
   const [schedule, setSchedule] = useState(null);
   const [scheduleError, setScheduleError] = useState('');
   const [checkedAt, setCheckedAt] = useState(0);
@@ -47,7 +50,12 @@ export function useFestival(api) {
       checkedAtRef.current = 0; setCheckedAt(0); setScheduleError(e.message); return null;
     }
   }, [api]);
-  useEffect(() => { loadCandidates(); loadSchedule(); }, [loadCandidates, loadSchedule]);
+  const loadLanterns = useCallback(async () => {
+    setLanternState('loading'); setLanternError('');
+    try { setLanterns(await api.lanterns()); setLanternState('ready'); }
+    catch (e) { setLanternState('error'); setLanternError(e.message); }
+  }, [api]);
+  useEffect(() => { loadCandidates(); loadSchedule(); loadLanterns(); }, [loadCandidates, loadSchedule, loadLanterns]);
   useEffect(() => {
     const clock = setInterval(() => setNow(Date.now()), 1000);
     const poll = setInterval(loadSchedule, 30000);
@@ -189,7 +197,8 @@ export function useFestival(api) {
     } finally { lock.current = false; setBusy(false); }
   }
 
-  return { candidates, candidateState, candidateError, reloadCandidates: loadCandidates, schedule, scheduleError,
+  return { candidates, candidateState, candidateError, reloadCandidates: loadCandidates,
+    lanterns, lanternState, lanternError, reloadLanterns: loadLanterns, schedule, scheduleError,
     status, reloadSchedule: loadSchedule, session, choices: status.voting === 'open' ? choices : EMPTY,
     choiceState, busy, notice, dismissNotice: () => setNotice(null), celebration,
     login, register, signOut, unlock, refreshChoices, mutate, lockChoices, verifyAccount };
