@@ -11,6 +11,36 @@ export function ScheduleBanner({ status, schedule, error, onRetry }) {
     {status === 'unknown' && <button className="btn secondary" onClick={onRetry}>Refresh schedule</button>}
   </div>;
 }
+export function ChoicesPage({ status, session, choices, choiceState, busy, onLogin, onUnlock, onRefresh, onChange, onRemove, onBrowse, onRetrySchedule }) {
+  const open = status === 'open';
+  const ready = open && choiceState === 'ready';
+  const closed = status === 'closed';
+  let gate = null;
+  if (status === 'unknown') gate = <><p>The event schedule is unavailable right now. Refresh it to check your choices.</p><button className="btn secondary" onClick={onRetrySchedule}>Refresh schedule</button></>;
+  else if (status === 'upcoming') gate = <p>Voting has not started yet. Your choices will appear here once voting opens.</p>;
+  else if (!session) gate = <><p>Sign in to see your {closed ? 'participation' : 'saved King and Queen choices'}.</p><button className="btn primary" onClick={onLogin}>Sign in to view</button></>;
+  else if (open && choiceState === 'locked') gate = <><p>Enter your private voting key to see the choices saved to this account.</p><button className="btn primary" onClick={onUnlock} disabled={busy}>Enter voting key</button></>;
+  else if (open && choiceState === 'loading') gate = <p role="status">Checking your saved choices…</p>;
+  else if (open && choiceState === 'uncertain') gate = <><p>We could not verify your saved choices. Refresh them before making a change.</p><button className="btn secondary" onClick={onRefresh} disabled={busy}>Refresh saved choices</button></>;
+  return <section className="source-section choices-panel" id="choices" aria-label="My choices">
+    {gate ? <div className="choice-gate"><Crown/><div><h2>{closed ? 'Your participation' : 'Your choices are private'}</h2>{gate}</div></div> : <>
+      {ready && <div className="choice-toolbar"><div><span className="eyebrow">SAVED TO YOUR ACCOUNT</span><p>Your choices are unlocked for this session.</p></div><button className="text-button" onClick={onRefresh} disabled={busy}>Refresh saved choices</button></div>}
+      {closed && <p className="choice-privacy-note">Voting has closed. Candidate names are private now; your account shows whether you voted in each category.</p>}
+      <div className="choice-grid">{['king', 'queen'].map(contest => {
+        const candidate = ready ? choices[contest] : null;
+        const participated = closed && session?.user?.[contest === 'king' ? 'hasVotedKing' : 'hasVotedQueen'];
+        return <article className={`choice-slot ${candidate || participated ? 'has-choice' : ''}`} key={contest}>
+          <div className="choice-portrait">{candidate?.images?.[0] ? <img src={candidate.images[0]} alt=""/> : <Crown/>}</div>
+          <div className="choice-details"><span className="eyebrow">YOUR {contest.toUpperCase()} CHOICE</span><h3>{closed ? participated ? 'Private choice' : 'No vote recorded' : candidate ? candidate.fullName : 'No choice yet'}</h3>
+            <p>{closed ? participated ? 'A vote is recorded for this contest.' : 'No vote was recorded for this contest.' : candidate ? 'Your vote is saved. You can change or remove it while voting is open.' : `Explore the ${titleCase(contest)} candidates to make your choice.`}</p>
+            {ready && <div className="choice-actions"><button className="btn secondary" onClick={() => onChange(contest)} disabled={busy}>{candidate ? 'Change choice' : `Choose a ${titleCase(contest)}`}</button>{candidate && <button className="text-button remove-choice" onClick={() => onRemove(contest)} disabled={busy}>Remove {titleCase(contest)} vote</button>}</div>}
+          </div>
+        </article>;
+      })}</div>
+    </>}
+    <div className="source-page-links"><button className="text-button" onClick={() => onBrowse('candidates')}>Browse candidates</button></div>
+  </section>;
+}
 export function VoteConfirmation({ pending, previous, busy, canConfirm, onConfirm, onClose }) {
   const { candidate, contest, action } = pending;
   const label = titleCase(contest);

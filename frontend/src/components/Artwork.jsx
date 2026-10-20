@@ -4,11 +4,8 @@ export function Crown({ className = '' }) {
 export function Brand() {
   return <span className="brand"><span className="brand-mark" aria-hidden="true">♧</span><span>THADINGYUT<small>FESTIVAL OF LIGHTS</small></span></span>;
 }
-export function Lantern({ left, top, size = 60, delay = 0 }) {
-  return <div className="lantern" aria-hidden="true" style={{ left, top, '--size': `${size}px`, '--delay': `${delay}s` }}><i className="lantern-paper"><span>✧</span></i><i className="lantern-base"/><i className="lantern-tail"/></div>;
-}
-export function Sky({ paused }) {
-  return <div className={`festival-sky ${paused ? 'motion-paused' : ''}`} aria-hidden="true">
+export function Sky() {
+  return <div className="festival-sky" aria-hidden="true">
     {Array.from({ length: 90 }, (_, i) => <i key={i} className={`star ${i % 11 === 0 ? 'star-cross' : ''}`} style={{ left: `${(i * 37.73) % 100}%`, top: `${(i * 19.17) % 100}%`, '--duration': `${5 + i % 5}s`, '--delay': `${-i % 9}s` }}/>) }
   </div>;
 }

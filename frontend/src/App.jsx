@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useFestival } from './hooks/useFestival.js';
 import { titleCase } from './domain.js';
-import { Brand, Sky, CategorySelection, CandidateCard, CandidateProfile, AccountDialog, UnlockDialog, ScheduleBanner, VoteConfirmation, Celebration } from './components.jsx';
+import { Brand, Sky, CategorySelection, CandidateCard, CandidateProfile, AccountDialog, UnlockDialog, ScheduleBanner, ChoicesPage, VoteConfirmation, Celebration } from './components.jsx';
 
-const readRoute = () => ['king','queen'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'candidates';
+const readRoute = () => ['king','queen','choices'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'candidates';
 export default function App({ api, fixtureMode = false }) {
   const model = useFestival(api);
   const [route, setRoute] = useState(readRoute);
@@ -12,7 +12,6 @@ export default function App({ api, fixtureMode = false }) {
   const [unlockOpen, setUnlockOpen] = useState(false);
   const [intent, setIntent] = useState(null);
   const [pending, setPending] = useState(null);
-  const [paused, setPaused] = useState(false);
   const viewable = model.status.voting === 'open' && model.choiceState === 'ready';
   const allDisabled = model.busy || model.status.voting !== 'open';
   const category = route === 'queen' ? 'queen' : 'king';
@@ -47,29 +46,31 @@ export default function App({ api, fixtureMode = false }) {
   };
   const label = allDisabled ? model.status.voting === 'closed' ? 'Voting closed' : 'Voting not available' : !model.session ? 'Sign in to vote' : model.choiceState === 'uncertain' ? 'Unlock to continue' : !viewable ? 'Unlock to vote' : model.choices[profile?.category] ? 'Move your crown here' : 'Cast your crown';
   const heading = (eye, title, description) => <div className="source-heading"><div className="eyebrow">{eye}</div><h1>{title}</h1><p>{description}</p></div>;
-  return <div className={`festival-app source-app ${paused?'motion-paused':''}`}>
-    <a className="skip-link" href="#main">Skip to content</a><Sky paused={paused}/>
-    <header className="site-header"><a href="#candidates" aria-label="Thadingyut King and Queen"><Brand/></a><nav aria-label="Main navigation"><a href="#candidates" aria-current={route==='candidates'?'page':undefined}>King & Queen</a></nav><button className="account-button" onClick={()=>model.session?model.signOut():setAccountMode('login')}>♡ <span>{model.session ? 'Sign out' : 'Sign in'}</span></button></header>
+  return <div className="festival-app source-app">
+    <a className="skip-link" href="#main">Skip to content</a><Sky/>
+    <header className="site-header"><a href="#candidates" aria-label="Thadingyut King and Queen"><Brand/></a><nav aria-label="Main navigation"><a href="#candidates" aria-current={route==='candidates'||route==='king'||route==='queen'?'page':undefined}>King & Queen</a><a href="#choices" aria-current={route==='choices'?'page':undefined}>My choices</a></nav><button className="account-button" onClick={()=>model.session?model.signOut():setAccountMode('login')}><span className="account-heart" aria-hidden="true">♡</span><span>{model.session ? 'Sign out' : 'Sign in'}</span></button></header>
     {fixtureMode&&<div className="fixture-ribbon">LOCAL FIXTURE PREVIEW · Sample identities · No real votes are sent</div>}
     <main id="main" tabIndex="-1"><div className="source-page" key={route}>
       {route==='candidates' ? <>
         {heading('YOUR VOICE. THEIR MOMENT.',<>Every crown begins<br/>with <em>your choice.</em></>,'Choose a category, discover the candidates, and vote for the person who captures the spirit of our festival.')}
-        <section className="source-section selection-section"><CategorySelection onSelect={go}/><p className="source-note">How it works: explore a category → open a candidate → sign in → unlock with your voting key → confirm your crown. One choice per category; you can change it during voting.</p></section>
+        <section className="source-section selection-section"><CategorySelection onSelect={go}/><p className="source-note">How it works: explore a category → open a candidate → sign in → unlock with your voting key → confirm your crown. <a href="#choices">Review, change, or remove your choices</a> while voting is open.</p></section>
       </> : route==='king'||route==='queen' ? <>
         {heading('THE FACES OF THE FESTIVAL',<>Meet the <em>{category==='king'?'Kings':'Queens'}.</em></>,'Get to know each candidate before choosing who deserves your crown.')}
         <section className="source-section gallery-section"><div className="source-tabs" aria-label="Candidate category">{['king','queen'].map(c=><a href={`#${c}`} key={c} aria-current={category===c?'page':undefined}>{c==='king'?'♔':'♕'} &nbsp; {titleCase(c)}s</a>)}</div>
         <ScheduleBanner status={model.status.voting} schedule={model.schedule} error={model.scheduleError} onRetry={model.reloadSchedule}/>
-        {model.candidateState==='loading'?<div className="empty-state" role="status">Preparing the spotlight…</div>:model.candidateState==='error'?<div className="empty-state" role="alert"><h3>The spotlight needs a moment.</h3><p>{model.candidateError}</p><button className="btn secondary" onClick={model.reloadCandidates}>Retry candidates</button></div>:!gallery.length?<div className="empty-state"><h3>A little anticipation.</h3><p>No active {category} candidates have been announced yet.</p></div>:<div className="gallery">{gallery.map((c,i)=><CandidateCard key={c._id} candidate={c} number={i+1} selected={viewable&&model.choices[category]?._id===c._id} onView={setProfile} paused={paused}/>)}</div>}
-        <p className="source-note">One to three photos per candidate. Swipe sideways or tap a dot to explore; autoplay pauses when you interact. Your King and Queen choices are saved separately.</p><a className="text-button" href="#candidates">Back to categories</a></section>
+        {model.candidateState==='loading'?<div className="empty-state" role="status">Preparing the spotlight…</div>:model.candidateState==='error'?<div className="empty-state" role="alert"><h3>The spotlight needs a moment.</h3><p>{model.candidateError}</p><button className="btn secondary" onClick={model.reloadCandidates}>Retry candidates</button></div>:!gallery.length?<div className="empty-state"><h3>A little anticipation.</h3><p>No active {category} candidates have been announced yet.</p></div>:<div className="gallery">{gallery.map((c,i)=><CandidateCard key={c._id} candidate={c} number={i+1} selected={viewable&&model.choices[category]?._id===c._id} onView={setProfile}/>)}</div>}
+        <p className="source-note">One to three photos per candidate. Swipe sideways or tap a dot to explore; autoplay pauses when you interact. Your King and Queen choices are saved separately.</p><div className="source-page-links"><a className="text-button" href="#candidates">Back to categories</a><a className="text-button" href="#choices">Review my choices</a></div></section>
+      </> : route==='choices' ? <>
+        {heading('YOUR CROWNS. YOUR CHOICE.',<>Your <em>choices.</em></>,'Review the King and Queen you chose. You can change or remove each vote while voting is open.')}
+        <ChoicesPage status={model.status.voting} session={model.session} choices={model.choices} choiceState={model.choiceState} busy={model.busy} onLogin={()=>setAccountMode('login')} onUnlock={()=>setUnlockOpen(true)} onRefresh={model.refreshChoices} onChange={contest=>go(contest)} onRemove={contest=>setPending({candidate:model.choices[contest],contest,action:'remove'})} onBrowse={go} onRetrySchedule={model.reloadSchedule}/>
       </> : null}
       {model.notice&&<div className={`notice ${model.notice.type}`} role={model.notice.type==='error'?'alert':'status'}><p>{model.notice.text}</p><button aria-label="Dismiss message" onClick={model.dismissNotice}>×</button></div>}
     </div></main>
     <footer className="site-footer"><a href="#candidates"><Brand/></a><p>Wishing you all a fun moment.<br/><span>Thadingyut · King & Queen celebration</span></p></footer>
-    <button className="motion-button" aria-label={paused?'Resume decorative motion':'Pause decorative motion'} onClick={()=>setPaused(v=>!v)}>{paused?'▷':'Ⅱ'}</button>
-    {profile&&<CandidateProfile candidate={profile} selected={viewable&&model.choices[profile.category]?._id===profile._id} canVote={!allDisabled} votingStatus={model.status.voting} actionLabel={label} onVote={requestVote} onClose={()=>setProfile(null)} paused={paused}/>}
+    {profile&&<CandidateProfile candidate={profile} selected={viewable&&model.choices[profile.category]?._id===profile._id} canVote={!allDisabled} votingStatus={model.status.voting} actionLabel={label} onVote={requestVote} onClose={()=>setProfile(null)}/>}
     {accountMode&&<AccountDialog initialMode={accountMode} onClose={reason=>{setAccountMode(null);if(reason!=='authenticated'){setProfile(intent);setIntent(null);}}} onLogin={async(...args)=>{await model.login(...args);}} onRegister={model.register} registrationStatus={model.status.registration} schedule={model.schedule} onRefreshSchedule={model.reloadSchedule}/>}
     {unlockOpen&&<UnlockDialog onClose={reason=>{setUnlockOpen(false);if(reason!=='unlocked'){setProfile(intent);setIntent(null);}}} onUnlock={async key=>{await model.unlock(key);}} busy={model.busy} sessionPresent={Boolean(model.session)}/>}
-    {pending&&<VoteConfirmation pending={pending} previous={model.choices[pending.contest]} busy={model.busy} canConfirm={viewable&&Boolean(model.session)} onClose={()=>{setProfile(pending.candidate);setPending(null);}} onConfirm={async()=>{const candidate=pending.candidate;await model.mutate(pending);setPending(null);setProfile(candidate);}}/>}
+    {pending&&<VoteConfirmation pending={pending} previous={model.choices[pending.contest]} busy={model.busy} canConfirm={viewable&&Boolean(model.session)} onClose={()=>{if(pending.action!=='remove')setProfile(pending.candidate);setPending(null);}} onConfirm={async()=>{const candidate=pending.candidate;const success=await model.mutate(pending);setPending(null);if(success)go('choices');else if(pending.action!=='remove')setProfile(candidate);}}/>}
     <Celebration event={model.celebration}/>
   </div>;
 }
