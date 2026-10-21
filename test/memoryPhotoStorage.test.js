@@ -1,4 +1,4 @@
-const { test, after } = require("node:test");
+const { test, beforeEach, after } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
 const path = require("node:path");
@@ -15,6 +15,10 @@ const file = { buffer: Buffer.from("test-image-bytes"), mimetype: "image/png" };
 const keyPattern = /^memory-photos\/[0-9a-f-]+\.png$/;
 
 after(() => fs.rm(directory, { recursive: true, force: true }));
+beforeEach(() => {
+  delete process.env.MEMORY_PHOTO_STORAGE;
+  delete process.env.MEMORY_PHOTO_ALLOW_SHARED_BUCKET;
+});
 
 test("local Memory Photo storage returns opaque keys and supports retrieval and idempotent cleanup", async () => {
   process.env.NODE_ENV = "test";
@@ -171,5 +175,107 @@ test("production fails closed without private configuration and propagates stora
     }
     S3Client.prototype.send = async () => { throw Object.assign(new Error("Missing"), { name: "NoSuchKey" }); };
     await assert.rejects(storage.getImage(key), { statusCode: 404 });
+  } finally { S3Client.prototype.send = original; }
+});
+
+test("shared bucket requires exact explicit opt-in for uploads, reads and deletes", async () => {
+  process.env.NODE_ENV = "development";
+  process.env.MEMORY_PHOTO_STORAGE = "s3";
+  process.env.AWS_REGION = "ap-southeast-1";
+  process.env.AWS_S3_BUCKET = "test-shared-images";
+  process.env.AWS_MEMORY_PHOTO_BUCKET = "test-shared-images";
+  const key = "memory-photos/12345678-1234-4234-8234-123456789abc.png";
+  const original = S3Client.prototype.send;
+  let calls = 0;
+  S3Client.prototype.send = async () => { calls++; return {}; };
+  try {
+    for (const flag of [undefined, "false", "", "TRUE", "1", "yes", " true "]) {
+      if (flag === undefined) delete process.env.MEMORY_PHOTO_ALLOW_SHARED_BUCKET;
+      else process.env.MEMORY_PHOTO_ALLOW_SHARED_BUCKET = flag;
+      for (const action of [() => storage.uploadImage(file), () => storage.getImage(key), () => storage.deleteImage(key)]) {
+        await assert.rejects(action(), { statusCode: 503 });
+      }
+    }
+    assert.equal(calls, 0);
+    process.env.AWS_MEMORY_PHOTO_BUCKET = "test-separate-images";
+    process.env.MEMORY_PHOTO_ALLOW_SHARED_BUCKET = "invalid";
+    await assert.rejects(storage.uploadImage(file), { statusCode: 503 });
+    assert.equal(calls, 0);
+  } finally { S3Client.prototype.send = original; }
+});
+
+test("development can use a shared S3 prefix while public images stay local", async () => {
+  process.env.NODE_ENV = "development";
+  process.env.MEMORY_PHOTO_STORAGE = "s3";
+  process.env.MEMORY_PHOTO_ALLOW_SHARED_BUCKET = "true";
+  process.env.AWS_REGION = "ap-southeast-1";
+  process.env.AWS_S3_BUCKET = "test-shared-images";
+  process.env.AWS_MEMORY_PHOTO_BUCKET = "test-shared-images";
+  process.env.AWS_S3_PUBLIC_URL = "https://public.example.com";
+  const original = S3Client.prototype.send;
+  const commands = [];
+  S3Client.prototype.send = async (command) => {
+    commands.push(command);
+    const contentType = { jpg: "image/jpeg", png: "image/png", webp: "image/webp" }[path.extname(command.input.Key).slice(1)];
+    return command instanceof GetObjectCommand ? { Body: file.buffer, ContentType: contentType } : {};
+  };
+  try {
+    for (const mimetype of ["image/jpeg", "image/png", "image/webp"]) {
+      const key = await storage.uploadImage({ ...file, mimetype });
+      assert.match(key, /^memory-photos\/[0-9a-f-]+\.(jpg|png|webp)$/);
+      const put = commands.at(-1);
+      assert(put instanceof PutObjectCommand);
+      assert.equal(put.input.ContentType, mimetype);
+      assert.equal(put.input.CacheControl, "private, no-store");
+      assert(Object.keys(put.input).every((name) => name !== "ACL" && !name.startsWith("Grant")));
+      const image = await storage.getImage(key);
+      assert.deepEqual(image.body, file.buffer);
+      assert.equal(image.contentType, mimetype);
+      await storage.deleteImage(key);
+      assert(commands.at(-1) instanceof DeleteObjectCommand);
+      assert(commands.slice(-3).every((command) => command.input.Key === key && command.input.Bucket === "test-shared-images"));
+    }
+    const calls = commands.length;
+    for (const folder of ["candidates", "gallery/memory", "gallery/lantern"]) {
+      const url = await publicStorage.uploadImage(file, folder);
+      assert(url.startsWith(`/uploads/${folder}/`));
+      assert.deepEqual(await fs.readFile(path.join(directory, "public", url.slice("/uploads/".length))), file.buffer);
+    }
+    assert.equal(commands.length, calls);
+    process.env.NODE_ENV = "production";
+    for (const folder of ["candidates", "gallery/memory"]) {
+      const url = await publicStorage.uploadImage(file, folder);
+      assert(url.startsWith("https://public.example.com/"));
+      assert(commands.at(-1) instanceof PutObjectCommand);
+      assert.equal(commands.at(-1).input.Bucket, "test-shared-images");
+      assert(commands.at(-1).input.Key.startsWith(`${folder}/`));
+    }
+    const productionKey = await storage.uploadImage(file);
+    assert.match(productionKey, keyPattern);
+    assert.equal(commands.at(-1).input.Bucket, "test-shared-images");
+    assert.equal(commands.at(-1).input.Key, productionKey);
+    assert.equal(commands.at(-1).input.ACL, undefined);
+  } finally { S3Client.prototype.send = original; }
+});
+
+test("storage selection supports explicit local and rejects invalid values without fallback", async () => {
+  process.env.NODE_ENV = "production";
+  process.env.MEMORY_PHOTO_STORAGE = "local";
+  const original = S3Client.prototype.send;
+  let calls = 0;
+  S3Client.prototype.send = async () => { calls++; throw new Error("Unexpected AWS call"); };
+  try {
+    const key = await storage.uploadImage(file);
+    assert.deepEqual((await storage.getImage(key)).body, file.buffer);
+    await storage.deleteImage(key);
+    const before = await fs.readdir(directory, { recursive: true });
+    for (const selected of ["", "S3", "s3 ", "filesystem", "false"]) {
+      process.env.MEMORY_PHOTO_STORAGE = selected;
+      for (const action of [() => storage.uploadImage(file), () => storage.getImage(key), () => storage.deleteImage(key)]) {
+        await assert.rejects(action(), { statusCode: 503 });
+      }
+    }
+    assert.equal(calls, 0);
+    assert.deepEqual(await fs.readdir(directory, { recursive: true }), before);
   } finally { S3Client.prototype.send = original; }
 });
