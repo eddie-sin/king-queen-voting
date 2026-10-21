@@ -20,6 +20,16 @@ const validateKey = (key) => {
   }
 };
 
+// Select Memory Photo storage independently of MongoDB and public images.
+const useS3 = () => {
+  const selected = process.env.MEMORY_PHOTO_STORAGE;
+  if (selected === undefined) return process.env.NODE_ENV === "production";
+  if (!["local", "s3"].includes(selected)) {
+    throw new AppError("MEMORY_PHOTO_STORAGE must be local or s3.", 503);
+  }
+  return selected === "s3";
+};
+
 const localPath = async (key) => {
   // Check both configured paths and resolved paths to catch directory symlinks.
   if (inside(localUploadDirectory, privateDirectory)) {
@@ -48,7 +58,7 @@ exports.uploadImage = async (file) => {
   }
   if (file.buffer.length > 5 * 1024 * 1024) throw new AppError("Memory Photo images must not exceed 5 MB.", 400);
   const key = `memory-photos/${crypto.randomUUID()}.${extensions[file.mimetype]}`;
-  if (process.env.NODE_ENV === "production") await s3.uploadPrivateMemoryPhoto(file, key);
+  if (useS3()) await s3.uploadPrivateMemoryPhoto(file, key);
   else await fs.writeFile(await localPath(key), file.buffer, { flag: "wx", mode: 0o600 });
   return key;
 };
@@ -57,7 +67,7 @@ exports.uploadImage = async (file) => {
 // or enabled/APPROVED public access before streaming these bytes; no URL is issued.
 exports.getImage = async (key) => {
   validateKey(key);
-  if (process.env.NODE_ENV === "production") return s3.getPrivateMemoryPhoto(key);
+  if (useS3()) return s3.getPrivateMemoryPhoto(key);
   try {
     const body = await fs.readFile(await localPath(key));
     return { body, contentType: types[path.extname(key).slice(1)], contentLength: body.length };
@@ -70,7 +80,7 @@ exports.getImage = async (key) => {
 // Idempotent for absent objects; never accepts public-gallery keys or paths.
 exports.deleteImage = async (key) => {
   validateKey(key);
-  if (process.env.NODE_ENV === "production") return s3.deletePrivateMemoryPhoto(key);
+  if (useS3()) return s3.deletePrivateMemoryPhoto(key);
   try { await fs.unlink(await localPath(key)); } catch (error) {
     if (error.code !== "ENOENT") throw error;
   }
