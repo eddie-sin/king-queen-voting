@@ -1,5 +1,5 @@
 const crypto = require("crypto");
-const { S3Client, PutObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3");
+const { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3");
 const AppError = require("./appError");
 
 const EXTENSIONS = {
@@ -53,4 +53,43 @@ exports.keyFromUrl = (url) => {
 // Permanently removes one object. Needs s3:DeleteObject permission for the key.
 exports.deleteImage = async (key) => {
   await getClient().send(new DeleteObjectCommand({ Bucket: process.env.AWS_S3_BUCKET, Key: key }));
+};
+
+// These internal operations use a separately configured private bucket, never
+// the public gallery bucket or CDN. Callers validate the opaque key first.
+const privateStorage = () => {
+  if (!process.env.AWS_REGION || !process.env.AWS_MEMORY_PHOTO_BUCKET) {
+    throw new AppError("Private image storage requires AWS_REGION and AWS_MEMORY_PHOTO_BUCKET.", 503);
+  }
+  if (process.env.AWS_MEMORY_PHOTO_BUCKET === process.env.AWS_S3_BUCKET) {
+    throw new AppError("Memory Photo storage must use a separate private bucket.", 503);
+  }
+  client ||= new S3Client({ region: process.env.AWS_REGION });
+  return { Bucket: process.env.AWS_MEMORY_PHOTO_BUCKET };
+};
+
+exports.uploadPrivateMemoryPhoto = async (file, key) => {
+  await clientSend(new PutObjectCommand({
+    ...privateStorage(), Key: key, Body: file.buffer, ContentType: file.mimetype,
+    CacheControl: "private, no-store",
+    // Omit ACL: compatible with bucket-owner-enforced buckets; no public grant.
+  }));
+};
+
+const clientSend = (command) => client.send(command);
+
+exports.getPrivateMemoryPhoto = async (key) => {
+  try {
+    const result = await clientSend(new GetObjectCommand({ ...privateStorage(), Key: key }));
+    return { body: result.Body, contentType: result.ContentType, contentLength: result.ContentLength };
+  } catch (error) {
+    if (error.name === "NoSuchKey" || error.$metadata?.httpStatusCode === 404) {
+      throw new AppError("Memory Photo image not found.", 404);
+    }
+    throw error;
+  }
+};
+
+exports.deletePrivateMemoryPhoto = async (key) => {
+  await clientSend(new DeleteObjectCommand({ ...privateStorage(), Key: key }));
 };

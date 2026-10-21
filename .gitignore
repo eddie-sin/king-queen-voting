@@ -1,5 +1,19 @@
 node_modules/
 /uploads/
+/private-memory-photos/
+# Local Postman state/synced copies are not the canonical reviewed JSON exports.
+/.postman/
+/postman/collections/
+/postman/documents/
+/postman/environments/
+/postman/flows/
+/postman/globals/
+/postman/mocks/
+/postman/specs/
+/postman/*.private.postman_environment.json
+# Generated local execution/review reports; summaries live in documentation.
+/postman/*-results.json
+/docs/memory-photo-premerge-checks.json
 config.env
 .env
 .env.*
