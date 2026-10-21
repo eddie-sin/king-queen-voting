@@ -5,7 +5,7 @@ const Admin = require("../model/adminsModel");
 const AppError = require("../utils/appError");
 const catchAsync = require("../utils/catchAsync");
 
-const authenticate = (role) => catchAsync(async (req, res, next) => {
+const authenticate = (role, allowedAdminRoles = []) => catchAsync(async (req, res, next) => {
   const authorization = req.headers.authorization;
   if (!authorization || !/^Bearer \S+$/.test(authorization)) {
     throw new AppError("Authentication token is required.", 401);
@@ -22,7 +22,12 @@ const authenticate = (role) => catchAsync(async (req, res, next) => {
   const account = await (role === "admin" ? Admin : User).findById(id);
   if (!account) throw new AppError("This account no longer exists.", 401);
   if (account.status !== "active") throw new AppError("This account is disabled.", 403);
-  if (role === "admin") req.admin = account;
+  if (role === "admin") {
+    // JWT role identifies the account kind only. Permissions always come from
+    // the current database record, never from request fields or token claims.
+    if (!allowedAdminRoles.includes(account.role)) throw new AppError("This administrator does not have permission for this action.", 403);
+    req.admin = account;
+  }
   else {
     req.user = account;
     req.userId = account._id.toString();
@@ -31,4 +36,5 @@ const authenticate = (role) => catchAsync(async (req, res, next) => {
 });
 
 module.exports = authenticate("user");
-module.exports.admin = authenticate("admin");
+module.exports.admin = authenticate("admin", ["ADMIN"]);
+module.exports.memoryAdmin = authenticate("admin", ["ADMIN", "MEMORY_ADMIN"]);

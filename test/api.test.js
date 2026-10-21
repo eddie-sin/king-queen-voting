@@ -153,6 +153,73 @@ test("startup seeds fixed Myanmar dates and a hashed admin without overwriting c
   assert.equal((await Admin.findOne().select("+passwordHash")).passwordHash, initialHash);
 });
 
+test("admins can enable and disable Memory Photo without changing other settings", async () => {
+  const initial = (await request("GET", "/settings")).data.data.schedule;
+  assert.equal(initial.memoryPhotosEnabled, false);
+  for (const enabled of [true, false]) {
+    const response = await request("PATCH", "/admin/settings", { memoryPhotosEnabled: enabled }, adminToken);
+    assert.equal(response.status, 200);
+    assert.deepEqual(response.data.data.schedule, { ...initial, memoryPhotosEnabled: enabled });
+    assert.equal((await Election.collection.findOne({ _id: "election" })).memoryPhotosEnabled, enabled);
+    await seed();
+    const publicSettings = await request("GET", "/settings");
+    assert.equal(publicSettings.status, 200);
+    assert.equal(publicSettings.data.data.schedule.memoryPhotosEnabled, enabled);
+    assert.equal((await request("GET", "/admin/settings", undefined, adminToken)).data.data.schedule.memoryPhotosEnabled, enabled);
+  }
+});
+
+test("Memory Photo requires an actual Boolean and rejects mixed invalid updates atomically", async () => {
+  await request("PATCH", "/admin/settings", { memoryPhotosEnabled: true }, adminToken);
+  const initial = (await request("GET", "/settings")).data.data.schedule;
+  for (const value of ["true", "false", "", 0, 1, null, [], {}]) {
+    const response = await request("PATCH", "/admin/settings", {
+      memoryPhotosEnabled: value, registrationClosesAt: "2026-11-07T23:59+06:30",
+    }, adminToken);
+    assert.equal(response.status, 400);
+    assert.match(response.data.message, /memoryPhotosEnabled must be a Boolean/);
+    assert.deepEqual((await request("GET", "/settings")).data.data.schedule, initial);
+  }
+  for (const body of [
+    { memoryPhotosEnabled: false, unknownSetting: true },
+    { memoryPhotosEnabled: false, votingOpensAt: "invalid" },
+  ]) {
+    assert.equal((await request("PATCH", "/admin/settings", body, adminToken)).status, 400);
+    assert.deepEqual((await request("GET", "/settings")).data.data.schedule, initial);
+  }
+});
+
+test("anonymous callers and ordinary users cannot change Memory Photo", async () => {
+  const voter = await register();
+  for (const enabled of [true, false]) {
+    // Start with the opposite value to prove rejected requests cannot mutate it.
+    await request("PATCH", "/admin/settings", { memoryPhotosEnabled: !enabled }, adminToken);
+    assert.equal((await request("PATCH", "/admin/settings", { memoryPhotosEnabled: enabled })).status, 401);
+    assert.equal((await request("PATCH", "/admin/settings", { memoryPhotosEnabled: enabled }, voter.token)).status, 403);
+    assert.equal((await Election.findById("election")).memoryPhotosEnabled, !enabled);
+  }
+});
+
+test("old election documents without Memory Photo remain disabled and can be enabled", async () => {
+  await Election.collection.updateOne({ _id: "election" }, { $unset: { memoryPhotosEnabled: "" } });
+  assert.equal(Object.hasOwn(await Election.collection.findOne({ _id: "election" }), "memoryPhotosEnabled"), false);
+  await seed();
+  assert.equal((await request("GET", "/settings")).data.data.schedule.memoryPhotosEnabled, false);
+  assert.equal((await request("GET", "/admin/settings", undefined, adminToken)).data.data.schedule.memoryPhotosEnabled, false);
+  const response = await request("PATCH", "/admin/settings", { memoryPhotosEnabled: true }, adminToken);
+  assert.equal(response.status, 200);
+  assert.equal((await Election.collection.findOne({ _id: "election" })).memoryPhotosEnabled, true);
+});
+
+test("Memory Photo can be updated together with existing date settings", async () => {
+  const response = await request("PATCH", "/admin/settings", {
+    memoryPhotosEnabled: true, registrationClosesAt: "2026-11-07T23:59+06:30",
+  }, adminToken);
+  assert.equal(response.status, 200);
+  assert.equal(response.data.data.schedule.memoryPhotosEnabled, true);
+  assert.equal(response.data.data.schedule.registrationClosesAt, "2026-11-07T23:59:59.999+06:30");
+});
+
 test("public candidates hide inactive entries and contact numbers; admin sees and edits all fields", async () => {
   const active = await makeCandidate();
   const inactive = await makeCandidate("queen", { isActive: false });
@@ -470,12 +537,15 @@ test("revoked keys are rejected and admin tokens cannot be used as voter tokens"
 });
 
 test("development and production start successfully with standalone MongoDB", async () => {
+  assert.equal((await request("PATCH", "/admin/settings", { memoryPhotosEnabled: true }, adminToken)).status, 200);
   const storedImage = "startup-storage-check.png";
   await fs.writeFile(path.join(testUploadDirectory, storedImage), Buffer.from("local-only"));
   for (const mode of ["development", "production"]) {
     const port = await freePort();
-    const child = spawn(process.execPath, ["server.js"], {
-      cwd: path.resolve(__dirname, ".."),
+    // Resolve source absolutely but run from a disposable directory, so dotenv
+    // cannot load the developer's real config.env during startup regression tests.
+    const child = spawn(process.execPath, [path.resolve(__dirname, "..", "server.js")], {
+      cwd: testUploadDirectory,
       env: {
         ...process.env, NODE_ENV: mode, PORT: String(port),
         DATABASE: mode === "production" ? testDatabaseUri : "mongodb://127.0.0.1:1/must_not_use",
@@ -492,7 +562,9 @@ test("development and production start successfully with standalone MongoDB", as
         try {
           const response = await fetch(`http://127.0.0.1:${port}/api/v1/settings`);
           assert.equal(response.status, 200);
-          assert.equal((await response.json()).data.schedule.timezone, "Asia/Yangon");
+          const schedule = (await response.json()).data.schedule;
+          assert.equal(schedule.timezone, "Asia/Yangon");
+          assert.equal(schedule.memoryPhotosEnabled, mode === "development");
           break;
         } catch (error) {
           if (child.exitCode !== null || attempt >= 100) throw Error(`${mode} startup failed: ${output} ${error.message}`);
@@ -505,7 +577,11 @@ test("development and production start successfully with standalone MongoDB", as
     } finally {
       if (child.exitCode === null) child.kill("SIGTERM");
       await closed;
-  }
+    }
+    // The next process must load the newly saved disabled value from MongoDB.
+    if (mode === "development") {
+      assert.equal((await request("PATCH", "/admin/settings", { memoryPhotosEnabled: false }, adminToken)).status, 200);
+    }
   }
 });
 

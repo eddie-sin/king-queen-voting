@@ -17,3 +17,7 @@ exports.candidateImages = upload.array("images", 3);
 
 // Expects multipart fields "images" (up to 10 files), "section", optional "caption".
 exports.galleryImages = upload.array("images", 10);
+
+// One image per student submission, with the existing formats and size cap.
+// MongoDB reservations separately enforce the lifetime submission allowance.
+exports.memoryPhotoImages = upload.array("images", 1);

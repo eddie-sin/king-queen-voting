@@ -7,6 +7,7 @@ const electionSchema = new mongoose.Schema({
   votingClosesAt: { type: Date, required: true },
   resultsPublishedAt: { type: Date, required: true },
   candidateManagementLocked: { type: Boolean, default: false },
+  memoryPhotosEnabled: { type: Boolean, default: false },
 });
 
 electionSchema.pre("validate", function () {

@@ -94,7 +94,7 @@ Candidate fields are `fullName`, `batchNumber`, `nickname`, `images` (one to thr
 
 All candidate creation, editing, activation/deactivation, and deletion are **permanently blocked once voting starts**. Moving the voting start into the future cannot unlock them. Requests recheck this rule after uploads, immediately before the database write. Admin reads and gallery management remain available.
 
-Schedule updates accept only `registrationClosesAt`, `votingOpensAt`, `votingClosesAt`, and `resultsPublishedAt`. Supply ISO strings with the fixed `+06:30` offset:
+Settings updates accept `registrationClosesAt`, `votingOpensAt`, `votingClosesAt`, `resultsPublishedAt`, and `memoryPhotosEnabled`. Supply ISO strings with the fixed `+06:30` offset for dates:
 
 ```json
 {
@@ -106,6 +106,8 @@ Schedule updates accept only `registrationClosesAt`, `votingOpensAt`, `votingClo
 ```
 
 Unknown fields, changed labels/timezones, impossible dates, closing before opening, and publishing before voting closes are rejected. The registration deadline has no ordering constraint relative to the voting period. Date input at minute precision includes that entire minute for closing fields; explicit seconds/milliseconds are respected exactly.
+
+Memory Photo visibility is controlled by full administrators, without a date rule. Send `PATCH /api/v1/admin/settings` with a full-admin Bearer token and JSON body `{"memoryPhotosEnabled": true}` to enable it, or `false` to disable it. Public settings include `data.schedule.memoryPhotosEnabled`, defaulting to false even for older documents. Student submissions, private moderation, approved public viewing and authenticated likes are implemented separately. See the [Memory Photo testing guide](docs/memory-photo-postman-guide.md), [admin roles](docs/memory-admin-roles.md), and [deferred private S3 deployment requirements](docs/memory-photo-storage.md).
 
 ## Finalists and ties
 

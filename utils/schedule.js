@@ -35,4 +35,5 @@ exports.scheduleResponse = (election) => ({
     resultsPublishedAt: "Voting Result of Top 5 finalist will be shown only after",
   },
   candidateManagementLocked: election.candidateManagementLocked,
+  memoryPhotosEnabled: election.memoryPhotosEnabled === true,
 });
