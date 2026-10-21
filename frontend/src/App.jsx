@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { useFestival } from './hooks/useFestival.js';
 import { titleCase } from './domain.js';
 import { Brand, Sky, CategorySelection, CandidateCard, CandidateProfile, AccountDialog, UnlockDialog, ScheduleBanner, ChoicesPage, VoteConfirmation, Celebration } from './components.jsx';
+import { LanternGallery } from './components/LanternGallery.jsx';
 
-const readRoute = () => ['king','queen','choices'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'candidates';
+const readRoute = () => ['king','queen','choices','lanterns'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'candidates';
 export default function App({ api, fixtureMode = false }) {
   const model = useFestival(api);
   const [route, setRoute] = useState(readRoute);
@@ -48,7 +49,7 @@ export default function App({ api, fixtureMode = false }) {
   const heading = (eye, title, description) => <div className="source-heading"><div className="eyebrow">{eye}</div><h1>{title}</h1><p>{description}</p></div>;
   return <div className="festival-app source-app">
     <a className="skip-link" href="#main">Skip to content</a><Sky/>
-    <header className="site-header"><a href="#candidates" aria-label="Thadingyut King and Queen"><Brand/></a><nav aria-label="Main navigation"><a href="#candidates" aria-current={route==='candidates'||route==='king'||route==='queen'?'page':undefined}>King & Queen</a><a href="#choices" aria-current={route==='choices'?'page':undefined}>My choices</a></nav><button className="account-button" onClick={()=>model.session?model.signOut():setAccountMode('login')}><span className="account-heart" aria-hidden="true">♡</span><span>{model.session ? 'Sign out' : 'Sign in'}</span></button></header>
+    <header className="site-header"><a href="#candidates" aria-label="Thadingyut King and Queen"><Brand/></a><nav aria-label="Main navigation"><a href="#candidates" aria-current={route==='candidates'||route==='king'||route==='queen'?'page':undefined}>King & Queen</a><a href="#lanterns" aria-current={route==='lanterns'?'page':undefined}>Lanterns</a><a href="#choices" aria-current={route==='choices'?'page':undefined}>My choices</a></nav><button className="account-button" onClick={()=>model.session?model.signOut():setAccountMode('login')}><span className="account-heart" aria-hidden="true">♡</span><span>{model.session ? 'Sign out' : 'Sign in'}</span></button></header>
     {fixtureMode&&<div className="fixture-ribbon">LOCAL FIXTURE PREVIEW · Sample identities · No real votes are sent</div>}
     <main id="main" tabIndex="-1"><div className="source-page" key={route}>
       {route==='candidates' ? <>
@@ -60,6 +61,9 @@ export default function App({ api, fixtureMode = false }) {
         <ScheduleBanner status={model.status.voting} schedule={model.schedule} error={model.scheduleError} onRetry={model.reloadSchedule}/>
         {model.candidateState==='loading'?<div className="empty-state" role="status">Preparing the spotlight…</div>:model.candidateState==='error'?<div className="empty-state" role="alert"><h3>The spotlight needs a moment.</h3><p>{model.candidateError}</p><button className="btn secondary" onClick={model.reloadCandidates}>Retry candidates</button></div>:!gallery.length?<div className="empty-state"><h3>A little anticipation.</h3><p>No active {category} candidates have been announced yet.</p></div>:<div className="gallery">{gallery.map((c,i)=><CandidateCard key={c._id} candidate={c} number={i+1} selected={viewable&&model.choices[category]?._id===c._id} onView={setProfile}/>)}</div>}
         <p className="source-note">One to three photos per candidate. Swipe sideways or tap a dot to explore; autoplay pauses when you interact. Your King and Queen choices are saved separately.</p><div className="source-page-links"><a className="text-button" href="#candidates">Back to categories</a><a className="text-button" href="#choices">Review my choices</a></div></section>
+      </> : route==='lanterns' ? <>
+        {heading('LIGHTS OF THADINGYUT',<>Lanterns and their <em>stories.</em></>,'Discover the craft, meaning, and warm glow behind the festival lanterns shared by our community.')}
+        <section className="source-section lantern-section"><LanternGallery lanterns={model.lanterns} state={model.lanternState} error={model.lanternError} onRetry={model.reloadLanterns}/></section>
       </> : route==='choices' ? <>
         {heading('YOUR CROWNS. YOUR CHOICE.',<>Your <em>choices.</em></>,'Review the King and Queen you chose. You can change or remove each vote while voting is open.')}
         <ChoicesPage status={model.status.voting} session={model.session} choices={model.choices} choiceState={model.choiceState} busy={model.busy} onLogin={()=>setAccountMode('login')} onUnlock={()=>setUnlockOpen(true)} onRefresh={model.refreshChoices} onChange={contest=>go(contest)} onRemove={contest=>setPending({candidate:model.choices[contest],contest,action:'remove'})} onBrowse={go} onRetrySchedule={model.reloadSchedule}/>
