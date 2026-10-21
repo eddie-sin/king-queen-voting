@@ -12,7 +12,7 @@ const {
 } = require("../utils/election");
 const { dateFields, parseMyanmarTime, scheduleResponse } = require("../utils/schedule");
 
-const editableFields = [...dateFields, "votingOverride"];
+const editableFields = [...dateFields, "votingOverride", "memoryPhotosEnabled"];
 
 exports.getSettings = catchAsync(async (req, res) => {
   res.status(200).json({ status: "success", data: { schedule: scheduleResponse(await getElection()) } });
@@ -31,6 +31,11 @@ exports.updateSettings = catchAsync(async (req, res) => {
         throw new AppError(`votingOverride must be one of: ${votingOverrides.join(", ")}.`, 400);
       }
       updates.votingOverride = body.votingOverride;
+    } else if (field === "memoryPhotosEnabled") {
+      if (typeof body[field] !== "boolean") {
+        throw new AppError("memoryPhotosEnabled must be a Boolean.", 400);
+      }
+      updates.memoryPhotosEnabled = body[field];
     } else {
       updates[field] = parseMyanmarTime(body[field], field);
     }
@@ -48,7 +53,9 @@ exports.updateSettings = catchAsync(async (req, res) => {
     ) {
       throw new AppError("The voting period cannot change after finalists have been finalized.", 409);
     }
-    const before = Object.fromEntries([...editableFields, "candidateManagementLocked"].map((field) => [field, election[field]]));
+    const before = Object.fromEntries([...editableFields, "candidateManagementLocked"].map((field) => [field,
+      field === "memoryPhotosEnabled" ? election[field] === true : election[field],
+    ]));
     onRollback(() => Election.updateOne({ _id: "election" }, { $set: before }));
 
     const nextVotingOpensAt = updates.votingOpensAt || election.votingOpensAt;

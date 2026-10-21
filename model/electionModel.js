@@ -13,9 +13,14 @@ const electionSchema = new mongoose.Schema({
     default: "auto",
   },
   candidateManagementLocked: { type: Boolean, default: false },
+  memoryPhotosEnabled: { type: Boolean, default: false },
 });
 
 electionSchema.pre("validate", function () {
+  // Older callers (and fixtures) may omit the candidate cutoff; the latest safe value is votingOpensAt.
+  if (!this.candidateManagementClosesAt && this.votingOpensAt) {
+    this.candidateManagementClosesAt = this.votingOpensAt;
+  }
   if (this.candidateManagementClosesAt && this.votingOpensAt && this.candidateManagementClosesAt > this.votingOpensAt) {
     this.invalidate(
       "candidateManagementClosesAt",

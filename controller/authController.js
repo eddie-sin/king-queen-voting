@@ -85,7 +85,7 @@ exports.adminLogin = catchAsync(async (req, res) => {
   if (admin.status !== "active") throw new AppError("This admin account is disabled.", 403);
   res.status(200).json({
     status: "success",
-    data: { ...tokenResponse({ adminId: admin._id.toString(), role: "admin" }), admin: { username: admin.username } },
+    data: { ...tokenResponse({ adminId: admin._id.toString(), role: "admin" }), admin: { username: admin.username, role: admin.role } },
   });
 });
 

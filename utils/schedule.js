@@ -40,4 +40,5 @@ exports.scheduleResponse = (election, now = clock.now()) => ({
   votingOverride: election.votingOverride || "auto",
   isVotingOpen: isVotingOpen(election, now),
   candidateManagementLocked: isCandidateManagementLocked(election, now),
+  memoryPhotosEnabled: election.memoryPhotosEnabled === true,
 });
