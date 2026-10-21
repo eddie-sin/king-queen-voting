@@ -652,3 +652,115 @@ test("Wish Sky gates public viewing and authenticated writing to the Myanmar eve
     assert.equal((await request("GET", "/wishes")).status, 503);
   } finally { delete process.env.WISH_SKY_EVENT_DATE; }
 });
+
+const photoPath = (url) => path.join(testUploadDirectory, url.replace(/^\/uploads\//, ""));
+const photoText = async (url) => (await fs.readFile(photoPath(url))).toString();
+const photoExists = (url) => fs.access(photoPath(url)).then(() => true, () => false);
+const storedPhotos = async () => (await fs.readdir(path.join(testUploadDirectory, "candidates")).catch(() => [])).sort();
+// Multipart request with all fields in one JSON "data" value, like the admin page sends.
+const sendPhotos = async (method, endpoint, data, files = []) => {
+  const form = new FormData();
+  form.append("data", JSON.stringify(data));
+  files.forEach((content, index) => form.append("images", new Blob([content], { type: "image/png" }), `photo-${index}.png`));
+  const response = await fetch(`${base}/api/v1${endpoint}`, { method, headers: { Authorization: `Bearer ${adminToken}` }, body: form });
+  return { status: response.status, data: await response.json() };
+};
+
+test("candidate photos can be added, replaced in place, reordered and removed; unused files are deleted", async () => {
+  const created = await sendPhotos("POST", "/candidates", { fullName: "Photo Editor", category: "king", hobbiesAndInterests: ["chess"] }, ["A"]);
+  assert.equal(created.status, 201, JSON.stringify(created.data));
+  const id = created.data.data.candidate._id;
+  const [a] = created.data.data.candidate.images;
+  const edit = (data, files) => sendPhotos("PATCH", `/candidates/${id}`, data, files);
+  const contents = (images) => Promise.all(images.map(photoText));
+  assert.deepEqual(await contents([a]), ["A"]);
+
+  let res = await edit({ photoLayout: [{ keep: a }, { upload: 0 }] }, ["B"]);
+  assert.equal(res.status, 200, JSON.stringify(res.data));
+  let images = res.data.data.candidate.images;
+  assert.deepEqual(await contents(images), ["A", "B"]);
+  const b = images[1];
+
+  res = await edit({ photoLayout: [{ keep: a }, { keep: b }, { upload: 0 }] }, ["C"]);
+  images = res.data.data.candidate.images;
+  assert.deepEqual(await contents(images), ["A", "B", "C"]);
+  const c = images[2];
+
+  // Replacing the first photo keeps its position and deletes the old file.
+  res = await edit({ photoLayout: [{ upload: 0 }, { keep: b }, { keep: c }] }, ["D"]);
+  assert.equal(res.status, 200, JSON.stringify(res.data));
+  images = res.data.data.candidate.images;
+  assert.deepEqual(await contents(images), ["D", "B", "C"]);
+  assert.deepEqual(res.data.data.storageCleanup, { deleted: 1, failed: 0 });
+  assert.equal(await photoExists(a), false);
+  const d = images[0];
+
+  // Reordering (choosing a cover) and removing need no upload and can be plain JSON.
+  res = await request("PATCH", `/candidates/${id}`, { photoLayout: [{ keep: c }, { keep: d }, { keep: b }] }, adminToken);
+  assert.deepEqual(res.data.data.candidate.images, [c, d, b]);
+  assert.deepEqual(res.data.data.storageCleanup, { deleted: 0, failed: 0 });
+  res = await request("PATCH", `/candidates/${id}`, { photoLayout: [{ keep: c }, { keep: b }] }, adminToken);
+  assert.deepEqual(res.data.data.candidate.images, [c, b]);
+  assert.equal(await photoExists(d), false);
+  assert.equal(await photoExists(c), true);
+  assert.equal(await photoExists(b), true);
+
+  // Text-only edits leave photos alone, and JSON data keeps an emptied list empty.
+  res = await request("PATCH", `/candidates/${id}`, { bio: "Updated" }, adminToken);
+  assert.deepEqual(res.data.data.candidate.images, [c, b]);
+  res = await edit({ hobbiesAndInterests: [], photoLayout: [{ keep: c }, { keep: b }, { upload: 0 }] }, ["E"]);
+  assert.equal(res.status, 200, JSON.stringify(res.data));
+  assert.deepEqual(res.data.data.candidate.hobbiesAndInterests, []);
+  images = res.data.data.candidate.images;
+  assert.equal(images.length, 3);
+
+  // Deleting the candidate deletes every photo it had.
+  assert.equal((await request("DELETE", `/candidates/${id}`, undefined, adminToken)).status, 204);
+  for (const url of images) assert.equal(await photoExists(url), false, url);
+});
+
+test("photo edits reject unsafe or inconsistent requests without changing photos or leaving files", async () => {
+  const created = await sendPhotos("POST", "/candidates", { fullName: "Strict Photos", category: "queen" }, ["A", "B"]);
+  assert.equal(created.status, 201, JSON.stringify(created.data));
+  const { _id: id, images } = created.data.data.candidate;
+  const before = await storedPhotos();
+  const cases = [
+    [{ bio: "files without a layout" }, ["N"], 400],
+    [{ images: ["https://example.com/outside.jpg"] }, [], 400],
+    [{ photoLayout: [{ keep: "/uploads/candidates/not-this-candidates.png" }] }, [], 409],
+    [{ photoLayout: [{ keep: "https://example.com/outside.jpg" }] }, [], 409],
+    [{ photoLayout: [{ keep: images[0] }, { keep: images[0] }] }, [], 400],
+    [{ photoLayout: [{ keep: images[0] }, { upload: 1 }] }, ["N"], 400],
+    [{ photoLayout: [{ keep: images[0] }] }, ["N"], 400],
+    [{ photoLayout: [] }, [], 400],
+    [{ photoLayout: [{ keep: images[0] }, { keep: images[1] }, { upload: 0 }, { upload: 1 }] }, ["N", "M"], 400],
+    [{ photoLayout: [{ keep: images[0], upload: 0 }] }, ["N"], 400],
+    [{ photoLayout: "not json" }, [], 400],
+    // Passes every photo check, uploads, then fails validation on save: the upload must be removed.
+    [{ fullName: "", photoLayout: [{ keep: images[0] }, { upload: 0 }] }, ["N"], 400],
+  ];
+  for (const [data, files, status] of cases) {
+    const res = await sendPhotos("PATCH", `/candidates/${id}`, data, files);
+    assert.equal(res.status, status, `${JSON.stringify(data)} -> ${JSON.stringify(res.data)}`);
+  }
+  assert.equal((await request("PATCH", `/candidates/${id}`, { images: [images[1]] }, adminToken)).status, 400);
+  const badJson = new FormData();
+  badJson.append("data", "{not json");
+  assert.equal((await fetch(`${base}/api/v1/candidates/${id}`, { method: "PATCH", headers: { Authorization: `Bearer ${adminToken}` }, body: badJson })).status, 400);
+  assert.equal((await sendPhotos("POST", "/candidates", { fullName: "X", category: "king", photoLayout: [{ upload: 0 }] }, ["N"])).status, 400);
+  assert.equal((await sendPhotos("POST", "/candidates", { fullName: "X", category: "king", images: ["https://example.com/a.jpg"] }, ["N"])).status, 400);
+
+  assert.deepEqual((await request("GET", `/admin/candidates/${id}`, undefined, adminToken)).data.data.candidate.images, images);
+  assert.deepEqual(await storedPhotos(), before);
+});
+
+test("a photo file still used by another candidate is never deleted", async () => {
+  const owner = (await sendPhotos("POST", "/candidates", { fullName: "Owner", category: "king" }, ["A", "B"])).data.data.candidate;
+  const shared = owner.images[0];
+  const other = await makeCandidate("queen", { images: [shared] });
+  const res = await request("PATCH", `/candidates/${owner._id}`, { photoLayout: [{ keep: owner.images[1] }] }, adminToken);
+  assert.equal(res.status, 200, JSON.stringify(res.data));
+  assert.equal(await photoExists(shared), true);
+  assert.equal((await request("DELETE", `/candidates/${other._id}`, undefined, adminToken)).status, 204);
+  assert.equal(await photoExists(shared), false);
+});

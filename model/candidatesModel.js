@@ -22,10 +22,11 @@ const candidateSchema = new mongoose.Schema({
         return (
           images.length >= 1 &&
           images.length <= 3 &&
-          images.every((image) => typeof image === "string" && image.trim())
+          images.every((image) => typeof image === "string" && image.trim()) &&
+          new Set(images).size === images.length
         );
       },
-      message: "Candidates need 1 to 3 non-empty images",
+      message: "Candidates need 1 to 3 different, non-empty images",
     },
   },
   bio: {

@@ -14,7 +14,10 @@ electionSchema.pre("validate", function () {
     this.invalidate("votingClosesAt", "Voting must close after it opens.");
   }
   if (!(this.resultsPublishedAt > this.votingClosesAt)) {
-    this.invalidate("resultsPublishedAt", "Results must appear after voting closes.");
+    this.invalidate(
+      "resultsPublishedAt",
+      "Results must appear after voting closes.",
+    );
   }
 });
 

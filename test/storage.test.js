@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const os = require("node:os");
-const { S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
+const { S3Client, PutObjectCommand, DeleteObjectCommand } = require("@aws-sdk/client-s3");
 
 const directory = require("node:fs").mkdtempSync(path.join(os.tmpdir(), "king-queen-storage-test-"));
 process.env.LOCAL_UPLOAD_DIR = directory;
@@ -63,4 +63,65 @@ test("image storage rejects unsupported formats and paths outside the allowed im
     await assert.rejects(storage.uploadImage(file, folder), { statusCode: 400 });
   }
   await assert.rejects(storage.uploadImage({ ...file, mimetype: "text/html" }, "candidates"), { statusCode: 400 });
+});
+
+test("development deletes only its own local candidate photos and never calls S3", async () => {
+  process.env.NODE_ENV = "development";
+  const originalSend = S3Client.prototype.send;
+  S3Client.prototype.send = () => { throw Error("Development must not call S3"); };
+  try {
+    const url = await storage.uploadImage(file, "candidates");
+    const outside = path.join(directory, "outside.png");
+    await fs.writeFile(outside, "keep me");
+    for (const other of ["https://example.com/a.png", "/uploads/candidates/../outside.png", "/uploads/candidates/.hidden",
+      "/uploads/gallery/memory/a.png", "/uploads/candidates/sub/a.png", "/uploads/candidates/", null]) {
+      assert.equal(storage.isOwnedImage(other, "candidates"), false, String(other));
+      assert.equal(await storage.deleteImage(other, "candidates"), false, String(other));
+    }
+    assert.equal(await storage.deleteImage(url, "../outside"), false);
+    assert.equal(storage.isOwnedImage(url, "candidates"), true);
+    assert.equal(await storage.deleteImage(url, "candidates"), true);
+    await assert.rejects(fs.access(path.join(directory, url.slice("/uploads/".length))));
+    assert.equal(await fs.readFile(outside, "utf8"), "keep me");
+    assert.equal(await storage.deleteImage(url, "candidates"), true, "deleting an already removed file is not an error");
+  } finally { S3Client.prototype.send = originalSend; }
+});
+
+test("production deletes candidate photos from its own S3 bucket only", async () => {
+  process.env.NODE_ENV = "production";
+  process.env.AWS_REGION = "ap-southeast-1";
+  process.env.AWS_S3_BUCKET = "test-voting-images";
+  delete process.env.AWS_S3_PUBLIC_URL;
+  const originalSend = S3Client.prototype.send;
+  const commands = [];
+  S3Client.prototype.send = async function (command) { commands.push(command); return {}; };
+  try {
+    const url = await storage.uploadImage(file, "candidates");
+    commands.length = 0;
+    for (const other of [
+      "https://other-bucket.s3.ap-southeast-1.amazonaws.com/candidates/a.png",
+      "https://test-voting-images.s3.ap-southeast-1.amazonaws.com/gallery/memory/a.png",
+      "https://test-voting-images.s3.ap-southeast-1.amazonaws.com/candidates/../secret.png",
+      "https://test-voting-images.s3.ap-southeast-1.amazonaws.com/candidates/sub/a.png",
+      "/uploads/candidates/a.png",
+    ]) {
+      assert.equal(await storage.deleteImage(other, "candidates"), false, other);
+    }
+    assert.equal(commands.length, 0);
+    assert.equal(await storage.deleteImage(url, "candidates"), true);
+    assert(commands[0] instanceof DeleteObjectCommand);
+    assert.equal(commands[0].input.Bucket, "test-voting-images");
+    assert.equal(commands[0].input.Key, url.split(".amazonaws.com/")[1]);
+
+    S3Client.prototype.send = async () => { throw Object.assign(new Error("Access Denied"), { name: "AccessDenied" }); };
+    await assert.rejects(storage.deleteImage(url, "candidates"), { name: "AccessDenied" });
+
+    S3Client.prototype.send = async function (command) { commands.push(command); return {}; };
+    process.env.AWS_S3_PUBLIC_URL = "https://images.example.com/";
+    assert.equal(await storage.deleteImage("https://images.example.com/candidates/abc.png", "candidates"), true);
+    assert.equal(commands.at(-1).input.Key, "candidates/abc.png");
+  } finally {
+    S3Client.prototype.send = originalSend;
+    delete process.env.AWS_S3_PUBLIC_URL;
+  }
 });
