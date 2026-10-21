@@ -49,8 +49,8 @@ export function AccountDialog({ initialMode = 'login', onClose, onLogin, onRegis
       {registrationUnknown && <p className="inline-error">Registration may have completed. Please contact the organisers before trying to register again; this site cannot recover an issued key.</p>}
       <button className="btn primary full-width" disabled={busy || (register && (registrationStatus !== 'open' || registrationBlocked))}>{busy ? 'Please wait…' : register ? 'Create account' : 'Login'}</button>
     </form>
-    {register && <details className="privacy-notice"><summary>We care about your security</summary><p>Your voting key and login token stay in memory on this page. Refreshing or signing out clears them. Keep your one-time key safe. Contact the event organisers for their account-data retention policy.</p></details>}
-    <p className="fine-print">Your login and voting key are cleared when you refresh or sign out.</p>
+    {register && <details className="privacy-notice"><summary>We care about your security</summary><p>Your login session stays signed in on this browser until you sign out, while your private voting key stays in memory only and is cleared when you refresh or sign out. Keep your one-time key safe.</p></details>}
+    <p className="fine-print">Your private voting key is never stored in the browser and is cleared when you refresh or sign out.</p>
   </Dialog>;
 }
 

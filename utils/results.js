@@ -1,7 +1,7 @@
 const Candidate = require("../model/candidatesModel");
 const Ballot = require("../model/ballotsModel");
 const Results = require("../model/resultsModel");
-const { getElection, withElectionOperation } = require("./election");
+const { getElection, isVotingOpen, withElectionOperation } = require("./election");
 const { selectFinalists } = require("./finalists");
 const clock = require("./clock");
 
@@ -30,7 +30,8 @@ exports.getOrCreateResults = async ({ now }) => {
 
 exports.finalizeResultsIfDue = async () => {
   const election = await getElection();
-  if (clock.now() <= election.votingClosesAt || await Results.exists({ _id: "election" })) return;
+  const now = clock.now();
+  if (now <= election.votingClosesAt || isVotingOpen(election, now) || await Results.exists({ _id: "election" })) return;
   try {
     await withElectionOperation("finalize", exports.getOrCreateResults);
   } catch (error) {

@@ -143,10 +143,13 @@ test("startup seeds fixed Myanmar dates and a hashed admin without overwriting c
   const response = await request("GET", "/settings");
   assert.equal(response.status, 200);
   const schedule = response.data.data.schedule;
+  assert.equal(schedule.candidateManagementClosesAt, "2026-10-27T23:59:59.999+06:30");
   assert.equal(schedule.votingOpensAt, "2026-10-28T09:00:00.000+06:30");
   assert.equal(schedule.votingClosesAt, "2026-11-02T23:59:59.999+06:30");
   assert.equal(schedule.resultsPublishedAt, "2026-11-03T09:00:00.000+06:30");
   assert.equal(schedule.registrationClosesAt, "2026-11-06T23:59:59.999+06:30");
+  assert.equal(schedule.votingOverride, "auto");
+  assert.equal(schedule.isVotingOpen, false);
   await request("PATCH", "/admin/settings", { registrationClosesAt: "2026-11-07T23:59+06:30" }, adminToken);
   await seed();
   assert.equal((await Election.findById("election")).registrationClosesAt.toISOString(), "2026-11-07T17:29:59.999Z");
@@ -343,10 +346,10 @@ test("a status update failure rolls back the corresponding ballot", async () => 
   } finally { User.updateOne = originalUpdate; }
 });
 
-test("candidate management stays permanently locked after moving the start into the future", async () => {
+test("candidate management follows candidateManagementClosesAt and can be reopened up to votingOpensAt", async () => {
   const king = await makeCandidate();
   openVoting();
-  // No maintenance tick or candidate request is needed before the settings edit.
+  // Moving votingOpensAt forward alone leaves candidateManagementClosesAt at Oct 27 23:59, so still locked at Oct 28 09:00.
   const changed = await request("PATCH", "/admin/settings", {
     votingOpensAt: "2026-10-30T09:00+06:30",
   }, adminToken);
@@ -355,8 +358,68 @@ test("candidate management stays permanently locked after moving the start into 
   for (const [method, endpoint] of [["POST", "/candidates"], ["PATCH", `/candidates/${king._id}`], ["DELETE", `/candidates/${king._id}`]]) {
     assert.equal((await request(method, endpoint, { bio: "changed" }, adminToken)).status, 403);
   }
-  await seed();
-  assert.equal((await Election.findById("election")).candidateManagementLocked, true);
+  // Cannot set candidateManagementClosesAt after votingOpensAt.
+  assert.equal((await request("PATCH", "/admin/settings", {
+    candidateManagementClosesAt: "2026-10-30T10:00+06:30",
+  }, adminToken)).status, 400);
+  // Extending candidateManagementClosesAt up to or before votingOpensAt unlocks candidate editing.
+  const reopened = await request("PATCH", "/admin/settings", {
+    candidateManagementClosesAt: "2026-10-29T23:59+06:30",
+  }, adminToken);
+  assert.equal(reopened.status, 200);
+  assert.equal(reopened.data.data.schedule.candidateManagementLocked, false);
+  assert.equal((await request("PATCH", `/candidates/${king._id}`, { bio: "reopened" }, adminToken)).status, 200);
+});
+
+test("votingOverride forces voting open or closed and test votes can be cleared before votingOpensAt", async () => {
+  const king = await makeCandidate();
+  const queen = await makeCandidate("queen");
+  const voter = await register();
+
+  // Before votingOpensAt (Oct 20), voting is closed in auto mode.
+  assert.equal((await vote(voter, king)).status, 403);
+
+  // Force voting open for testing; candidate management stays unlocked.
+  const forcedOpen = await request("PATCH", "/admin/settings", { votingOverride: "open" }, adminToken);
+  assert.equal(forcedOpen.status, 200);
+  assert.equal(forcedOpen.data.data.schedule.votingOverride, "open");
+  assert.equal(forcedOpen.data.data.schedule.isVotingOpen, true);
+  assert.equal(forcedOpen.data.data.schedule.candidateManagementLocked, false);
+
+  assert.equal((await vote(voter, king, "king")).status, 201);
+  assert.equal((await vote(voter, queen, "queen")).status, 201);
+  assert.equal(await Ballot.countDocuments(), 2);
+  const meAfterVote = await request("GET", "/auth/me", undefined, voter.token);
+  assert.equal(meAfterVote.data.data.user.hasVotedKing, true);
+  assert.equal(meAfterVote.data.data.user.hasVotedQueen, true);
+
+  // Clear all test votes before real voting starts.
+  const cleared = await request("DELETE", "/admin/test-votes", undefined, adminToken);
+  assert.equal(cleared.status, 200);
+  assert.equal(cleared.data.data.clearedBallots, 2);
+  assert.equal(await Ballot.countDocuments(), 0);
+  const meAfterClear = await request("GET", "/auth/me", undefined, voter.token);
+  assert.equal(meAfterClear.data.data.user.hasVotedKing, false);
+  assert.equal(meAfterClear.data.data.user.hasVotedQueen, false);
+
+  // The same voter key can cast a fresh vote again.
+  assert.equal((await vote(voter, king, "king")).status, 201);
+
+  // Force voting closed even during the scheduled voting window.
+  openVoting();
+  const forcedClosed = await request("PATCH", "/admin/settings", { votingOverride: "closed" }, adminToken);
+  assert.equal(forcedClosed.status, 200);
+  assert.equal(forcedClosed.data.data.schedule.isVotingOpen, false);
+  assert.equal((await vote(voter, queen, "queen")).status, 403);
+
+  // Clearing test votes is blocked once scheduled voting has started.
+  assert.equal((await request("DELETE", "/admin/test-votes", undefined, adminToken)).status, 403);
+
+  // Returning to auto inside the scheduled window reopens voting.
+  const backToAuto = await request("PATCH", "/admin/settings", { votingOverride: "auto" }, adminToken);
+  assert.equal(backToAuto.status, 200);
+  assert.equal(backToAuto.data.data.schedule.isVotingOpen, true);
+  assert.equal((await vote(voter, queen, "queen")).status, 201);
 });
 
 test("candidate writes recheck the lock after upload and serialize with schedule changes", async () => {
@@ -369,6 +432,7 @@ test("candidate writes recheck the lock after upload and serialize with schedule
 test("admins can change only valid date values, never labels, timezone, or lock", async () => {
   for (const body of [
     { timezone: "UTC" }, { timezoneLabel: "UTC" }, { labels: {} }, { candidateManagementLocked: false },
+    { votingOverride: "invalid" }, { candidateManagementClosesAt: "2026-10-29T09:00+06:30" },
     { votingClosesAt: "2026-10-27T09:00+06:30" }, { resultsPublishedAt: "2026-11-01T09:00+06:30" },
     { votingOpensAt: "2026-10-28T09:00Z" }, { registrationClosesAt: "2026-02-30T09:00+06:30" },
   ]) {

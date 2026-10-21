@@ -1,7 +1,9 @@
 const AppError = require("./appError");
+const clock = require("./clock");
+const { isVotingOpen, isCandidateManagementLocked } = require("./election");
 
 const OFFSET_MS = 390 * 60 * 1000;
-exports.dateFields = ["registrationClosesAt", "votingOpensAt", "votingClosesAt", "resultsPublishedAt"];
+exports.dateFields = ["registrationClosesAt", "candidateManagementClosesAt", "votingOpensAt", "votingClosesAt", "resultsPublishedAt"];
 
 exports.toMyanmarTime = (date) => new Date(date.getTime() + OFFSET_MS)
   .toISOString().replace("Z", "+06:30");
@@ -19,20 +21,23 @@ exports.parseMyanmarTime = (value, field) => {
     throw new AppError(`${field} is not a valid calendar date/time.`, 400);
   }
   // A deadline entered at minute precision includes that entire minute.
-  if (second === undefined && ["registrationClosesAt", "votingClosesAt"].includes(field)) {
+  if (second === undefined && ["registrationClosesAt", "candidateManagementClosesAt", "votingClosesAt"].includes(field)) {
     local.setUTCSeconds(59, 999);
   }
   return new Date(local.getTime() - OFFSET_MS);
 };
 
-exports.scheduleResponse = (election) => ({
+exports.scheduleResponse = (election, now = clock.now()) => ({
   ...Object.fromEntries(exports.dateFields.map((field) => [field, exports.toMyanmarTime(election[field])])),
   timezone: "Asia/Yangon",
   timezoneLabel: "Myanmar Time [mm]",
   labels: {
     registrationClosesAt: "Account Creation Will not be allowed after",
+    candidateManagementClosesAt: "Candidate management is allowed until",
     votingPeriod: "Votes are accepted between",
     resultsPublishedAt: "Voting Result of Top 5 finalist will be shown only after",
   },
-  candidateManagementLocked: election.candidateManagementLocked,
+  votingOverride: election.votingOverride || "auto",
+  isVotingOpen: isVotingOpen(election, now),
+  candidateManagementLocked: isCandidateManagementLocked(election, now),
 });

@@ -2,6 +2,33 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { savedChoices, scheduleState, validKey } from '../domain.js';
 
 const EMPTY = { king: null, queen: null };
+const SESSION_STORAGE_KEY = 'thadingyut_voter_session';
+
+function readStoredSession() {
+  try {
+    if (typeof localStorage === 'undefined') return null;
+    const raw = localStorage.getItem(SESSION_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed?.token && parsed?.user ? { token: parsed.token, user: parsed.user } : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredSession(value) {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    if (value?.token && value?.user) {
+      localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ token: value.token, user: value.user }));
+    } else {
+      localStorage.removeItem(SESSION_STORAGE_KEY);
+    }
+  } catch {
+    // Ignore storage errors in private browsing or restricted environments.
+  }
+}
+
 export function useFestival(api) {
   const [candidates, setCandidates] = useState([]);
   const [candidateState, setCandidateState] = useState('loading');
@@ -13,8 +40,8 @@ export function useFestival(api) {
   const [scheduleError, setScheduleError] = useState('');
   const [checkedAt, setCheckedAt] = useState(0);
   const [now, setNow] = useState(Date.now());
-  const [session, setSession] = useState(null);
-  const sessionRef = useRef(null);
+  const [session, setSession] = useState(readStoredSession);
+  const sessionRef = useRef(session);
   const keyRef = useRef(''); // Never persisted; only POST/PATCH/DELETE JSON bodies carry this value.
   const epoch = useRef(0);
   const lock = useRef(false);
@@ -27,12 +54,17 @@ export function useFestival(api) {
   const scheduleRef = useRef(null);
   const checkedAtRef = useRef(0);
 
+  const updateSession = useCallback(next => {
+    sessionRef.current = next;
+    setSession(next);
+    writeStoredSession(next);
+  }, []);
   const markChoices = useCallback(state => { choiceStateRef.current = state; setChoiceState(state); }, []);
   const lockChoices = useCallback(() => { keyRef.current = ''; setChoices(EMPTY); markChoices('locked'); }, [markChoices]);
   const signOut = useCallback((message = 'Signed out. Your session and voting key have been cleared.') => {
-    epoch.current++; sessionRef.current = null; setSession(null); lockChoices();
+    epoch.current++; updateSession(null); lockChoices();
     setNotice({ type: 'info', text: message });
-  }, [lockChoices]);
+  }, [lockChoices, updateSession]);
 
   const loadCandidates = useCallback(async () => {
     setCandidateState('loading'); setCandidateError('');
@@ -79,7 +111,7 @@ export function useFestival(api) {
       const user = await api.me(active.token);
       if (!user) throw new Error('Account status is unavailable.');
       if (generation !== epoch.current) return false;
-      const updated = { ...active, user }; sessionRef.current = updated; setSession(updated); return true;
+      const updated = { ...active, user }; updateSession(updated); return true;
     } catch (e) {
       if (generation !== epoch.current) return false;
       if (e.status === 401) signOut('Your login has expired. Please sign in again.');
@@ -88,6 +120,10 @@ export function useFestival(api) {
       return false;
     }
   }
+  useEffect(() => {
+    if (sessionRef.current?.token) verifyAccount();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   useEffect(() => {
     if (!session) return;
     const onFocus = () => { verifyAccount(); };
@@ -103,7 +139,7 @@ export function useFestival(api) {
     if (generation !== epoch.current) return;
     if (!data?.token || !data?.user) throw new Error('The login response is incomplete.');
     lockChoices(); const next = { token: data.token, user: data.user };
-    sessionRef.current = next; setSession(next); setNotice({ type: 'success', text: 'Welcome back. Enter your voting key to unlock your choices.' });
+    updateSession(next); setNotice({ type: 'success', text: 'Welcome back. Enter your voting key to unlock your choices.' });
     await verifyAccount(generation);
   }
   async function register(email, password) {
@@ -122,7 +158,7 @@ export function useFestival(api) {
     // Flags remain useful after the period closes, without revealing identities.
     const flags = { hasVotedKing: votes.some(v => v.contest === 'king'), hasVotedQueen: votes.some(v => v.contest === 'queen') };
     const updated = { ...active, user: { ...active.user, ...flags } };
-    sessionRef.current = updated; setSession(updated);
+    updateSession(updated);
     return true;
   }
 

@@ -2,15 +2,51 @@ const Election = require("../model/electionModel");
 const AppError = require("./appError");
 const clock = require("./clock");
 
+const DEFAULT_CANDIDATE_CLOSES_AT = new Date("2026-10-27T23:59:59.999+06:30");
+
+exports.votingOverrides = ["auto", "open", "closed"];
+
+exports.isVotingOpen = (election, now = clock.now()) => {
+  if (!election) return false;
+  if (election.votingOverride === "open") return true;
+  if (election.votingOverride === "closed") return false;
+  return now >= election.votingOpensAt && now <= election.votingClosesAt;
+};
+
+exports.isCandidateManagementLocked = (election, now = clock.now()) => {
+  if (!election) return false;
+  const cutoff = election.candidateManagementClosesAt ?? election.votingOpensAt;
+  return cutoff ? now > cutoff : Boolean(election.candidateManagementLocked);
+};
+
 exports.getElection = async () => {
-  // This latch is persisted, including when the first request follows downtime.
-  await Election.updateOne({
-    _id: "election",
-    votingOpensAt: { $lte: clock.now() },
-    candidateManagementLocked: false,
-  }, { $set: { candidateManagementLocked: true } });
   const election = await Election.findById("election");
   if (!election) throw new AppError("Election settings have not been seeded.", 503);
+  let dirty = false;
+  if (!election.candidateManagementClosesAt) {
+    election.candidateManagementClosesAt = election.votingOpensAt < DEFAULT_CANDIDATE_CLOSES_AT
+      ? election.votingOpensAt
+      : DEFAULT_CANDIDATE_CLOSES_AT;
+    dirty = true;
+  }
+  if (!election.votingOverride) {
+    election.votingOverride = "auto";
+    dirty = true;
+  }
+  const locked = exports.isCandidateManagementLocked(election, clock.now());
+  if (election.candidateManagementLocked !== locked) {
+    election.candidateManagementLocked = locked;
+    dirty = true;
+  }
+  if (dirty) {
+    await Election.updateOne({ _id: "election" }, {
+      $set: {
+        candidateManagementClosesAt: election.candidateManagementClosesAt,
+        votingOverride: election.votingOverride,
+        candidateManagementLocked: election.candidateManagementLocked,
+      },
+    });
+  }
   return election;
 };
 
@@ -18,16 +54,16 @@ exports.checkPeriod = (election, action, now) => {
   if (action === "registration" && now > election.registrationClosesAt) {
     throw new AppError("Account registration has closed.", 403);
   }
-  if (action === "candidate" && election.candidateManagementLocked) {
-    throw new AppError("Candidate management is permanently locked because voting has started.", 403);
+  if (action === "candidate" && exports.isCandidateManagementLocked(election, now)) {
+    throw new AppError("Candidate management has closed.", 403);
   }
-  if (action === "voting" && (now < election.votingOpensAt || now > election.votingClosesAt)) {
+  if (action === "voting" && !exports.isVotingOpen(election, now)) {
     throw new AppError("This action is only available during the voting period.", 403);
   }
-  if (action === "finalize" && now <= election.votingClosesAt) {
+  if (action === "finalize" && (now <= election.votingClosesAt || exports.isVotingOpen(election, now))) {
     throw new AppError("Voting has not closed.", 403);
   }
-  if (action === "publish" && (now < election.resultsPublishedAt || now <= election.votingClosesAt)) {
+  if (action === "publish" && (now < election.resultsPublishedAt || now <= election.votingClosesAt || exports.isVotingOpen(election, now))) {
     throw new AppError("Finalist results are not available yet.", 403);
   }
 };
@@ -40,18 +76,20 @@ exports.withElectionOperation = (action, callback) => {
   const operation = pendingOperation.then(async () => {
     const election = await exports.getElection();
     const now = clock.now();
-    if (now >= election.votingOpensAt) {
-      election.candidateManagementLocked = true;
-      await Election.updateOne({ _id: "election" }, { $set: { candidateManagementLocked: true } });
+    const lockedBefore = exports.isCandidateManagementLocked(election, now);
+    if (election.candidateManagementLocked !== lockedBefore) {
+      election.candidateManagementLocked = lockedBefore;
+      await Election.updateOne({ _id: "election" }, { $set: { candidateManagementLocked: lockedBefore } });
     }
     exports.checkPeriod(election, action, now);
     const undo = [];
     try {
       const result = await callback({ election, now, onRollback: (restore) => undo.push(restore) });
       const finishedAt = clock.now();
-      if (finishedAt >= election.votingOpensAt) {
-        election.candidateManagementLocked = true;
-        await Election.updateOne({ _id: "election" }, { $set: { candidateManagementLocked: true } });
+      const lockedAfter = exports.isCandidateManagementLocked(election, finishedAt);
+      if (election.candidateManagementLocked !== lockedAfter) {
+        election.candidateManagementLocked = lockedAfter;
+        await Election.updateOne({ _id: "election" }, { $set: { candidateManagementLocked: lockedAfter } });
       }
       exports.checkPeriod(election, action, finishedAt);
       return result;

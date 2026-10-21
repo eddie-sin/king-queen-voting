@@ -8,5 +8,6 @@ router.use(admin);
 router.get("/candidates", candidates.getAdminCandidates);
 router.get("/candidates/:id", candidates.getAdminCandidate);
 router.route("/settings").get(settings.getSettings).patch(settings.updateSettings);
+router.delete("/test-votes", settings.clearTestVotes);
 
 module.exports = router;

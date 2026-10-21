@@ -44,9 +44,11 @@ export function scheduleState(schedule, now = Date.now()) {
   const registration = parse(schedule?.registrationClosesAt);
   const opens = parse(schedule?.votingOpensAt);
   const closes = parse(schedule?.votingClosesAt);
+  const override = schedule?.votingOverride;
+  const validVoting = Number.isFinite(opens) && Number.isFinite(closes) && closes > opens;
   return {
     registration: Number.isFinite(registration) ? (now <= registration ? 'open' : 'closed') : 'unknown',
-    voting: !Number.isFinite(opens) || !Number.isFinite(closes) || closes <= opens ? 'unknown' : now < opens ? 'upcoming' : now > closes ? 'closed' : 'open',
+    voting: !validVoting ? 'unknown' : override === 'open' ? 'open' : override === 'closed' ? 'closed' : now < opens ? 'upcoming' : now > closes ? 'closed' : 'open',
   };
 }
 

@@ -12,6 +12,8 @@ test('registration and voting have independent exact boundaries', () => {
   assert.deepEqual(scheduleState(null), { registration: 'unknown', voting: 'unknown' });
   assert.equal(scheduleState({ ...schedule, votingClosesAt: 'invalid' }).voting, 'unknown');
   assert.equal(scheduleState({ ...schedule, votingClosesAt: schedule.votingOpensAt }).voting, 'unknown');
+  assert.equal(scheduleState({ ...schedule, votingOverride: 'open' }, Date.parse('2026-10-20T10:00:00Z')).voting, 'open');
+  assert.equal(scheduleState({ ...schedule, votingOverride: 'closed' }, Date.parse('2026-10-20T13:00:00Z')).voting, 'closed');
 });
 test('public candidate projection strips contacts and unsafe URLs', () => {
   const candidate = publicCandidate({ _id: '1', fullName: 'Name', phone: 'PRIVATE', contactNumber: 'PRIVATE', email: 'PRIVATE', images: ['/uploads/a.jpg', 'https://example.test/a.jpg', '//unsafe.example/a', 'javascript:alert(1)', '/uploads/b.jpg', '/uploads/c.jpg'], category: 'king', isActive: true });
