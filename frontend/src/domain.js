@@ -1,20 +1,29 @@
 export const CONTESTS = ['king', 'queen'];
 export const titleCase = value => value === 'queen' ? 'Queen' : 'King';
 export const validKey = value => /^[a-f0-9]{64}$/.test(value);
+const safeImageUrl = value => typeof value === 'string' && (/^\/(?!\/)/.test(value) || /^https?:\/\//i.test(value));
 
 // Render only the public fields. Contact numbers never enter presentation data.
 export function publicCandidate(value) {
   if (!value || typeof value !== 'object') return null;
   const text = x => typeof x === 'string' ? x : '';
-  const imageUrl = x => typeof x === 'string' && (/^\/(?!\/)/.test(x) || /^https?:\/\//i.test(x));
   return {
     _id: text(value._id), fullName: text(value.fullName) || 'Candidate',
     batchNumber: value.batchNumber == null ? '' : String(value.batchNumber),
-    nickname: text(value.nickname), images: (Array.isArray(value.images) ? value.images : []).filter(imageUrl).slice(0, 3),
+    nickname: text(value.nickname), images: (Array.isArray(value.images) ? value.images : []).filter(safeImageUrl).slice(0, 3),
     bio: text(value.bio), age: Number.isFinite(value.age) && value.age > 0 ? value.age : null,
     zodiacSign: text(value.zodiacSign),
     hobbiesAndInterests: (Array.isArray(value.hobbiesAndInterests) ? value.hobbiesAndInterests : []).filter(x => typeof x === 'string' && x.trim()),
     category: CONTESTS.includes(value.category) ? value.category : '', isActive: value.isActive === true,
+  };
+}
+
+export function publicLantern(value) {
+  if (!value || typeof value !== 'object' || value.section !== 'lantern' || !safeImageUrl(value.url)) return null;
+  const clean = field => typeof field === 'string' ? field.trim() : '';
+  return {
+    _id: clean(value._id), url: value.url,
+    title: clean(value.title) || 'Festival lantern', description: clean(value.description),
   };
 }
 

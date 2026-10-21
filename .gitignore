@@ -12,6 +12,7 @@ yarn-error.log*
 /Candidates/
 # Frontend build output
 frontend/dist/
+admin/dist/
 
 # Local frontend test previews
 frontend/test-artifacts/
