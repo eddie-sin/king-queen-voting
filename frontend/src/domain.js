@@ -56,3 +56,24 @@ export function myanmarTime(date) {
   if (!date || !Number.isFinite(Date.parse(date))) return 'Awaiting schedule';
   return new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Yangon', day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }).format(new Date(date)) + ' MMT';
 }
+
+// Finalists are announced only after voting has ended and the published time has passed.
+// The server enforces the same rule; this only chooses which stage to render.
+export function finalistsState(schedule, now = Date.now()) {
+  const published = typeof schedule?.resultsPublishedAt === 'string' ? Date.parse(schedule.resultsPublishedAt) : NaN;
+  if (!Number.isFinite(published)) return 'unknown';
+  if (now < published || scheduleState(schedule, now).voting !== 'closed') return 'waiting';
+  return 'announced';
+}
+
+// Public finalists show five equal people per contest: no votes, ranks or tie-break flags,
+// and an alphabetical order so the server's vote order never hints at placement.
+export function publicFinalists(results) {
+  if (!results || typeof results !== 'object') throw new Error('Finalist results are unavailable.');
+  const pick = list => (Array.isArray(list) ? list : [])
+    .map(entry => publicCandidate(entry?.candidate))
+    .filter(candidate => candidate?._id)
+    .map(({ _id, fullName, nickname, batchNumber, images, category }) => ({ _id, fullName, nickname, batchNumber, images, category }))
+    .sort((a, b) => a.fullName.localeCompare(b.fullName, 'en', { sensitivity: 'base' }));
+  return { king: pick(results.kings), queen: pick(results.queens) };
+}

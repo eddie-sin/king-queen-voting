@@ -1,4 +1,4 @@
-import { publicCandidate, publicLantern } from './domain.js';
+import { publicCandidate, publicFinalists, publicLantern } from './domain.js';
 
 export class ApiError extends Error {
   constructor(message, { status = 0, interrupted = false } = {}) {
@@ -48,6 +48,7 @@ export function createApi({ baseUrl = '/api/v1', fetchImpl = (...args) => fetch(
       return data.images.map(publicLantern).filter(Boolean);
     },
     async settings(options) { return (await request('/settings', options)).data?.schedule ?? null; },
+    async finalists(options) { return publicFinalists((await request('/results', options)).data?.results); },
     async register(email, password) { return (await request('/auth/register', { method: 'POST', body: { email, password } })).data; },
     async login(email, password) { return (await request('/auth/login', { method: 'POST', body: { email, password } })).data; },
     async me(token) { return (await request('/auth/me', { token })).data?.user; },

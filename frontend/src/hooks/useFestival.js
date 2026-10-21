@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { savedChoices, scheduleState, validKey } from '../domain.js';
+import { finalistsState, savedChoices, scheduleState, validKey } from '../domain.js';
 
 const EMPTY = { king: null, queen: null };
 const SESSION_STORAGE_KEY = 'thadingyut_voter_session';
@@ -100,6 +100,31 @@ export function useFestival(api) {
   const status = fresh ? scheduleState(schedule, now) : { registration: 'unknown', voting: 'unknown' };
   const statusRef = useRef(status); statusRef.current = status;
   const openNow = () => checkedAtRef.current > 0 && Date.now() - checkedAtRef.current < 90000 && scheduleState(scheduleRef.current).voting === 'open';
+
+  // Finalists: 'idle' → 'loading' → 'ready'; 'pending' when the server is not releasing them yet.
+  const finalistStage = fresh ? finalistsState(schedule, now) : 'unknown';
+  const [finalists, setFinalists] = useState(null);
+  const [finalistLoad, setFinalistLoad] = useState('idle');
+  const [finalistError, setFinalistError] = useState('');
+  const loadFinalists = useCallback(async () => {
+    setFinalistLoad('loading'); setFinalistError('');
+    try { setFinalists(await api.finalists()); setFinalistLoad('ready'); }
+    catch (e) {
+      if (e.status === 403 || e.status === 404) { setFinalists(null); setFinalistLoad('pending'); }
+      else { setFinalistLoad('error'); setFinalistError(e.message); }
+    }
+  }, [api]);
+  useEffect(() => {
+    if (finalistStage === 'announced' && finalistLoad === 'idle') loadFinalists();
+    // If the schedule moves the announcement back, hide anything already loaded.
+    if (finalistStage === 'waiting' && finalistLoad !== 'idle') { setFinalists(null); setFinalistLoad('idle'); }
+  }, [finalistStage, finalistLoad, loadFinalists]);
+  useEffect(() => {
+    // The server may release results a little after the local clock; try again calmly.
+    if (finalistLoad !== 'pending') return;
+    const retry = setTimeout(() => setFinalistLoad('idle'), 60000);
+    return () => clearTimeout(retry);
+  }, [finalistLoad]);
 
   // Selected identities disappear as soon as the period closes or its state is unknown.
   useEffect(() => { if (status.voting !== 'open') lockChoices(); }, [status.voting, lockChoices]);
@@ -235,6 +260,7 @@ export function useFestival(api) {
 
   return { candidates, candidateState, candidateError, reloadCandidates: loadCandidates,
     lanterns, lanternState, lanternError, reloadLanterns: loadLanterns, schedule, scheduleError,
+    now, finalistStage, finalists, finalistLoad, finalistError, reloadFinalists: loadFinalists,
     status, reloadSchedule: loadSchedule, session, choices: status.voting === 'open' ? choices : EMPTY,
     choiceState, busy, notice, dismissNotice: () => setNotice(null), celebration,
     login, register, signOut, unlock, refreshChoices, mutate, lockChoices, verifyAccount };

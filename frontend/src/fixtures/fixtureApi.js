@@ -1,15 +1,16 @@
 // DEVELOPMENT ONLY. Imported only behind import.meta.env.DEV in main.jsx.
 // There are no fixtures in the production application and no automatic fallback.
 import { ApiError } from '../api.js';
-import { publicCandidate, scheduleState } from '../domain.js';
+import { publicCandidate, publicFinalists, scheduleState } from '../domain.js';
 
 export function createFixtureApi({ scenario = 'open', delayMs = 300 } = {}) {
   const now = Date.now(); const iso = offset => new Date(now + offset).toISOString();
+  const announced = scenario === 'announced';
   const schedule = {
-    registrationClosesAt: iso(scenario === 'registration-closed' ? -60000 : 86400000),
-    votingOpensAt: iso(scenario === 'upcoming' ? 3600000 : -3600000),
-    votingClosesAt: iso(scenario === 'closed' ? -1000 : 7200000),
-    resultsPublishedAt: iso(10800000), timezone: 'Asia/Yangon',
+    registrationClosesAt: iso(scenario === 'registration-closed' || announced ? -60000 : 86400000),
+    votingOpensAt: iso(scenario === 'upcoming' ? 3600000 : announced ? -7200000 : -3600000),
+    votingClosesAt: iso(scenario === 'closed' ? -1000 : announced ? -3600000 : 7200000),
+    resultsPublishedAt: iso(announced ? -60000 : 10800000), timezone: 'Asia/Yangon',
   };
   const names = [['Aung Khant', 'Min Thant', 'Hein Htet'], ['May Thazin', 'Hnin Wut Yee', 'Su Myat Noe']];
   const candidates = ['king', 'queen'].flatMap((contest, j) => names[j].map((name, i) => publicCandidate({
@@ -39,6 +40,14 @@ export function createFixtureApi({ scenario = 'open', delayMs = 300 } = {}) {
     async candidates() { await wait(); if (scenario === 'error') fail('Sample candidate service is unavailable.', 503); return scenario === 'empty' ? [] : candidates; },
     async lanterns() { await wait(); return []; },
     async settings() { await wait(); if (scenario === 'schedule-error') fail('Sample schedule service is unavailable.', 503); return schedule; },
+    async finalists() {
+      await wait(); if (!announced) fail('Finalist results are not available yet.', 403);
+      const five = (contest, list) => list.map((name, i) => ({ candidate: { _id: `${contest}-f${i}`, fullName: name, batchNumber: 'HND-65', category: contest, isActive: true, images: [`${import.meta.env?.BASE_URL || '/'}art/source-${contest}.svg`] }, votes: 0 }));
+      return publicFinalists({
+        kings: five('king', ['Aung Khant', 'Min Thant', 'Hein Htet', 'Zaw Lin', 'Kaung Myat']),
+        queens: five('queen', ['May Thazin', 'Hnin Wut Yee', 'Su Myat Noe', 'Thiri Aung', 'Ei Phyu']),
+      });
+    },
     async register(email, password) {
       await wait(); if (scheduleState(schedule).registration !== 'open') fail('Registration is closed.', 403);
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || password.length < 8) fail('Enter a valid email and password of at least eight characters.');

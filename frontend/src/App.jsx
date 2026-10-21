@@ -3,6 +3,7 @@ import { useFestival } from './hooks/useFestival.js';
 import { titleCase } from './domain.js';
 import { Brand, Crown, UserIcon, Sky, CategorySelection, CandidateCard, CandidateProfile, AccountDialog, UnlockDialog, ScheduleBanner, AccountPanel, ChoicesPage, VoteConfirmation, Celebration } from './components.jsx';
 import { LanternGallery } from './components/LanternGallery.jsx';
+import { FinalistsPage } from './components/Finalists.jsx';
 
 const NAV_ITEMS = [
   { id: 'home', href: '#home', label: 'Home', hint: 'About the festival, dates & venue', match: ['home'] },
@@ -237,12 +238,15 @@ export default function App({ api, fixtureMode = false }) {
         {model.candidateState==='loading'?<div className="empty-state" role="status">Preparing the spotlight…</div>:model.candidateState==='error'?<div className="empty-state" role="alert"><h3>The spotlight needs a moment.</h3><p>{model.candidateError}</p><button className="btn secondary" onClick={model.reloadCandidates}>Retry candidates</button></div>:!gallery.length?<div className="empty-state"><h3>A little anticipation.</h3><p>No active {category} candidates have been announced yet.</p></div>:<div className="gallery">{gallery.map((c,i)=><CandidateCard key={c._id} candidate={c} number={i+1} selected={viewable&&model.choices[category]?._id===c._id} onView={setProfile}/>)}</div>}
         <p className="source-note">One to three photos per candidate. Swipe sideways or tap a dot to explore; autoplay pauses when you interact. Your King and Queen choices are saved separately.</p><div className="source-page-links"><a className="text-button" href="#candidates">Back to categories</a><a className="text-button" href="#account">Review my choices</a></div></section>
       </> : route==='finalists' ? <>
-        {heading('ROYAL COURT ANNOUNCEMENT',<>Top 5 <em>Kings &amp; Queens.</em></>,'Honouring the top 5 King finalists and top 5 Queen finalists chosen by the festival community.')}
-        <PlaceholderStage
-          badge="FINALISTS · TOP 5 KINGS & TOP 5 QUEENS"
-          title={<>The Royal Finalists <em>Showcase</em></>}
-          description="Once the results announcement window opens, the top 5 Kings and top 5 Queens from community voting will be unveiled and celebrated right here."
-          primaryAction={{ href: '#candidates', label: 'Meet the Candidates' }}
+        <FinalistsPage
+          schedule={model.schedule}
+          now={model.now}
+          stage={model.finalistStage}
+          finalists={model.finalists}
+          load={model.finalistLoad}
+          error={model.finalistError}
+          onRetry={model.reloadFinalists}
+          onRetrySchedule={model.reloadSchedule}
         />
       </> : route==='lanterns' ? <>
         {heading('LIGHTS OF THADINGYUT',<>Lanterns and their <em>stories.</em></>,'Discover the craft, meaning, and warm glow behind the festival lanterns shared by our community.')}
