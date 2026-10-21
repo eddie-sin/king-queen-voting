@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Thadingyut | Entertainment Agenda</title>
+  <style>
+    :root { color-scheme: light; --ink:#3f2b25; --muted:#7e6554; --cream:#fffaf0; --gold:#ca8a35; --border:#eadcc2; }
+    * { box-sizing:border-box }
+    body { margin:0; background: radial-gradient(circle at top right,#ffedc0 0,transparent 40%), #fffaf0;
+           color:var(--ink); font-family: system-ui, -apple-system, "Segoe UI", sans-serif; line-height:1.5 }
+    main { width:min(850px, calc(100% - 32px)); margin:0 auto; padding:60px 0 80px }
+    .eyebrow { text-transform:uppercase; letter-spacing:.23em; font-size:12px; font-weight:700; color:#a36c24 }
+    h1 { margin:8px 0; font-size:clamp(32px,6vw,52px); line-height:1.14 }
+    .intro { margin:10px 0 28px; max-width:620px; color:var(--muted) }
+    .status { color:var(--muted); padding:24px; background:#fff; border:1px solid var(--border); border-radius:16px }
+    .agenda-list { list-style:none; padding:0; margin:0; display:grid; gap:14px }
+    .item { display:grid; grid-template-columns:64px minmax(0,1fr) auto; gap:18px; align-items:start;
+            padding:22px; background:#fff; border:1px solid var(--border); border-radius:18px; box-shadow:0 3px 16px #9b62240b }
+    .number { display:grid; place-items:center; width:52px; height:52px; border-radius:50%;
+              color:#88530a; background:#fff3d8; font-weight:800; font-size:18px }
+    h2 { margin:0; font-size:20px }
+    .details { margin:6px 0 0; color:var(--muted); font-size:14px }
+    .time { white-space:nowrap; padding:6px 10px; border-radius:99px; color:#835b20; background:#fff2d6; font-weight:700; font-size:13px }
+    .desc { margin:8px 0 0; font-size:14px; white-space:pre-wrap }
+    footer { margin-top:30px; color:var(--muted); font-size:13px }
+    @media(max-width:560px) { main {padding-top:36px} .item {grid-template-columns:44px minmax(0,1fr);gap:10px;padding:16px}
+      .number {width:38px;height:38px;font-size:15px} .time{grid-column:2;justify-self:start} h2{font-size:18px} }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="eyebrow">Thadingyut Celebration ✨</div>
+    <h1>Entertainment Agenda</h1>
+    <p class="intro">Enjoy the performances and activities in the order planned by the event organizers. No account or login is required.</p>
+    <p id="message" class="status" role="status">Loading the event schedule...</p>
+    <ol id="agenda" class="agenda-list" aria-label="Entertainment schedule" hidden></ol>
+    <footer>Schedule order may change. Refresh this page for the latest agenda.</footer>
+  </main>
+  <script>
+    const list = document.getElementById("agenda");
+    const message = document.getElementById("message");
+    function showTime(value) {
+      if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(value || "")) return "Time TBA";
+      const [hours, minutes] = value.split(":").map(Number);
+      return `${hours % 12 || 12}:${String(minutes).padStart(2, "0")} ${hours >= 12 ? "PM" : "AM"}`;
+    }
+    function element(tag, className, value) {
+      const node = document.createElement(tag);
+      if (className) node.className = className;
+      if (value !== undefined) node.textContent = value; // safe text, never inject HTML
+      return node;
+    }
+    async function loadAgenda() {
+      try {
+        const response = await fetch("/api/v1/agenda", {cache: "no-store"});
+        if (!response.ok) throw new Error("API request failed");
+        const result = await response.json();
+        const items = result.data?.agenda;
+        if (!Array.isArray(items)) throw new Error("Unexpected response");
+        if (!items.length) {
+          message.textContent = "The entertainment schedule will be announced soon.";
+          return;
+        }
+        const fragment = document.createDocumentFragment();
+        for (const item of items) {
+          const li = element("li", "item");
+          li.appendChild(element("span", "number", String(item.order)));
+          const content = element("div", "content");
+          content.appendChild(element("h2", "", item.title));
+          const details = [item.performer, item.location].filter(Boolean).join(" • ");
+          if (details) content.appendChild(element("p", "details", details));
+          if (item.description) content.appendChild(element("p", "desc", item.description));
+          li.appendChild(content);
+          li.appendChild(element("span", "time", showTime(item.startTime)));
+          fragment.appendChild(li);
+        }
+        list.replaceChildren(fragment);
+        list.hidden = false;
+        message.hidden = true;
+      } catch (error) {
+        message.textContent = "Unable to load the agenda. Please refresh and try again.";
+      }
+    }
+    loadAgenda();
+  </script>
+</body>
+</html>

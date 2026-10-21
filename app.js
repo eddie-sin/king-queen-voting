@@ -4,6 +4,8 @@ const morgan = require("morgan");
 const authRouter = require("./route/authRoutes");
 const candidatesRouter = require("./route/candidatesRoutes");
 const imagesRouter = require("./route/imagesRoutes");
+const usersRouter = require("./route/usersRoutes");
+const agendaRouter = require("./route/agendaRoutes");
 const AppError = require("./utils/appError");
 const globalErrorHandler = require("./controller/errorControllers");
 const votingRouter = require("./route/votingRoutes");
@@ -34,10 +36,15 @@ app.use("/api/v1/auth", authRouter);
 
 app.use("/api/v1/candidates", candidatesRouter);
 app.use("/api/v1/images", imagesRouter);
+<<<<<<< Updated upstream
 app.use("/api/v1/wishes", require("./route/wishesRoutes"));
 app.use("/api/v1/admin", require("./route/adminRoutes"));
 app.get("/api/v1/settings", require("./controller/settingsController").getSettings);
 app.get("/api/v1/results", require("./controller/resultsController").getResults);
+=======
+app.use("/api/v1/users", usersRouter);
+app.use("/api/v1/agenda", agendaRouter);
+>>>>>>> Stashed changes
 
 app.use((req, res, next) => {
   next(new AppError(`Can't find ${req.originalUrl} on this server!`, 404));
