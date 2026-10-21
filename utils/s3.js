@@ -55,13 +55,18 @@ exports.deleteImage = async (key) => {
   await getClient().send(new DeleteObjectCommand({ Bucket: process.env.AWS_S3_BUCKET, Key: key }));
 };
 
-// These internal operations use a separately configured private bucket, never
-// the public gallery bucket or CDN. Callers validate the opaque key first.
+// Private operations never issue a public URL. Sharing a bucket requires an
+// explicit deployment opt-in AND an independently secured memory-photos prefix.
+// Callers validate the opaque key first.
 const privateStorage = () => {
   if (!process.env.AWS_REGION || !process.env.AWS_MEMORY_PHOTO_BUCKET) {
     throw new AppError("Private image storage requires AWS_REGION and AWS_MEMORY_PHOTO_BUCKET.", 503);
   }
-  if (process.env.AWS_MEMORY_PHOTO_BUCKET === process.env.AWS_S3_BUCKET) {
+  const shared = process.env.MEMORY_PHOTO_ALLOW_SHARED_BUCKET;
+  if (shared !== undefined && !["true", "false"].includes(shared)) {
+    throw new AppError("MEMORY_PHOTO_ALLOW_SHARED_BUCKET must be true or false.", 503);
+  }
+  if (process.env.AWS_MEMORY_PHOTO_BUCKET === process.env.AWS_S3_BUCKET && shared !== "true") {
     throw new AppError("Memory Photo storage must use a separate private bucket.", 503);
   }
   client ||= new S3Client({ region: process.env.AWS_REGION });
