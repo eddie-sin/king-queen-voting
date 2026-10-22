@@ -834,42 +834,70 @@ test("email-only registration rejects missing, malformed, and short credentials"
 });
 
 
-test("Wish Sky gates public viewing and authenticated writing to the Myanmar event date", async () => {
-  process.env.WISH_SKY_EVENT_DATE = "2026-10-28";
+test("Wish Sky is public to read, account-only to write, private by default and limited to three at any time", async () => {
+  const previousDate = process.env.WISH_SKY_EVENT_DATE;
   try {
+    delete process.env.WISH_SKY_EVENT_DATE;
     const voter = await register();
-    assert.equal((await request("GET", "/wishes/status")).data.data.wishSky.isOpen, false);
-    assert.equal((await request("GET", "/wishes")).status, 403);
-    assert.equal((await request("POST", "/wishes", { message: "Hello" }, voter.token)).status, 403);
-    setTime("2026-10-28T00:00:00+06:30");
+    const other = await register();
+    assert.deepEqual((await request("GET", "/wishes/status")).data.data.wishSky, { isOpen: true, maxWishes: 3 });
+    assert.equal((await request("GET", "/wishes")).status, 200);
+    assert.deepEqual((await request("GET", "/wishes/mine", undefined, voter.token)).data.data, { used: 0, remaining: 3 });
+    assert.equal((await request("GET", "/wishes/mine")).status, 401);
     assert.equal((await request("POST", "/wishes", { message: "Hello" })).status, 401);
     assert.equal((await request("POST", "/wishes", { message: "Hello" }, adminToken)).status, 403);
-    for (const body of [{}, { message: " " }, { message: 123 }, { message: "a".repeat(501) }, { message: "Hi", user: voter.user.id }]) {
+    for (const body of [{}, { message: " " }, { message: 123 }, { message: "Hi", user: voter.user.id }]) {
       assert.equal((await request("POST", "/wishes", body, voter.token)).status, 400);
     }
     const submissions = await Promise.all(Array.from({ length: 8 }, (_, i) => request("POST", "/wishes", { message: `Wish ${i}` }, voter.token)));
     assert.equal(submissions.filter((result) => result.status === 201).length, 3);
     assert.equal(submissions.filter((result) => result.status === 409).length, 5);
     assert.equal(await Wish.countDocuments({ user: voter.user.id }), 3);
-    const other = await register();
+    assert.deepEqual((await request("GET", "/wishes/mine", undefined, voter.token)).data.data, { used: 3, remaining: 0 });
     assert.equal((await request("POST", "/wishes", { message: " Another wish " }, other.token)).status, 201);
     const publicList = await request("GET", "/wishes");
     assert.equal(publicList.status, 200);
     assert.equal(publicList.data.results, 4);
-    assert(publicList.data.data.wishes.every((wish) => !wish.user && !wish.slot && !wish.email));
+    assert(publicList.data.data.wishes.every((wish) => Object.keys(wish).sort().join(",") === "id,message"));
     assert.equal((await request("GET", "/wishes?page=0")).status, 400);
+    setTime("2026-11-20T00:00:00+06:30");
+    process.env.WISH_SKY_EVENT_DATE = "invalid-old-value";
+    assert.equal((await request("GET", "/wishes")).status, 200);
+    const longMessage = "a".repeat(600);
+    assert.equal((await request("POST", "/wishes", { message: longMessage }, other.token)).data.data.wish.message, longMessage);
+    assert.equal((await request("POST", "/wishes", { message: "Any day" }, other.token)).status, 201);
+    assert.equal(await Wish.countDocuments({ user: other.user.id }), 3);
     await User.updateOne({ _id: other.user.id }, { status: "disabled" });
     assert.equal((await request("POST", "/wishes", { message: "Blocked" }, other.token)).status, 403);
-    setTime("2026-10-28T23:59:59.999+06:30");
-    assert.equal((await request("GET", "/wishes")).status, 200);
-    setTime("2026-10-29T00:00:00+06:30");
-    assert.equal((await request("GET", "/wishes")).status, 403);
-    assert.equal((await request("POST", "/wishes", { message: "Late" }, voter.token)).status, 403);
-    process.env.WISH_SKY_EVENT_DATE = "2026-02-30";
-    assert.equal((await request("GET", "/wishes")).status, 503);
-    delete process.env.WISH_SKY_EVENT_DATE;
-    assert.equal((await request("GET", "/wishes")).status, 503);
-  } finally { delete process.env.WISH_SKY_EVENT_DATE; }
+  } finally {
+    if (previousDate === undefined) delete process.env.WISH_SKY_EVENT_DATE;
+    else process.env.WISH_SKY_EVENT_DATE = previousDate;
+  }
+});
+
+test("Wish Sky cursor visits every message across pages without exposing ownership", async () => {
+  setTime("2026-10-28T12:00:00+06:30");
+    // Distinct owners keep the per-account slot index intact.
+    const wishes = Array.from({ length: 105 }, (_, index) => ({
+      user: new mongoose.Types.ObjectId(), slot: 1, message: `Wish ${index}`,
+      createdAt: new Date(Date.parse("2026-10-28T12:00:00+06:30") - Math.floor(index / 5) * 1000),
+    }));
+    await Wish.insertMany(wishes);
+    let cursor = null;
+    const seen = new Set();
+    do {
+      const query = new URLSearchParams({ limit: "40" });
+      if (cursor) query.set("cursor", cursor);
+      const response = await request("GET", `/wishes?${query}`);
+      assert.equal(response.status, 200);
+      for (const wish of response.data.data.wishes) {
+        assert.deepEqual(Object.keys(wish).sort(), ["id", "message"]);
+        seen.add(wish.id);
+      }
+      cursor = response.data.data.nextCursor;
+    } while (cursor);
+    assert.equal(seen.size, 105);
+    assert.equal((await request("GET", "/wishes?cursor=invalid&limit=40")).status, 400);
 });
 
 const photoPath = (url) => path.join(testUploadDirectory, url.replace(/^\/uploads\//, ""));

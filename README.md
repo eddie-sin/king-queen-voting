@@ -1,6 +1,6 @@
 # King and Queen Voting API
 
-Express/Mongoose backend. Candidate information and released finalist results are public. Voting requires a registered, active account, a Bearer JWT, and that account's voting key. This repository does not contain a frontend.
+Express/Mongoose backend with React voter and admin frontends. Candidate information and released finalist results are public. Voting requires a registered, active account, a Bearer JWT, and that account's voting key. The voter frontend lives in `frontend/`.
 
 ## Setup
 
@@ -55,6 +55,8 @@ All routes start with `/api/v1`.
 | POST | `/auth/register` | Register and receive a voting key exactly once |
 | POST | `/auth/login` | Log in using email and password |
 | POST | `/auth/admin/login` | Log in using admin username and password |
+
+The voter frontend's Wish Sky is available at `/#wishes`. Anyone can read wishes at any time. Signed-in voters may release up to three wishes each, with no date or voting-key restriction. See [Wish Sky integration](docs/wish-sky.md).
 
 Registration and user login require only `email` and `password`. Registration requires a valid email and a password of at least eight characters; no name or batch number is collected. The voting key cannot be recovered; save it securely. Login returns `data.token`; send it as `Authorization: Bearer TOKEN` on protected routes.
 

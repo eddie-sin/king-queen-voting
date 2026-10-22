@@ -2,6 +2,8 @@
 
 React voting frontend imported from `/home/nikolai/thadingyut-react-source-matched.zip` and connected to the existing Express API. Nothing is deployed by these commands.
 
+The Wish Sky from `thadingyut-react-wish-sky.zip` is integrated at `/#wishes` (the old `/#wish-sky` link still works). Anyone can read wishes at any time. Signed-in users may release up to three wishes each, with no voting key or date/time restriction. Details are in [Wish Sky integration](../docs/wish-sky.md).
+
 ## Run locally
 
 Use Node.js 20.19+ or 22.12+ (this implementation was built with Node.js 26). Start your normal local MongoDB service. In a terminal at the repository root:
@@ -51,7 +53,8 @@ Open the local URL Vite prints (normally http://127.0.0.1:5173). Vite forwards `
 - Sign in, unlock choices with the key, then open a candidate and confirm your vote.
 - Vote once for King and once for Queen. Move either crown to another candidate; the other contest should remain unchanged.
 - Remove a vote using “Remove King vote” or “Remove Queen vote”; vote again.
-- Try a wrong key, cancel confirmation, and refresh. Refresh deliberately clears both login and the in-memory voting key.
+- Try a wrong key, cancel confirmation, and refresh. Refresh clears the in-memory voting key; the existing voter session is kept in local storage until sign-out or expiry.
+- Open `/#wishes`, read a lantern, sign in, and release up to three wishes. No voting key is required for wishes.
 - Check a narrow mobile viewport, keyboard Tab/Escape, and reduced-motion settings.
 - Stop the API and reload to check the connection error and retry action.
 

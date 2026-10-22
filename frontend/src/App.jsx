@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import WishSky from './wishes/WishSky.jsx';
 import { useFestival } from './hooks/useFestival.js';
 import { titleCase } from './domain.js';
 import { Brand, Crown, UserIcon, Sky, CategorySelection, CandidateCard, CandidateProfile, AccountDialog, UnlockDialog, ScheduleBanner, AccountPanel, ChoicesPage, VoteConfirmation, Celebration } from './components.jsx';
@@ -10,7 +11,7 @@ const NAV_ITEMS = [
   { id: 'candidates', href: '#candidates', label: 'King & Queen', hint: 'Meet candidates & cast your crown', featured: true, match: ['candidates', 'king', 'queen'] },
   { id: 'finalists', href: '#finalists', label: 'Finalists', hint: 'Top 5 Kings & Top 5 Queens', match: ['finalists'] },
   { id: 'lanterns', href: '#lanterns', label: 'Lanterns', hint: 'Community lantern gallery', match: ['lanterns'] },
-  { id: 'wish-sky', href: '#wish-sky', label: 'Wish Sky', hint: 'Write & share your wishes', match: ['wish-sky'] },
+  { id: 'wish-sky', href: '#wishes', label: 'Wish Sky', hint: 'Write & share your wishes', match: ['wishes'] },
   { id: 'entertainment', href: '#entertainment', label: 'Entertainment', hint: 'Event day agenda & stage lineup', match: ['entertainment'] },
 ];
 
@@ -19,7 +20,8 @@ function readRoute() {
   if (!raw || raw === 'home') return 'home';
   if (raw === 'choices' || raw === 'account') return 'account';
   if (raw === 'results' || raw === 'finalists') return 'finalists';
-  if (['candidates', 'king', 'queen', 'lanterns', 'wish-sky', 'entertainment'].includes(raw)) return raw;
+  if (raw === 'wish-sky') return 'wishes';
+  if (['candidates', 'king', 'queen', 'lanterns', 'wishes', 'entertainment'].includes(raw)) return raw;
   return 'home';
 }
 
@@ -41,7 +43,7 @@ function PlaceholderStage({ badge, title, description, primaryAction }) {
   );
 }
 
-export default function App({ api, fixtureMode = false }) {
+export default function App({ api, wishApi, fixtureMode = false }) {
   const model = useFestival(api);
   const [route, setRoute] = useState(readRoute);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -101,7 +103,7 @@ export default function App({ api, fixtureMode = false }) {
   const label = allDisabled ? model.status.voting === 'closed' ? 'Voting closed' : 'Voting not available' : !model.session ? 'Sign in to vote' : model.choiceState === 'uncertain' ? 'Unlock to continue' : !viewable ? 'Unlock to vote' : model.choices[profile?.category] ? 'Move your crown here' : 'Cast your crown';
   const heading = (eye, title, description) => <div className="source-heading"><div className="eyebrow">{eye}</div><h1>{title}</h1><p>{description}</p></div>;
 
-  return <div className="festival-app source-app">
+  return <div className={`festival-app source-app ${route === 'wishes' ? 'wish-route' : ''}`}>
     <a className="skip-link" href="#main">Skip to content</a><Sky/>
     <header className={`site-header ${menuOpen ? 'menu-is-open' : ''}`}>
       <div className="site-header-inner">
@@ -251,14 +253,8 @@ export default function App({ api, fixtureMode = false }) {
       </> : route==='lanterns' ? <>
         {heading('LIGHTS OF THADINGYUT',<>Lanterns and their <em>stories.</em></>,'Discover the craft, meaning, and warm glow behind the festival lanterns shared by our community.')}
         <section className="source-section lantern-section"><LanternGallery lanterns={model.lanterns} state={model.lanternState} error={model.lanternError} onRetry={model.reloadLanterns}/></section>
-      </> : route==='wish-sky' ? <>
-        {heading('A SKY FULL OF LIGHT',<>The <em>Wish Sky.</em></>,'Write your heartfelt Thadingyut wishes and watch them rise among the glowing lanterns in our night sky.')}
-        <PlaceholderStage
-          badge="WISH SKY · COMMUNITY WISHES"
-          title={<>Send your wish into the <em>night sky</em></>}
-          description="Soon you will be able to write your personal festival wishes and release glowing lanterns across the shared Thadingyut sky."
-          primaryAction={{ href: '#lanterns', label: 'Explore Lantern Gallery' }}
-        />
+      </> : route==='wishes' ? <>
+        <WishSky api={wishApi} session={model.session} onRequireLogin={() => setAccountMode('login')} accountOpen={Boolean(accountMode)} paused={false}/>
       </> : route==='entertainment' ? <>
         {heading('FESTIVAL STAGE & LINEUP',<>Event day <em>entertainment.</em></>,'Explore the full agenda of live performances, cultural showcases, music, and activities on festival day.')}
         <PlaceholderStage
