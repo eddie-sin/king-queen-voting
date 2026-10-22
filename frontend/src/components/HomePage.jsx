@@ -50,7 +50,7 @@ export default function HomePage() {
       </section>
 
       <section className="home-coming home-block" aria-labelledby="memory-title"><span className="eyebrow">06 / အမှတ်တရအဖြစ် သိမ်းထားမယ်</span><h2 id="memory-title">ဒီနေ့ရဲ့ ပျော်ရွှင်မှုတွေက<br/><em>မနက်ဖြန်ရဲ့ အမှတ်တရ။</em></h2><p>အပြုံးတွေ၊ သူငယ်ချင်းသံယောဇဉ်တွေနဲ့ ပြန်တွေးတိုင်း ကြည်နူးရမယ့် အခိုက်အတန့်လေးတွေကို ဒီနေရာမှာ သိမ်းဆည်းထားမယ်။</p><span className="home-soon">MEMORIES · မကြာမီ တွေ့ဆုံမယ်</span></section>
-      <section className="home-coming home-developers home-block" aria-labelledby="developer-title"><span className="eyebrow">07 / အလင်းရောင်နောက်က ဖန်တီးသူများ</span><h2 id="developer-title">တို့ရဲ့ GUSTO College အတွက်<br/><em>စေတနာနဲ့ ဖန်တီးထားပါတယ်။</em></h2><p>ပွဲတော်ရဲ့ ပျော်ရွှင်မှုတွေကို ဒီဝက်ဘ်ဆိုက်ကနေ ဝေမျှနိုင်ဖို့ စိတ်အားထက်သန်စွာ ဖန်တီးပေးထားတဲ့ အဖွဲ့နဲ့ မိတ်ဆက်ပေးပါမယ်။</p><span className="home-soon">DEVELOPERS · မကြာမီ မိတ်ဆက်ပေးမယ်</span></section>
+      <section className="home-coming home-developers home-block" aria-labelledby="developer-title"><span className="eyebrow">07 / အလင်းရောင်နောက်က ဖန်တီးသူများ</span><h2 id="developer-title">တို့ရဲ့ GUSTO College အတွက်<br/><em>စေတနာနဲ့ ဖန်တီးထားပါတယ်။</em></h2><p>ပွဲတော်ရဲ့ ပျော်ရွှင်မှုတွေကို ဒီဝက်ဘ်ဆိုက်ကနေ ဝေမျှနိုင်ဖို့ စိတ်အားထက်သန်စွာ ဖန်တီးပေးထားတဲ့ အဖွဲ့နဲ့ မိတ်ဆက်ပေးပါမယ်။</p><a className="home-link" href="#developers">Meet the developers <span aria-hidden="true">↗</span></a></section>
     </div>
   </div>;
 }

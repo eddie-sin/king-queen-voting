@@ -6,6 +6,7 @@ import { Brand, Crown, UserIcon, Sky, CategorySelection, CandidateCard, Candidat
 import { LanternGallery } from './components/LanternGallery.jsx';
 import { FinalistsPage } from './components/Finalists.jsx';
 import HomePage from './components/HomePage.jsx';
+import DevelopersPage from './components/DevelopersPage.jsx';
 import './home.css';
 
 const NAV_ITEMS = [
@@ -23,7 +24,7 @@ function readRoute() {
   if (raw === 'choices' || raw === 'account') return 'account';
   if (raw === 'results' || raw === 'finalists') return 'finalists';
   if (raw === 'wish-sky') return 'wishes';
-  if (['candidates', 'king', 'queen', 'lanterns', 'wishes', 'entertainment'].includes(raw)) return raw;
+  if (['candidates', 'king', 'queen', 'lanterns', 'wishes', 'entertainment', 'developers'].includes(raw)) return raw;
   return 'home';
 }
 
@@ -224,7 +225,7 @@ export default function App({ api, wishApi, fixtureMode = false }) {
 
     {fixtureMode&&<div className="fixture-ribbon">LOCAL FIXTURE PREVIEW · Sample identities · No real votes are sent</div>}
     <main id="main" tabIndex="-1"><div className="source-page" key={route}>
-      {route==='home' ? <HomePage /> : route==='candidates' ? <>
+      {route==='home' ? <HomePage /> : route==='developers' ? <DevelopersPage /> : route==='candidates' ? <>
         {heading('YOUR VOICE. THEIR MOMENT.',<>Every crown begins<br/>with <em>your choice.</em></>,'Choose a category, discover the candidates, and vote for the person who captures the spirit of our festival.')}
         <section className="source-section selection-section"><CategorySelection onSelect={go}/><p className="source-note">How it works: explore a category → open a candidate → sign in → unlock with your voting key → confirm your crown. <a href="#account">Review, change, or remove your choices</a> in your account while voting is open.</p></section>
       </> : route==='king'||route==='queen' ? <>
