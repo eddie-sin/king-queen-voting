@@ -5,6 +5,8 @@ import { titleCase } from './domain.js';
 import { Brand, Crown, UserIcon, Sky, CategorySelection, CandidateCard, CandidateProfile, AccountDialog, UnlockDialog, ScheduleBanner, AccountPanel, ChoicesPage, VoteConfirmation, Celebration } from './components.jsx';
 import { LanternGallery } from './components/LanternGallery.jsx';
 import { FinalistsPage } from './components/Finalists.jsx';
+import HomePage from './components/HomePage.jsx';
+import './home.css';
 
 const NAV_ITEMS = [
   { id: 'home', href: '#home', label: 'Home', hint: 'About the festival, dates & venue', match: ['home'] },
@@ -103,7 +105,7 @@ export default function App({ api, wishApi, fixtureMode = false }) {
   const label = allDisabled ? model.status.voting === 'closed' ? 'Voting closed' : 'Voting not available' : !model.session ? 'Sign in to vote' : model.choiceState === 'uncertain' ? 'Unlock to continue' : !viewable ? 'Unlock to vote' : model.choices[profile?.category] ? 'Move your crown here' : 'Cast your crown';
   const heading = (eye, title, description) => <div className="source-heading"><div className="eyebrow">{eye}</div><h1>{title}</h1><p>{description}</p></div>;
 
-  return <div className={`festival-app source-app ${route === 'wishes' ? 'wish-route' : ''}`}>
+  return <div className={`festival-app source-app ${route === 'home' ? 'home-route' : ''} ${route === 'wishes' ? 'wish-route' : ''}`}>
     <a className="skip-link" href="#main">Skip to content</a><Sky/>
     <header className={`site-header ${menuOpen ? 'menu-is-open' : ''}`}>
       <div className="site-header-inner">
@@ -222,15 +224,7 @@ export default function App({ api, wishApi, fixtureMode = false }) {
 
     {fixtureMode&&<div className="fixture-ribbon">LOCAL FIXTURE PREVIEW · Sample identities · No real votes are sent</div>}
     <main id="main" tabIndex="-1"><div className="source-page" key={route}>
-      {route==='home' ? <>
-        {heading('THADINGYUT FESTIVAL OF LIGHTS',<>A night of light,<br/>tradition &amp; <em>celebration.</em></>,'Welcome to the official Thadingyut Festival experience — discover the event story, dates, times, venue locations, and community celebrations.')}
-        <PlaceholderStage
-          badge="HOME · ABOUT THE EVENT"
-          title={<>Festival overview &amp; <em>event details</em></>}
-          description="This page will feature the full festival story, event dates, schedule times, venue map, and celebration highlights. Meanwhile, explore our King & Queen candidates and cast your crown."
-          primaryAction={{ href: '#candidates', label: 'Explore King & Queen Voting' }}
-        />
-      </> : route==='candidates' ? <>
+      {route==='home' ? <HomePage /> : route==='candidates' ? <>
         {heading('YOUR VOICE. THEIR MOMENT.',<>Every crown begins<br/>with <em>your choice.</em></>,'Choose a category, discover the candidates, and vote for the person who captures the spirit of our festival.')}
         <section className="source-section selection-section"><CategorySelection onSelect={go}/><p className="source-note">How it works: explore a category → open a candidate → sign in → unlock with your voting key → confirm your crown. <a href="#account">Review, change, or remove your choices</a> in your account while voting is open.</p></section>
       </> : route==='king'||route==='queen' ? <>
