@@ -4,6 +4,7 @@ import { useFestival } from './hooks/useFestival.js';
 import { titleCase } from './domain.js';
 import { Brand, Crown, UserIcon, Sky, CategorySelection, CandidateCard, CandidateProfile, AccountDialog, UnlockDialog, ScheduleBanner, AccountPanel, ChoicesPage, VoteConfirmation, Celebration } from './components.jsx';
 import { LanternGallery } from './components/LanternGallery.jsx';
+import MusicPlayer from './components/MusicPlayer.jsx';
 import { FinalistsPage } from './components/Finalists.jsx';
 
 const NAV_ITEMS = [
@@ -295,6 +296,7 @@ export default function App({ api, wishApi, fixtureMode = false }) {
       {model.notice&&<div className={`notice ${model.notice.type}`} role={model.notice.type==='error'?'alert':'status'}><p>{model.notice.text}</p><button aria-label="Dismiss message" onClick={model.dismissNotice}>×</button></div>}
     </div></main>
     <footer className="site-footer"><a href="#home"><Brand/></a><p>Wishing you all a fun moment.<br/><span>Thadingyut · Festival of Lights celebration</span></p></footer>
+    {route === 'wishes' && <MusicPlayer/>}
     {profile&&<CandidateProfile candidate={profile} selected={viewable&&model.choices[profile.category]?._id===profile._id} canVote={!allDisabled} votingStatus={model.status.voting} actionLabel={label} onVote={requestVote} onClose={()=>setProfile(null)}/>}
     {accountMode&&<AccountDialog initialMode={accountMode} onClose={reason=>{setAccountMode(null);if(reason!=='authenticated'){setProfile(intent);setIntent(null);}}} onLogin={async(...args)=>{await model.login(...args);}} onRegister={model.register} registrationStatus={model.status.registration} schedule={model.schedule} onRefreshSchedule={model.reloadSchedule}/>}
     {unlockOpen&&<UnlockDialog onClose={reason=>{setUnlockOpen(false);if(reason!=='unlocked'){setProfile(intent);setIntent(null);}}} onUnlock={async key=>{await model.unlock(key);}} busy={model.busy} sessionPresent={Boolean(model.session)}/>}

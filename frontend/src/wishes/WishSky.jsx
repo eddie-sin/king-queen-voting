@@ -72,7 +72,7 @@ export default function WishSky({api,session,onRequireLogin,accountOpen,paused})
     {model.release&&<ReleasedWish key={model.release.id} release={model.release} onRead={setReading} onFinish={model.finishRelease}/>}
    </div></div>
    <div className="sky-actions"><button className="btn primary" onClick={releaseButton} disabled={model.busy}>{model.busy?'Releasing…':'Release a wish'}</button>
-    <p>{session?remaining===undefined?'Checking your remaining wishes…':remaining===0?'Your three wishes have joined the sky.':`${remaining} of 3 wishes remaining`:'Three wishes per account. Everyone is welcome to read.'}</p>
+    <p className="wish-quota-note">{session?remaining===undefined?'Checking your remaining wishes…':remaining===0?'Your three wishes have joined the sky.':`${remaining} of 3 wishes remaining`:'Three wishes per account. Everyone is welcome to read.'}</p>
     {model.state==='loading'&&<p role="status">Gathering wishes…</p>}
     {model.state==='empty'&&<p>The sky is waiting for its first wish.</p>}
     {(model.error||model.quotaError)&&<div className="wish-error" role="alert"><p>{model.error||model.quotaError}</p><button className="text-button" onClick={()=>{if(model.error)model.retry();if(model.quotaError)model.loadQuota();}}>Try again</button></div>}
