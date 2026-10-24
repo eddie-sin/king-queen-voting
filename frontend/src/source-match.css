@@ -581,7 +581,7 @@ body{background:var(--bg)}
 
 /* Responsive Breakpoints */
 @media(max-width:1080px){
-  .site-nav{display:none}
+  .source-app .site-header .site-nav{display:none}
   .menu-toggle-btn{display:inline-flex}
   .source-app .site-header{padding:12px 24px}
   .account-label{display:none}
@@ -708,3 +708,16 @@ body{background:var(--bg)}
   .fin-lantern.l2,.fin-lantern.l4{display:none}
 }
 @media(prefers-reduced-motion:reduce){.fin-lantern{animation:none}.fin-card,.fin-card:hover{transform:none}}
+
+/* Shared festival header above the independently scoped Memory pages. */
+.source-app.memory-site-header{min-height:0;position:sticky;top:0;z-index:50}
+@media(max-width:380px){
+  .source-app .site-header{padding-inline:14px}
+  .source-app .site-header-inner{gap:10px;width:100%;min-width:0}
+  .source-app .site-header .brand{font-size:14px;letter-spacing:1.4px;gap:8px}
+  .source-app .site-header .brand-mark{font-size:28px}
+  .source-app .site-header .brand small{font-size:6px;letter-spacing:1.6px}
+  .source-app .site-header .header-actions{gap:6px}
+  .source-app .site-header .account-button{padding-inline:9px;gap:0}
+  .source-app .site-header .menu-toggle-btn{width:36px}
+}
