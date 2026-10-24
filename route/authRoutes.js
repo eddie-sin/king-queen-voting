@@ -1,13 +1,10 @@
-
-const express = require("express");
-const authController = require("../controller/authController");
-const authMiddleware = require("../middleware/authMiddleware");
-
-const router = express.Router();
-
-router.post("/register", authController.register);
-router.post("/login", authController.login);
-router.post("/admin/login", authController.adminLogin);
-router.get("/me", authMiddleware, authController.getMe);
-
+const router = require('express').Router();
+const controller = require('../controller/authController');
+const auth = require('../middleware/authMiddleware');
+const limit = require('../middleware/authRateLimit');
+router.post('/register', limit('register'), controller.register);
+router.post('/login', limit('login'), controller.login);
+router.post('/admin/login', limit('staff'), controller.adminLogin);
+router.get('/admin/me', auth.staff, controller.getAdminMe);
+router.get('/me', auth, controller.getMe);
 module.exports = router;

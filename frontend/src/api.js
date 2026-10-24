@@ -1,7 +1,7 @@
 import { parseLikeStates, parseLikeMutation } from './memory/likes.js';
 import { uploadSelectionError, parseUploadedMemory } from './memory/upload.js';
 import { parseMemoryGallery } from './memory/gallery.js';
-import { publicCandidate, publicFinalists, publicLantern } from './domain.js';
+import { publicCandidate, publicResults, publicLantern } from './domain.js';
 import { parseMyMemories } from './memory/mine.js';
 
 export class ApiError extends Error {
@@ -29,8 +29,8 @@ export function createApi({ baseUrl = '/api/v1', fetchImpl = (...args) => fetch(
         throw new ApiError('The server returned an unreadable response. Please try refreshing.', { status: response.status, interrupted: method !== 'GET' });
       }
       if (!response.ok || payload.status !== 'success') {
-        // Do not expose a key even if a backend error inadvertently echoes one.
-        const message = typeof payload.message === 'string' ? payload.message.replace(/[a-f0-9]{64}/gi, '[private key]') : 'The request could not be completed.';
+        // Keep accidental long secret-like strings out of error messages.
+        const message = typeof payload.message === 'string' ? payload.message.replace(/[a-f0-9]{64}/gi, '[redacted]') : 'The request could not be completed.';
         throw new ApiError(message, { status: response.status, interrupted: response.status >= 500 });
       }
       return payload;
@@ -88,14 +88,12 @@ export function createApi({ baseUrl = '/api/v1', fetchImpl = (...args) => fetch(
       if (!Array.isArray(data?.images)) throw new ApiError('Lantern gallery data is unavailable.');
       return data.images.map(publicLantern).filter(Boolean);
     },
-    async settings(options) { return (await request('/settings', options)).data?.schedule ?? null; },
-    async finalists(options) { return publicFinalists((await request('/results', options)).data?.results); },
+    async settings(options) { return (await request('/settings', options)).data?.controls ?? null; },
+    async results(options) { return publicResults((await request('/results', options)).data?.results); },
     async register(email, password) { return (await request('/auth/register', { method: 'POST', body: { email, password } })).data; },
     async login(email, password) { return (await request('/auth/login', { method: 'POST', body: { email, password } })).data; },
     async me(token) { return (await request('/auth/me', { token })).data?.user; },
-    async myVotes(token, votingKey) { return (await request('/voting/my-votes', { method: 'POST', token, body: { votingKey } })).data?.votes; },
-    async submit(token, votingKey, candidateId, contest) { return request('/voting/submit', { method: 'POST', token, body: { votingKey, candidateId, contest } }); },
-    async change(token, votingKey, candidateId, contest) { return request('/voting/change', { method: 'PATCH', token, body: { votingKey, candidateId, contest } }); },
-    async remove(token, votingKey, contest) { return request('/voting/remove', { method: 'DELETE', token, body: { votingKey, contest } }); },
+    async myVotes(token) { return (await request('/voting/my-votes', { token })).data; },
+    async submit(token, candidateId, contest, controls) { return request('/voting/submit', { method: 'POST', token, body: { candidateId, contest, round: controls.round, window: controls.window } }); },
   };
 }

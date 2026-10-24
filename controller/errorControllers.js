@@ -6,11 +6,7 @@ const handleCastErrorDB = (err) => {
 };
 
 const handleDuplicateFieldsDB = (err) => {
-  const value = err.keyValue ? JSON.stringify(err.keyValue) : "";
-  return new AppError(
-    `Duplicate field value: ${value}. Please use another value!`,
-    409,
-  );
+  return new AppError("This record already exists. Refresh before trying again.", 409);
 };
 
 const handleValidationErrorDB = (err) => {
@@ -35,7 +31,7 @@ const sendErrorProd = (err, res) => {
     });
   }
 
-  console.error("ERROR 💥", err);
+  console.error("Request failed:", err.name || "Error", "code:", err.code || "unknown");
   return res.status(500).json({
     status: "error",
     message: "Something went wrong!",
@@ -52,6 +48,11 @@ module.exports = (err, req, res, next) => {
   if (error.code === 11000) error = handleDuplicateFieldsDB(error);
   if (error.name === "ValidationError") {
     error = handleValidationErrorDB(error);
+  }
+  if (error.type === "entity.too.large") error = new AppError("Request body is too large.", 413);
+  if (["MongoOperationTimeoutError", "MongoNetworkError", "MongoServerSelectionError"].includes(error.name)
+      || error.hasErrorLabel?.("UnknownTransactionCommitResult")) {
+    error = new AppError("The database response was interrupted. Refresh to confirm the outcome before retrying.", 503);
   }
   if (error.type === "entity.parse.failed") {
     error = new AppError("Request body must contain valid JSON.", 400);

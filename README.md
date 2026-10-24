@@ -1,132 +1,109 @@
-# King and Queen Voting API
+# King and Queen Voting
 
-Express/Mongoose backend with React voter and admin frontends. Candidate information and released finalist results are public. Voting requires a registered, active account, a Bearer JWT, and that account's voting key. The voter frontend lives in `frontend/`.
+Express/Mongoose API with React student and admin websites. This branch replaces the scheduled/key-based voting system with manual event controls.
 
-## Setup
+**Implementation phase:** the application changes are on `eddie/manual-voting-controls`. Correctness/concurrency/capacity testing, the corresponding test-suite rewrite, deployment preparation, and rollback rehearsal are intentionally deferred. The existing tests and older documentation describe the previous contract and must not be treated as validation of this version. Nothing in this branch is deployed automatically.
 
-1. Install dependencies with `npm ci`.
-2. Copy `config.example.env` to the ignored `config.env`, then fill in your database, JWT secret, initial admin username/password, and S3 configuration.
-3. Use a normal standalone MongoDB server, locally or remotely. No replica set, database transactions, or special MongoDB setup is required.
-4. Start development with `npm run dev`, or production with `npm run prod`.
+## Setup for this version
 
-Use your existing local MongoDB service and a normal connection string such as `mongodb://127.0.0.1:27017/king_queen_voting`. There is no replica-set initialization step.
+1. Install the existing locked dependencies with `npm ci`, `npm --prefix frontend ci`, and `npm --prefix admin ci` if needed.
+2. Copy `config.example.env` to ignored `config.env` for a **separate local setup**, supplying a random JWT secret of at least 32 bytes, initial admin username/password and appropriate image-storage configuration. Never commit real configuration.
+3. Select a **separate, empty v2 database on a MongoDB replica set**. A compatible Atlas database can also support the required transactions. A standalone MongoDB server is no longer supported. Do not reuse the current live or legacy test database.
+4. Start the API with `npm run dev` (uses `DATABASE_LOCAL`, local public candidate/gallery images), or `npm run prod` (uses `DATABASE`, configured S3 storage).
+5. Start the student website with `npm --prefix frontend run dev` and the admin website with `npm --prefix admin run dev`.
 
-### Development and production services
+A local connection example is `mongodb://127.0.0.1:27017/king_queen_voting_v2?replicaSet=rs0`, **after** a replica set named `rs0` has been configured. `DATABASE` must name the isolated target database explicitly. `<db_password>` is substituted from `DATABASE_PASSWORD` as before. The application refuses detected legacy voting data instead of migrating or deleting it. Startup disables automatic collection/index creation until that guard has run, then explicitly builds the required indexes.
 
-| Command | Database | Image storage |
-| --- | --- | --- |
-| `npm run dev` | `DATABASE_LOCAL` (your local MongoDB) | Files in the ignored `uploads/` directory |
-| `npm run prod` | `DATABASE` (your Atlas connection) | Your configured S3 bucket |
+No local or Atlas database is reset by installing or building this branch. The existing `config.env` has not been edited. Preparing an isolated database and the revised automated preview/test harness is follow-up work. The old `scripts/memoryPhotoPreview.cjs` launcher is retired and exits with an explanatory message.
 
-Production replaces `<db_password>` in `DATABASE` with the URL-encoded `DATABASE_PASSWORD`. Include the database name in the Atlas URI, for example `/king_queen_voting`, so records are stored in the intended database. Neither database credentials nor AWS credentials belong in Git.
+Production should use EC2's existing IAM role for AWS access. Do not place database credentials, JWT secrets, passwords, or permanent AWS keys in CI, frontend variables, logs, or release archives. Memory originals retain their private storage and authenticated moderation flow.
 
-Development image URLs start with `/uploads/` and the API serves these files publicly without login. If the frontend and API have different origins, resolve these paths against the API origin. Local uploads are never served by the production API. `LOCAL_UPLOAD_DIR` can optionally override the directory used for development files.
+## Accounts and initial state
 
-Production uses `AWS_REGION`, `AWS_S3_BUCKET`, and the AWS SDK credential configuration (including `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` from `config.env`). Uploads return S3 public image URLs, or URLs under `AWS_S3_PUBLIC_URL` when you configure a CDN. The bucket/CDN must permit public image viewing. Production does not fall back to local files when S3 configuration is missing.
+Students register with email/password while registration is open. Email is trimmed/lowercased and unique; one account per email is the agreed event policy. Registration returns no voting key. The student then signs in with the same details.
 
-On startup, the app builds required unique indexes and seeds the schedule and first admin automatically. `ADMIN_USERNAME` and an `ADMIN_PASSWORD` of at least eight characters are required when no admin exists. Passwords are bcrypt hashes. Subsequent startups preserve the admin password, edited dates, candidate lock, and saved finalists; changing environment variables does not reset an existing admin.
+The first higher `admin` is seeded from `ADMIN_USERNAME` and `ADMIN_PASSWORD`. Passwords require at least eight characters and at most 72 UTF-8 bytes. Staff usernames use letters, digits, dots, underscores and hyphens, are normalized to lowercase, and must be unique. Later startups preserve existing passwords and permissions.
 
-Old development credentials using `hash(votingKey)` cannot be safely attached to accounts. Use fresh development accounts/data for this version; legacy keys are rejected and never claimed on a first-use basis. Normal startup never deletes data.
+Initial registration and voting are closed, announcement is hidden, and Memory Photo is disabled. There are no date-based transitions. An unexpected restart closes an interrupted open/closing voting window; staff must deliberately reopen it. The current design runs **one API process**.
 
-## Seeded schedule
+The two staff roles are:
 
-Every date below is Myanmar time (`Asia/Yangon`, UTC+06:30).
+- `admin`: manages voting administrators, all controls, candidate operations, Lantern/gallery management, and Memory Photo toggles/moderation.
+- `voting_admin`: always reads candidates; other voting/candidate actions require individually granted permissions. It never manages staff, Lanterns or Memory Photo moderation.
 
-| Setting | Default |
+Permissions are `candidates.create`, `candidates.update`, `candidates.delete`, `voting.open`, `voting.close`, `votes.clear`, `announcement.open`, `announcement.close`, `registration.open`, and `registration.close`. New voting administrators receive none unless explicitly granted. The server reloads the account/permissions on each request and again inside guarded critical mutations. Password changes, username changes, disabling or deleting an account revoke old sessions. Permission changes apply to subsequent actions without requiring a new login.
+
+## Event rules
+
+| Action | Rule |
 | --- | --- |
-| Account registration closes | November 6, 2026, 11:59 PM |
-| Voting opens | October 28, 2026, 9:00 AM |
-| Voting closes | November 2, 2026, 11:59 PM |
-| Top 5 results appear | November 3, 2026, 9:00 AM |
+| Registration open/close | Independent control; existing accounts can still sign in after closure |
+| Voting open | Voting fully closed and announcement hidden; preserves existing votes |
+| Voting close | Stops new admissions, rejects waiting work, drains admitted operations, then becomes closed |
+| Announcement open | Voting fully closed |
+| Announcement close | Hides public totals without removing votes |
+| Candidate read | Always available under the existing public/staff read boundaries |
+| Candidate create/update | Voting closed and announcement hidden |
+| Candidate delete | Same conditions, plus **no ballots anywhere**; clear all votes first |
+| Candidate category change | A candidate with ballots cannot move between King and Queen until votes are cleared |
+| Clear all votes | Voting closed, announcement hidden, permitted operator, explicit confirmation |
 
-Closing deadlines include the full stated minute, through `23:59:59.999`. Voting opens and results appear at their exact configured times. Registration is independent and intentionally remains available after voting closes. Existing accounts can still log in after registration closes.
+Each account may submit one King and one Queen ballot per round. Ballots link user → candidate directly and have a unique `(round, user, contest)` database index. No change-vote or remove-vote operation exists. Participation flags are calculated from ballots rather than stored separately on users. Clearing all votes deletes both categories' ballots and advances an internal round; accounts and all other content remain.
 
-## Public endpoints
+The internal round/window/revision fields prevent delayed requests from crossing reset/reopen boundaries. They are not voting credentials. Short transactions write a shared controls fence as well as the ballot or mutation. A bounded, single-process admission queue allows closure to finish admitted votes while preventing waiting work from starting afterward. The queue and password-worker limits still need the deferred concurrency/capacity measurements.
 
-All routes start with `/api/v1`.
+Results are calculated from actual ballots whenever announcement is open. All candidates and actual counts are shown, including zero counts and already-counted inactive candidates. Equal counts are ties; no random winner selection or frozen result document exists. Inactive candidates are unavailable for new votes but their recorded votes remain visible in announced totals. There is no public endpoint for individual voters' choices.
 
-| Method | Path | Behavior |
+## API contracts
+
+All paths below start with `/api/v1`. Protected requests use `Authorization: Bearer TOKEN`. Tokens contain an account kind and token version; permissions come from the database. Legacy tokens are rejected. No tokens or keys belong in URLs.
+
+### Students and public reads
+
+| Method | Path | Body / response |
 | --- | --- | --- |
-| GET | `/candidates` | Active candidates only; no contact numbers |
-| GET | `/candidates/:id` | One active candidate; no contact number |
-| GET | `/images?section=memory` | Gallery images; optional section filter |
-| GET | `/settings` | Myanmar date/time values, fixed labels/timezone, candidate lock status |
-| GET | `/results` | Saved top 5 kings and queens, only after the release time |
-| POST | `/auth/register` | Register and receive a voting key exactly once |
-| POST | `/auth/login` | Log in using email and password |
-| POST | `/auth/admin/login` | Log in using admin username and password |
+| POST | `/auth/register` | `{email,password}` → account created; sign in next |
+| POST | `/auth/login` | `{email,password}` → `data.token`, `data.user` |
+| GET | `/auth/me` | Profile and ballot-derived participation flags/round |
+| GET | `/settings` | `data.controls` with registration/voting/announcement/Memory flags, round, window and revision |
+| GET | `/candidates`, `/candidates/:id` | Active public profiles; excludes contact numbers |
+| POST | `/voting/submit` | `{candidateId,contest,round,window}`; identifiers come from the latest settings response |
+| GET | `/voting/my-votes` | Own votes plus round/window, available even while voting is closed |
+| GET | `/results` | Actual `data.results.kings`/`queens`, entries `{candidate,votes}`, plus round/revision; 403 while announcement is hidden |
 
-The voter frontend's Wish Sky is available at `/#wishes`. Anyone can read wishes at any time. Signed-in voters may release up to three wishes each, with no date or voting-key restriction. See [Wish Sky integration](docs/wish-sky.md).
+A repeated vote for the same candidate in an open window returns its existing successful outcome; a different candidate in the same category is rejected. If a response is interrupted, refresh `my-votes` before retrying. A timeout does not prove that a vote failed. Students' browsers refresh status periodically and on focus; the server enforces every control independently of the UI.
 
-Registration and user login require only `email` and `password`. Registration requires a valid email and a password of at least eight characters; no name or batch number is collected. The voting key cannot be recovered; save it securely. Login returns `data.token`; send it as `Authorization: Bearer TOKEN` on protected routes.
+### Staff
 
-## Voter endpoints
-
-These endpoints require a **user** JWT. `/auth/me` works outside the voting period and needs no voting key; it returns profile information and `hasVotedKing` / `hasVotedQueen`, never the chosen candidates.
-
-| Method | Path | Body | Behavior |
-| --- | --- | --- | --- |
-| GET | `/auth/me` | None | Profile and participation flags |
-| POST | `/voting/submit` | `votingKey`, `candidateId`, `contest` | Submit the first vote for a contest |
-| PATCH | `/voting/change` | `votingKey`, `candidateId`, `contest` | Change an existing vote |
-| POST | `/voting/my-votes` | `votingKey` | View chosen candidates |
-| DELETE | `/voting/remove` | `votingKey`, `contest` | Remove an existing vote |
-
-`contest` is `king` or `queen`. All four key-protected operations are available only during the voting period, including viewing chosen candidates. Keys are sent in JSON bodies rather than URLs. Each account may hold one vote per contest; after removal it may vote again. Inactive candidates and category mismatches are rejected. Disabled/deleted accounts cannot reuse an existing JWT.
-
-Credentials store SHA-256 of `accountId + ":" + votingKey`, using the account ID from the verified JWT. Another account cannot use the same key. No account ID is stored in credentials or ballots, and chosen candidate IDs are not stored on users. This avoids a direct database account-to-choice link; it does not provide anonymity against the running server, request logging, database write-log inspection, or inference from participation flags. Do not log request bodies containing voting keys.
-
-## Admin endpoints
-
-These require an **admin** JWT; normal user tokens cannot access them.
-
-| Method | Path | Behavior |
+| Method | Path | Access / behavior |
 | --- | --- | --- |
-| GET | `/admin/candidates` | All candidates, including inactive candidates and contact numbers |
-| GET | `/admin/candidates/:id` | Complete candidate information |
-| POST | `/candidates` | Create a candidate |
-| PATCH | `/candidates/:id` | Edit candidate information, including `isActive` |
-| DELETE | `/candidates/:id` | Delete a candidate |
-| GET | `/admin/settings` | Current schedule |
-| PATCH | `/admin/settings` | Edit date/time values only |
-| POST | `/images` | Upload gallery images |
-| DELETE | `/images/:id` | Remove a gallery record |
+| POST | `/auth/admin/login` | `{username,password}` → token and current role/permissions |
+| GET | `/auth/admin/me` | Current staff identity and effective permissions |
+| GET | `/admin/settings` | Controls and total ballot count |
+| POST | `/admin/controls/:action` | Explicit manual command; relevant permission required |
+| GET | `/admin/candidates`, `/admin/candidates/:id` | Staff candidate reads, including private contact fields |
+| POST / PATCH / DELETE | `/candidates`, `/candidates/:id` | Relevant permission and event rules required |
+| GET / POST | `/admin/voting-admins` | Higher admin lists/creates voting administrators |
+| PATCH / DELETE | `/admin/voting-admins/:id` | Higher admin updates/deletes only voting-admin accounts |
+| GET | `/admin/memory-photos` | Higher admin lists pending submissions |
+| GET | `/admin/memory-photos/:id/image` | Higher admin authenticated private image |
+| PATCH | `/admin/memory-photos/:id/review` | Higher admin: `{status:"APPROVED"}` or `REJECTED` |
+| POST / PATCH / DELETE | `/images`, `/images/:id` | Higher-admin Lantern/gallery management |
 
-Candidate fields are `fullName`, `batchNumber`, `nickname`, `images` (one to three URLs or uploaded files), `bio`, `age`, `zodiacSign`, `hobbiesAndInterests`, `contactNumber`, `category`, and `isActive`. `isActive` defaults to true and is optional on creation. Multipart uploads use the field `images`; JSON image URLs also work. Admin responses may include private contact numbers; public responses never do.
+Control action names are the registration/voting/announcement open/close permissions, `votes.clear`, plus higher-admin-only `memory.open` and `memory.close`. Body: `{revision, operationId}`, with a fresh UUID v4 operation ID. Clear also requires `{confirmation:"CLEAR ALL VOTES"}`. Keep the same operation ID when retrying an uncertain response. A previously completed command returns current controls without repeating the action. A stale revision is rejected. This prevents a delayed clear retry from deleting a later round.
 
-All candidate creation, editing, activation/deactivation, and deletion are **permanently blocked once voting starts**. Moving the voting start into the future cannot unlock them. Requests recheck this rule after uploads, immediately before the database write. Admin reads and gallery management remain available.
+Voting-admin creation accepts `{username,password,permissions?,status?}`. Updates accept only those fields; omit password to keep it. Clients cannot select/promote a role or target a higher-admin account through these routes. All permission defaults are off. Staff actions are audited without recording passwords or individual vote choices.
 
-Settings updates accept `registrationClosesAt`, `votingOpensAt`, `votingClosesAt`, `resultsPublishedAt`, and `memoryPhotosEnabled`. Supply ISO strings with the fixed `+06:30` offset for dates:
+The admin website keeps its token in memory; refresh requires signing in again. Its Event controls tab replaces Schedule. Higher-admin-only tabs provide voting-admin management, Memory Photo moderation and Lanterns. The server enforces these restrictions even if someone calls the API directly.
 
-```json
-{
-  "registrationClosesAt": "2026-11-06T23:59+06:30",
-  "votingOpensAt": "2026-10-28T09:00+06:30",
-  "votingClosesAt": "2026-11-02T23:59+06:30",
-  "resultsPublishedAt": "2026-11-03T09:00+06:30"
-}
-```
+## Existing content features
 
-Unknown fields, changed labels/timezones, impossible dates, closing before opening, and publishing before voting closes are rejected. The registration deadline has no ordering constraint relative to the voting period. Date input at minute precision includes that entire minute for closing fields; explicit seconds/milliseconds are respected exactly.
+Candidate photo upload/reorder behavior remains: one to three images, multipart `images`, and a JSON `data` field for candidate values; edits use `photoLayout` to preserve/reorder existing images and add uploads. Permission and control checks run before uploads and again in the transaction. Confirmed rejected uploads are cleaned up without deleting still-referenced photos. Uploads are retained when a commit outcome is uncertain, avoiding deletion of a possibly committed image. New candidates cannot reuse another candidate’s managed image URL. The optional Queen import command now calls these guarded local API routes instead of writing directly to MongoDB.
 
-Memory Photo visibility is controlled by full administrators, without a date rule. Send `PATCH /api/v1/admin/settings` with a full-admin Bearer token and JSON body `{"memoryPhotosEnabled": true}` to enable it, or `false` to disable it. Public settings include `data.schedule.memoryPhotosEnabled`, defaulting to false even for older documents. Student submissions, private moderation, approved public viewing and authenticated likes are implemented separately. See the [Memory Photo testing guide](docs/memory-photo-postman-guide.md), [admin roles](docs/memory-admin-roles.md), and [deferred private S3 deployment requirements](docs/memory-photo-storage.md).
+Wish Sky, music, Lantern browsing, student Memory Photo upload/history/gallery/likes, private ownership rules, review transitions and upload quotas retain their existing purposes. The higher `admin` now owns all Memory duties. Historical feature documentation remains under `docs/`, but its old role/key/schedule references are superseded by this README and [the implementation handoff](docs/manual-voting-controls.md).
 
-## Finalists and ties
+## Checks and next phase
 
-After voting closes, background maintenance finalizes results within approximately 15 seconds while the server is running. Startup catches up after downtime; the public results endpoint also finalizes on demand after release. There are no public results before the configured release time.
+Compilation checks for this implementation: backend JavaScript syntax checks and production builds of both websites. These do not establish functional correctness or event capacity.
 
-Active candidates are ranked by votes, separately for kings and queens. If a tied group crosses the fifth-place cutoff, an unbiased cryptographic shuffle selects the remaining finalists, including ties involving more than two candidates. The selected entries carry `selectedByTieBreak: true`. The final selection is saved once and reused across concurrent requests and server restarts.
-
-Zero-vote active candidates remain eligible, including for a cutoff tie. If fewer than five active candidates exist in a contest, all are returned. Once finalists are saved, voting start/end cannot change or reopen voting; the registration deadline and result release time can still be edited. This prevents a saved selection from becoming stale.
-
-## Standalone database consistency
-
-Run one API process per election database (the default `npm run dev` or `npm run prod` setup). The process handles election operations in order so overlapping requests cannot race with schedule edits, candidate locking, or finalization. Do not use multiple workers/cluster mode against the same election database with this implementation.
-
-Unique database indexes still enforce one ballot per credential/contest and one saved finalist result. When a request fails or crosses its deadline, the application attempts to undo its partial writes. These compensating writes are not database transactions: a process/power failure or an unavailable database during cleanup can leave partial state. A later successful key-protected request reconciles that account's participation flags with its ballots. Account flags alone cannot be repaired globally without keys while preserving the absence of account-to-ballot links.
-
-## Verification
-
-Run `npm test`. Node's built-in test runner starts an isolated temporary **standalone MongoDB** server and HTTP server, then removes the test database. A local `mongod` executable must be available; set `MONGOD_BINARY` if it is elsewhere. The tests never connect to the databases configured in `config.env`.
-
-Tests cover public/private access, seeding, password hashing, key ownership, anonymous storage, vote changes/removal, exact deadlines, disabled accounts, rollback, concurrent requests, the irreversible candidate lock, immutable settings, and saved tie-break results.
+The next phase must update the old test contracts and verify permissions, resets, races, crash recovery, 100 simultaneous votes and 30 registrations. Deployment-helper changes, compatible configuration/database cutover, and rollback rehearsal also remain separate. Do not merge/deploy this branch based on compilation alone. The existing main-only deployment workflow has not been changed in this implementation phase.

@@ -2,10 +2,14 @@ const Candidate = require("../model/candidatesModel");
 const AppError = require("../utils/appError");
 const catchAsync = require("../utils/catchAsync");
 const { uploadImage, deleteImage, isOwnedImage } = require("../utils/imageStorage");
-const { withElectionOperation } = require("../utils/election");
+const Ballot = require("../model/ballotsModel");
+const { staffMutation, requireCandidateChanges, audit } = require("../utils/eventControls");
 const { parsePhotoLayout, assertKeptPhotosExist, resolvePhotoLayout } = require("../utils/photoLayout");
 
 const PHOTO_FOLDER = "candidates";
+// Never delete a new upload while a transaction's commit outcome is unknown.
+const definitelyRejected = error => error.isOperational && error.statusCode < 500
+  || ['ValidationError', 'CastError'].includes(error.name) || error.code === 11000;
 const editableFields = Object.keys(Candidate.schema.paths).filter((field) => !["_id", "__v"].includes(field));
 
 // Multipart forms can only carry text, so they may send every field as one JSON
@@ -85,18 +89,22 @@ exports.createCandidate = catchAsync(async (req, res) => {
   if (req.files?.length && fields.images !== undefined) {
     throw new AppError("Send photos either as uploaded files or as image URLs, not both.", 400);
   }
+  if (Array.isArray(fields.images) && fields.images.some(url => isOwnedImage(url, PHOTO_FOLDER))) {
+    throw new AppError("Upload new photos rather than reusing another candidate's managed image URL.", 400);
+  }
   const uploaded = await uploadPhotos(req.files);
   if (uploaded.length) fields.images = uploaded;
   let candidate;
   try {
-    candidate = await withElectionOperation("candidate", async ({ onRollback }) => {
+    candidate = await staffMutation(req, "candidates.create", async ({ session, controls, actor }) => {
+      requireCandidateChanges(controls);
       const created = new Candidate(fields);
-      onRollback(() => Candidate.deleteOne({ _id: created._id }));
-      await created.save();
+      await created.save({ session });
+      await audit(session, actor, "candidates.create", { candidateId: String(created._id) });
       return created;
     });
   } catch (error) {
-    await discardUnusedPhotos(uploaded);
+    if (definitelyRejected(error)) await discardUnusedPhotos(uploaded);
     throw error;
   }
   res.status(201).json({ status: "success", data: { candidate } });
@@ -125,24 +133,28 @@ exports.updateCandidate = catchAsync(async (req, res) => {
   let removed = [];
   let candidate;
   try {
-    candidate = await withElectionOperation("candidate", async ({ onRollback }) => {
-      const existing = await Candidate.findById(req.params.id).select("+contactNumber");
+    candidate = await staffMutation(req, "candidates.update", async ({ session, controls, actor }) => {
+      requireCandidateChanges(controls);
+      const existing = await Candidate.findById(req.params.id).select("+contactNumber").session(session);
       if (!existing) throw new AppError("No candidate found with that ID", 404);
-      const before = existing.toObject();
-      onRollback(() => Candidate.replaceOne({ _id: existing._id }, before, { upsert: true }));
+      if (fields.category && fields.category !== existing.category && await Ballot.exists({ candidate: existing._id }).session(session)) {
+        throw new AppError("Clear all votes before changing this candidate's category.", 409);
+      }
       Object.assign(existing, fields);
       if (layout) {
         const next = resolvePhotoLayout(layout, existing.images, uploaded);
         existing.images = next.images;
         removed = next.removed;
       }
-      await existing.save();
+      await existing.save({ session });
+      await audit(session, actor, "candidates.update", { candidateId: String(existing._id) });
       return existing;
     });
   } catch (error) {
-    // The change was rejected or rolled back, so old photos stay and new uploads go.
+    // Keep old photos. Retain new objects if the commit could have succeeded;
+    // a later scoped cleanup can handle genuinely unused uploads safely.
     removed = [];
-    await discardUnusedPhotos(uploaded);
+    if (definitelyRejected(error)) await discardUnusedPhotos(uploaded);
     throw error;
   }
   const storageCleanup = await discardUnusedPhotos(removed);
@@ -150,11 +162,13 @@ exports.updateCandidate = catchAsync(async (req, res) => {
 });
 
 exports.deleteCandidate = catchAsync(async (req, res) => {
-  const deleted = await withElectionOperation("candidate", async ({ onRollback }) => {
-    const candidate = await Candidate.findById(req.params.id).select("+contactNumber").lean();
+  const deleted = await staffMutation(req, "candidates.delete", async ({ session, controls, actor }) => {
+    requireCandidateChanges(controls);
+    if (await Ballot.exists({}).session(session)) throw new AppError("Clear all votes before deleting any candidate.", 409);
+    const candidate = await Candidate.findById(req.params.id).select("+contactNumber").session(session).lean();
     if (!candidate) throw new AppError("No candidate found with that ID", 404);
-    onRollback(() => Candidate.replaceOne({ _id: candidate._id }, candidate, { upsert: true }));
-    await Candidate.deleteOne({ _id: candidate._id });
+    await Candidate.deleteOne({ _id: candidate._id }).session(session);
+    await audit(session, actor, "candidates.delete", { candidateId: String(candidate._id) });
     return candidate;
   });
   await discardUnusedPhotos(deleted.images || []);

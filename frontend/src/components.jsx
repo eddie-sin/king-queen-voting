@@ -2,6 +2,6 @@
 export { Brand, Crown, UserIcon, Sky, Landscape } from './components/Artwork.jsx';
 export { CategorySelection, CandidateCard, CandidateProfile } from './components/Candidates.jsx';
 export { PhotoCarousel } from './components/PhotoCarousel.jsx';
-export { AccountDialog, UnlockDialog } from './components/AccountDialogs.jsx';
-export { ScheduleBanner, AccountPanel, ChoicesPage, VoteConfirmation, Celebration } from './components/Voting.jsx';
+export { AccountDialog } from './components/AccountDialogs.jsx';
+export { StatusBanner, AccountPanel, ChoicesPage, VoteConfirmation, Celebration } from './components/Voting.jsx';
 export { Dialog } from './components/Dialog.jsx';
