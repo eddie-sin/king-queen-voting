@@ -21,6 +21,31 @@ const userSchema = new mongoose.Schema({
     default: false,
   },
 
+  emailVerified: {
+    type: Boolean,
+    default: false,
+  },
+
+  emailOtpHash: {
+    type: String,
+    select: false,
+  },
+
+  emailOtpExpires: {
+    type: Date,
+    select: false,
+    
+  },
+    pendingVotingKeyEncrypted: {
+    type: String,
+    select: false,
+  },
+
+  pendingVotingKeyExpires: {
+    type: Date,
+    select: false,
+  },
+
   hasVotedKing: { type: Boolean, default: false },
   hasVotedQueen: { type: Boolean, default: false },
 

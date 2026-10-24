@@ -167,12 +167,23 @@ export function useFestival(api) {
     updateSession(next); setNotice({ type: 'success', text: 'Welcome back. Enter your voting key to unlock your choices.' });
     await verifyAccount(generation);
   }
-  async function register(email, password) {
-    if (statusRef.current.registration !== 'open') throw new Error('Registration is not available right now. Please refresh the schedule.');
-    const data = await api.register(email, password);
-    if (!validKey(data?.votingKey)) throw new Error('Registration responded without a usable key. Do not register again; contact the event organisers.');
-    return data;
+async function register(email, password) {
+  if (statusRef.current.registration !== 'open') {
+    throw new Error('Registration is not available right now. Please refresh the schedule.');
   }
+
+  return await api.register(email, password);
+}
+
+async function verifyEmail(email, otp) {
+  const data = await api.verifyEmail(email, otp);
+
+  if (!validKey(data?.votingKey)) {
+    throw new Error('Email verified, but the voting key was not returned. Contact the event organisers before registering again.');
+  }
+
+  return data;
+}
 
   async function readChoices(key, generation) {
     const active = sessionRef.current;
@@ -263,5 +274,5 @@ export function useFestival(api) {
     now, finalistStage, finalists, finalistLoad, finalistError, reloadFinalists: loadFinalists,
     status, reloadSchedule: loadSchedule, session, choices: status.voting === 'open' ? choices : EMPTY,
     choiceState, busy, notice, dismissNotice: () => setNotice(null), celebration,
-    login, register, signOut, unlock, refreshChoices, mutate, lockChoices, verifyAccount };
+    login, register, verifyEmail, signOut, unlock, refreshChoices, mutate, lockChoices, verifyAccount };
 }

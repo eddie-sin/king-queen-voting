@@ -49,7 +49,21 @@ export function createApi({ baseUrl = '/api/v1', fetchImpl = (...args) => fetch(
     },
     async settings(options) { return (await request('/settings', options)).data?.schedule ?? null; },
     async finalists(options) { return publicFinalists((await request('/results', options)).data?.results); },
-    async register(email, password) { return (await request('/auth/register', { method: 'POST', body: { email, password } })).data; },
+
+ async register(email, password) {
+  return (await request('/auth/register', {
+    method: 'POST',
+    body: { email, password },
+  })).data;
+},
+
+async verifyEmail(email, otp) {
+  return (await request('/auth/verify-email', {
+    method: 'POST',
+    body: { email, otp },
+  })).data;
+},
+
     async login(email, password) { return (await request('/auth/login', { method: 'POST', body: { email, password } })).data; },
     async me(token) { return (await request('/auth/me', { token })).data?.user; },
     async myVotes(token, votingKey) { return (await request('/voting/my-votes', { method: 'POST', token, body: { votingKey } })).data?.votes; },
