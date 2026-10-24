@@ -20,7 +20,17 @@ def healthy():
             data = json.loads(r.read())
             c.close()
             if r.status == 200 and data.get('status') == 'success':
-                return True
+                pages_ok = True
+                for page in ['/', '/admin/']:
+                    web = http.client.HTTPConnection('127.0.0.1', 80, timeout=3)
+                    web.request('GET', page)
+                    response = web.getresponse()
+                    body = response.read()
+                    web.close()
+                    if response.status != 200 or b'id="root"' not in body:
+                        pages_ok = False
+                if pages_ok:
+                    return True
         except (OSError, ValueError, http.client.HTTPException):
             pass
         time.sleep(2)
@@ -43,6 +53,7 @@ def deploy(commit, expected_hash):
         print('Release is already healthy:', commit)
         return
     release = pathlib.Path(tempfile.mkdtemp(prefix=commit[:12]+'-', dir=BASE / 'releases'))
+    release.chmod(0o755)
     archive = release / 'artifact.tar.gz'
     switched = False
     try:
