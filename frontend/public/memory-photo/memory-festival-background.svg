@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1000" viewBox="0 0 1440 1000" fill="none">
+  <defs>
+    <radialGradient id="haze"><stop stop-color="#d9a34f" stop-opacity=".12"/><stop offset="1" stop-color="#d9a34f" stop-opacity="0"/></radialGradient>
+    <radialGradient id="light"><stop stop-color="#fff0bd"/><stop offset=".2" stop-color="#f7ce7c" stop-opacity=".75"/><stop offset="1" stop-color="#edb75e" stop-opacity="0"/></radialGradient>
+    <g id="leaf" stroke="#bb9150" stroke-width="1"><path d="M0 0C-24-3-32-18-29-33-9-29 2-17 0 0Z"/><path d="m-25-28 25 28m-18-20 11 2m-6 6-1-10"/></g>
+    <g id="sprig" stroke="#bb9150" stroke-width="1.1"><path d="M0 140C12 100 20 50 5 0"/><use href="#leaf" transform="translate(12 118) rotate(10) scale(.8)"/><use href="#leaf" transform="translate(17 91) rotate(105) scale(.8)"/><use href="#leaf" transform="translate(17 70) rotate(-8) scale(.9)"/><use href="#leaf" transform="translate(14 43) rotate(105) scale(.7)"/><use href="#leaf" transform="translate(9 22) rotate(-5) scale(.65)"/></g>
+    <g id="lantern" stroke="#d1a760" stroke-width="1.2"><path d="M0-36V0M-19 8 0 0l19 8 5 34-24 18-24-18Z"/><path d="M-19 8h38M-24 42h48M0 0v60M-19 8l10 34L0 60 9 42 19 8M0 60v22m-5-18v15m10-15v15"/><path d="m0 20-7 10 7 10 7-10Z"/><circle cy="31" r="26" fill="url(#haze)" stroke="none"/></g>
+    <g id="pavilion" stroke="#a17e46" stroke-width="1"><path d="M-66 0C-38-5-20-19 0-40 20-19 38-5 66 0H-66Zm-57-7c24-7 35-18 57-27 22 9 33 20 57 27M0-40v-15M-55 3v51M55 3v51M-43 9v44M43 9v44M-64 54H64M-70 59H70M-18 54V22h36v32M-51 17h8m86 0h8"/><path d="M-59 4h118M-48 54V4m96 50V4" opacity=".5"/></g>
+  </defs>
+  <ellipse cx="90" cy="620" rx="250" ry="340" fill="url(#haze)"/>
+  <ellipse cx="1390" cy="770" rx="230" ry="280" fill="url(#haze)"/>
+  <g opacity=".6"><use href="#sprig" transform="translate(13 390) rotate(-14) scale(1.5)"/><use href="#sprig" transform="translate(-31 490) rotate(-48) scale(1.5)"/><use href="#sprig" transform="translate(40 660) rotate(-12) scale(1.1)"/><use href="#sprig" transform="translate(1442 370) scale(-1.1 1.3)"/><use href="#sprig" transform="translate(1424 600) rotate(14) scale(-1.2 1.3)"/></g>
+  <g opacity=".68"><use href="#pavilion" transform="translate(55 865) scale(.95)"/><use href="#pavilion" transform="translate(1382 515) scale(.9)"/><use href="#lantern" transform="translate(84 235) rotate(5) scale(.7)"/><use href="#lantern" transform="translate(1338 158) rotate(-6) scale(.8)"/></g>
+  <path d="M-15 715C120 735 155 570 260 617S445 824 610 703 810 590 982 677 1220 907 1465 702" stroke="#deb566" stroke-width="1.15" opacity=".7"/>
+  <g fill="url(#light)"><circle cx="26" cy="715" r="17"/><circle cx="192" cy="629" r="17"/><circle cx="439" cy="736" r="17"/><circle cx="723" cy="641" r="17"/><circle cx="1105" cy="756" r="17"/><circle cx="1378" cy="759" r="17"/></g>
+  <g fill="#ffe6aa"><ellipse cx="26" cy="713" rx="2.2" ry="4.5"/><ellipse cx="192" cy="627" rx="2.2" ry="4.5"/><ellipse cx="439" cy="734" rx="2.2" ry="4.5"/><ellipse cx="723" cy="639" rx="2.2" ry="4.5"/><ellipse cx="1105" cy="754" rx="2.2" ry="4.5"/><ellipse cx="1378" cy="757" rx="2.2" ry="4.5"/></g>
+  <g transform="translate(1367 865)" stroke="#d2a658" stroke-width="1.3"><ellipse cy="-32" rx="54" ry="70" fill="url(#haze)" stroke="none"/><path d="M-24 0C-19 20 18 20 24 0M-27 0c8-10 45-10 54 0-10 7-44 7-54 0Zm24 16v16m6-16v16M-17 36c6-7 28-7 34 0Z"/><path d="M-3-3C-16-18 9-27 1-47 17-30 15-13 2-4Z" fill="#e8b861" fill-opacity=".35"/><path d="M0-4c-5-7 5-15 3-24" stroke="#ffe8ae"/></g>
+  <g stroke="#c19a58" opacity=".55"><path d="m128 354 5 8-5 8-5-8Zm1144 522 4 7-4 7-4-7ZM1050 194v12m-6-6h12M310 890v10m-5-5h10"/></g>
+</svg>

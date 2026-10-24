@@ -6,6 +6,12 @@ const publicController = require("../controller/publicMemoryPhotosController");
 const likes = require("../controller/memoryPhotoLikesController");
 
 const router = express.Router();
+router.get("/like-status", (req, res, next) => {
+  res.set("Cache-Control", "private, no-store");
+  res.vary("Authorization");
+  next();
+}, authenticate, controller.requireEnabled, likes.getLikeStatus);
+router.get("/mine", authenticate, controller.requireEnabled, controller.listMine);
 router.get("/", publicController.publicAccess, publicController.listApproved);
 router.get("/:id/image", publicController.publicAccess, publicController.getApprovedImage);
 router.post("/", authenticate, controller.requireEnabled, memoryPhotoImages, controller.submitPhoto);
