@@ -36,3 +36,7 @@ The legacy Windows/standalone Memory preview launcher is retired; it cannot prov
 Deployment and recovery preparation is also deferred: branch CI/deployment changes, updating the root-installed helper, release packaging/init dispatch, runtime readiness, a compatible code/config/database cutover, old-data retirement, and rollback rehearsal. None of the live AWS, Atlas, DNS, security-group, deployment variables or GitHub-main settings were changed.
 
 Compilation is a useful implementation check, not proof of permission/race correctness or performance. Keep this branch out of production until the deferred review is complete.
+
+## V2 startup setup (October 25)
+
+Local private config now selects `king_queen_voting_v2` in both environments. `npm run mongo:start` starts an isolated local replica set on port 27018 (`kqvLocal`), without modifying the shared port-27017 MongoDB service. Atlas uses the separate v2 database on the existing cluster. Development and production startup were confirmed and the temporary API processes were stopped. No old data was cleared. The private configuration backup is outside Git. This startup check does not replace the deferred correctness/capacity tests.
