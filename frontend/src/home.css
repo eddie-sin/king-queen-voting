@@ -1,0 +1,69 @@
+.source-app.home-route .site-header{position:absolute;top:0;left:0;background:transparent;backdrop-filter:none;-webkit-backdrop-filter:none;border-bottom-color:#edc77d15}
+.home-route .source-page{animation:none}
+.home-route .fixture-ribbon{position:absolute;top:88px;left:0;right:0;z-index:3;background:#08182f99}
+.home-page{position:relative;isolation:isolate;background:transparent}
+.home-page:lang(my){--ui:'Myanmar Text','Noto Sans Myanmar',Pyidaungsu,sans-serif;--display:'Myanmar Text','Noto Serif Myanmar',Pyidaungsu,serif;font-family:var(--ui)}
+.home-page:lang(my) .home-hero{height:auto;min-height: max(760px,100svh)}
+.home-page:lang(my) .home-hero h1{font-size:clamp(30px,4.5vw,62px);line-height:1.65}
+.home-page:lang(my) .home-block h2{font-size:clamp(25px,3vw,40px);line-height:1.75}
+.home-page:lang(my) h1 em,.home-page:lang(my) h2 em{font-style:normal}
+.home-page:lang(my) .eyebrow,.home-page:lang(my) .home-details dt,.home-page:lang(my) .home-soon{letter-spacing:0;line-height:2;font-size:12px}
+.home-page:lang(my) p{line-height:2.2}
+.home-page:lang(my) .home-details dd{font-size:18px;line-height:2}
+.home-page:lang(my) .home-location h3,.home-page:lang(my) .btn,.home-page:lang(my) .home-link,.home-page:lang(my) .home-small{line-height:2}
+.home-page:lang(my) .home-small{font-size:12px}
+.home-hero{position:relative;isolation:isolate;min-height:760px;height:min(960px,100svh);display:flex;justify-content:center;text-align:center;padding:170px 24px 240px;overflow:hidden;background:transparent}
+/* Dissolve the artwork into the actual shared sky, rather than a solid color. */
+.home-hero-image{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center bottom;z-index:-2;mask-image:linear-gradient(#000 0%,#000 60%,#000e 70%,#0008 82%,#0003 92%,transparent 100%);-webkit-mask-image:linear-gradient(#000 0%,#000 60%,#000e 70%,#0008 82%,#0003 92%,transparent 100%)}
+.home-hero:after{content:'';position:absolute;inset:0;z-index:-1;background:linear-gradient(180deg,#04132622,transparent 55%)}
+.home-hero-copy{max-width:790px}
+.home-hero h1{font-size:clamp(52px,6.1vw,88px);line-height:1.05;margin:24px 0;color:var(--cream);text-wrap:balance}
+.home-hero-copy>p{max-width:540px;margin:0 auto 27px;color:#c0ccdc;font-size:14px;line-height:1.85;text-wrap:pretty}
+.home-hero .btn{gap:22px}
+.home-hero-caption{position:absolute;bottom:35px;left:20px;right:20px;font-size:9px;letter-spacing:4px;color:#e9cf9e}
+.home-sections{max-width:1140px;margin:auto;padding:0 40px}
+.home-atmosphere{position:absolute;inset:0;z-index:1;pointer-events:none;overflow:hidden}
+.home-hero-copy,.home-hero-caption,.home-sections{position:relative;z-index:2}
+.home-hero-caption{position:absolute}
+.home-spark{position:absolute;left:var(--x);top:var(--y);width:3px;height:3px;border-radius:50%;background:#ffe6af;box-shadow:0 0 9px #f6c879aa,0 0 20px #edc77d55;animation:home-glimmer var(--duration) var(--delay) ease-in-out infinite}
+.home-spark-cross:before,.home-spark-cross:after{content:'';position:absolute;left:50%;top:50%;width:12px;height:1px;transform:translate(-50%,-50%);background:linear-gradient(90deg,transparent,#ffe9bd,transparent)}
+.home-spark-cross:after{transform:translate(-50%,-50%) rotate(90deg)}
+.home-floating-lantern{position:absolute;left:var(--x);top:var(--y);width:24px;height:36px;border-radius:35% 35% 30% 30%;border:1px solid #f6d99c88;background:linear-gradient(90deg,#a66a3599,#f5cf82bb,#a66a3599);box-shadow:0 0 20px #edc77d33,inset 0 -5px 9px #ffe6ad66;opacity:.55;animation:home-lantern-drift var(--duration) var(--delay) ease-in-out infinite}
+.home-floating-lantern:after{content:'';position:absolute;bottom:-6px;left:50%;width:1px;height:7px;background:#edc77d88}
+.home-lantern-art span{animation:home-art-float 12s ease-in-out infinite}.home-lantern-art span:nth-child(2){animation-delay:-4s}.home-lantern-art span:last-child{animation-delay:-8s}
+.home-wish-art img{animation:home-art-float 14s -5s ease-in-out infinite}
+.home-wish-art span{animation:home-glimmer 7s -2s ease-in-out infinite}
+@keyframes home-glimmer{0%,100%{opacity:.2;transform:translate3d(0,6px,0) scale(.7)}50%{opacity:.85;transform:translate3d(5px,-8px,0) scale(1.1)}}
+@keyframes home-lantern-drift{0%,100%{transform:translate3d(0,12px,0) rotate(-6deg);opacity:.35}50%{transform:translate3d(12px,-22px,0) rotate(5deg);opacity:.65}}
+@keyframes home-art-float{0%,100%{translate:0 5px}50%{translate:7px -14px}}
+@media(max-width:760px){.home-floating-lantern{width:16px;height:24px;opacity:.35}.home-spark:nth-child(3n){display:none}}
+@media(prefers-reduced-motion:reduce){.home-spark,.home-floating-lantern,.home-lantern-art span,.home-wish-art img,.home-wish-art span{animation:none}}
+.home-block{padding:85px 0;border-bottom:1px solid #edc77d22}
+.home-block h2{font-size:clamp(36px,4.1vw,56px);line-height:1.12;margin:18px 0 22px;text-wrap:balance}
+.home-block p{font-size:14px;line-height:1.9;max-width:480px}
+.home-event,.home-location,.home-feature{display:grid;grid-template-columns:1fr 1fr;align-items:center;gap:90px}
+.home-event{scroll-margin-top:20px}
+.home-link{display:inline-flex;align-items:center;gap:25px;min-height:44px;margin-top:20px;color:var(--gold);font-size:13px;border-bottom:1px solid #edc77d55}
+.home-link:hover{color:var(--cream);border-color:var(--cream)}
+.home-details{margin:0;border:1px solid #edc77d30;border-radius:12px;padding:12px 32px;background:#0d203377}
+.home-details>div{padding:25px 0}.home-details>div+div{border-top:1px solid #edc77d22}
+.home-details dt{font-size:9px;letter-spacing:3px;color:var(--gold)}
+.home-details dd{margin:10px 0 0;font-family:var(--display);font-size:29px;color:var(--cream)}
+.home-location h3{font:500 16px var(--ui);color:var(--gold);margin-bottom:14px}
+.home-location-art{display:grid;place-items:center;min-height:260px;border:1px solid #edc77d20;border-radius:150px 150px 12px 12px;background:radial-gradient(ellipse,#18355177,transparent 70%)}
+.home-location-art svg{width:220px;stroke:#edc77d;stroke-width:1}.home-location-art ellipse{opacity:.25}
+.home-voting{text-align:center;background:radial-gradient(ellipse at center,#17314a66,transparent 70%)}
+.home-crown svg{width:55px;height:55px;color:var(--gold);margin-bottom:20px}
+.home-voting p{margin:0 auto 30px;max-width:580px}.home-voting .btn{gap:20px}
+.home-small{display:block;font-size:10px;color:var(--muted);margin-top:22px}
+.home-lantern-art{height:290px;display:flex;align-items:center;justify-content:center;gap:35px;background:radial-gradient(ellipse,#edc77d0c,transparent 65%)}
+.home-lantern-art span{width:65px;height:95px;border-radius:20px 20px 24px 24px;border:1px solid #edc77d88;background:repeating-linear-gradient(90deg,transparent 0 15px,#8d512b55 16px 17px),linear-gradient(#9d5c31,#e5b66b 75%,#ffe4a1);box-shadow:0 0 45px #edc77d25;transform:rotate(-9deg)}
+.home-lantern-art span:nth-child(2){width:85px;height:125px;margin-top:70px;transform:rotate(6deg)}
+.home-lantern-art span:last-child{margin-top:-65px;transform:rotate(12deg);width:45px;height:70px}
+.home-wish-art{position:relative;display:grid;place-items:center;height:290px;background:radial-gradient(ellipse,#19385966,transparent 65%)}
+.home-wish-art img{height:170px;filter:drop-shadow(0 0 22px #edc77d22)}
+.home-wish-art span{position:absolute;color:var(--gold);font-size:24px;left:18%;top:25%}.home-wish-art span:nth-child(2){left:75%;top:40%;font-size:14px}.home-wish-art span:nth-child(3){left:30%;top:75%;font-size:15px}
+.home-coming{text-align:center}.home-coming p{margin:0 auto 22px}.home-soon{display:inline-block;font-size:9px;letter-spacing:2px;color:var(--muted);padding:10px 17px;border:1px solid #97b0cd30;border-radius:99px}.home-developers{border-bottom:0}
+@media(min-width:1700px){.home-hero{padding-top:200px}}
+@media(max-width:760px){.home-hero{min-height:720px;height:95svh;padding:155px 22px 250px}.home-hero-image{object-position:51% bottom}.home-hero h1{font-size:54px}.home-hero-copy>p{font-size:13px;max-width:380px}.home-sections{padding:0 24px}.home-block{padding:60px 0}.home-event,.home-location,.home-feature{gap:32px;grid-template-columns:1fr}.home-location-art{min-height:200px}.home-lantern-art,.home-wish-art{height:220px}.home-wishes .home-wish-art{grid-row:1}.home-small{line-height:1.8}.home-hero-caption{font-size:8px;letter-spacing:2px}}
+@media(max-width:380px){.home-hero h1{font-size:46px}.home-hero{padding-inline:18px}.home-hero .eyebrow{font-size:8px;letter-spacing:2px}}

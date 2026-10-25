@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { request } from './api.js';
 const LABELS = {
+  'votes.read':'View candidate vote totals (manual refresh)','lantern.votes.read':'View Lantern vote totals (manual refresh)',
   'memory.open':'Open Memory feature','memory.close':'Close Memory feature','memory.approve':'Accept Memory Photos','memory.reject':'Reject Memory Photos',
   'lantern.open':'Open Lantern voting','lantern.close':'Close Lantern voting','lantern.announce':'Announce Lantern winner','lantern.hide':'Hide Lantern announcement',
   'candidates.create': 'Create candidates', 'candidates.update': 'Update candidates', 'candidates.delete': 'Delete candidates',

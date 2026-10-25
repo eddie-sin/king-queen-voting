@@ -55,7 +55,7 @@ export function publicResults(results) {
     return list.map(entry => {
       const candidate = publicCandidate(entry?.candidate);
       if (!candidate?._id || !Number.isSafeInteger(entry.votes) || entry.votes < 0) throw new Error('Results are incomplete.');
-      return { ...candidate, votes: entry.votes };
+      return { ...candidate, votes: entry.votes, title: typeof entry.title==='string'?entry.title:'' };
     }).sort((a, b) => b.votes - a.votes || a.fullName.localeCompare(b.fullName) || a._id.localeCompare(b._id));
   };
   return { king: pick(results.kings), queen: pick(results.queens), round: results.round, revision: results.revision };

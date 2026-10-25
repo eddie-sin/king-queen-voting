@@ -6,6 +6,9 @@ import { titleCase } from './domain.js';
 import { Brand, Crown, Sky, CategorySelection, CandidateCard, CandidateProfile, AccountDialog, StatusBanner, AccountPanel, ChoicesPage, VoteConfirmation, Celebration } from './components.jsx';
 import { LanternGallery } from './components/LanternGallery.jsx';
 import MusicPlayer from './components/MusicPlayer.jsx';
+import HomePage from './components/HomePage.jsx';
+import DevelopersPage from './components/DevelopersPage.jsx';
+import './home.css';
 import { ResultsPage } from './components/Results.jsx';
 import MemoryPhotoDemo from './memory/MemoryPhotoDemo.jsx';
 import { memoryTabFromHash } from './memory/demo.js';
@@ -26,7 +29,7 @@ function readRoute() {
   if (raw === 'choices' || raw === 'account') return 'account';
   if (raw === 'results' || raw === 'finalists') return 'results';
   if (raw === 'wish-sky') return 'wishes';
-  if (['candidates', 'king', 'queen', 'lanterns', 'wishes', 'entertainment'].includes(raw)) return raw;
+  if (['candidates', 'king', 'queen', 'lanterns', 'wishes', 'entertainment', 'developers'].includes(raw)) return raw;
   return 'home';
 }
 
@@ -136,22 +139,14 @@ function FestivalApp({ api, wishApi, fixtureMode = false }) {
   const label = allDisabled ? 'Voting closed' : !model.session ? 'Sign in to vote' : !viewable ? 'Refresh choices to vote' : model.choices[profile?.category] ? 'You have already voted in this category' : 'Cast your crown';
   const heading = (eye, title, description) => <div className="source-heading"><div className="eyebrow">{eye}</div><h1>{title}</h1><p>{description}</p></div>;
 
-  return <div className={`festival-app source-app ${route === 'wishes' ? 'wish-route' : ''}`}>
+  return <div className={`festival-app source-app ${route === 'home' ? 'home-route' : ''} ${route === 'wishes' ? 'wish-route' : ''}`}>
     <a className="skip-link" href="#main">Skip to content</a><Sky/>
     <SiteHeader items={NAV_ITEMS} route={route} session={model.session} menuOpen={menuOpen} setMenuOpen={setMenuOpen} onLogin={() => setAccountMode('login')} onRegister={() => setAccountMode('register')} onSignOut={model.signOut}/>
 
 
     {fixtureMode&&<div className="fixture-ribbon">LOCAL FIXTURE PREVIEW · Sample identities · No real votes are sent</div>}
     <main id="main" tabIndex="-1"><div className="source-page" key={route}>
-      {route==='home' ? <>
-        {heading('THADINGYUT FESTIVAL OF LIGHTS',<>A night of light,<br/>tradition &amp; <em>celebration.</em></>,'Welcome to the official Thadingyut Festival experience — discover the event story, dates, times, venue locations, and community celebrations.')}
-        <PlaceholderStage
-          badge="HOME · ABOUT THE EVENT"
-          title={<>Festival overview &amp; <em>event details</em></>}
-          description="This page will feature the full festival story, event dates, schedule times, venue map, and celebration highlights. Meanwhile, explore our King & Queen candidates and cast your crown."
-          primaryAction={{ href: '#candidates', label: 'Explore King & Queen Voting' }}
-        />
-      </> : route==='candidates' ? <>
+      {route==='home' ? <HomePage/> : route==='developers' ? <DevelopersPage/> : route==='candidates' ? <>
         {heading('YOUR VOICE. THEIR MOMENT.',<>Every crown begins<br/>with <em>your choice.</em></>,'Choose a category, discover the candidates, and vote for the person who captures the spirit of our festival.')}
         <section className="source-section selection-section"><CategorySelection onSelect={go}/><p className="source-note">How it works: explore a category → open a candidate → sign in → confirm your final choice. One vote for King and one for Queen. <a href="#account">View your recorded choices</a> in your account.</p></section>
       </> : route==='king'||route==='queen' ? <>

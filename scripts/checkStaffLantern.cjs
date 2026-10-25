@@ -68,6 +68,34 @@ const token=(account,role)=>jwt.sign({role,v:0,[role==='admin'?'adminId':'userId
   await command('lantern.close',lantern.token);await command('lantern.announce',lantern.token);
   const result=await call('/lantern-voting');assert.equal(result.winner.lantern.title,'A');assert.equal(result.winner.votes,2);
   await call('/images/'+images[0]._id,lantern.token,'DELETE',null,409);
+  const Candidate=require('../model/candidatesModel'), Ballot=require('../model/ballotsModel');
+  const candidates=await Candidate.create(['king','king','queen','queen'].map((category,n)=>({fullName:'Candidate '+n,category,images:['https://example.test/c.png']})));
+  await Ballot.create(users.flatMap((user,n)=>[
+    {user:user._id,candidate:candidates[n===2?1:0]._id,contest:'king',round:1},
+    {user:user._id,candidate:candidates[n===2?3:2]._id,contest:'queen',round:1}
+  ]));
+  await Controls.updateOne({_id:'event'},{$set:{votingStatus:'open'}});
+  await call('/admin/vote-totals',voting.token,'GET',null,403);
+  await call('/admin/staff/'+voting.id,rootToken,'PATCH',{permissions:['votes.read']});
+  const counts=await call('/admin/vote-totals',voting.token);assert.equal(counts.entries.length,4);assert.equal(counts.entries[0].votes,2);
+  await call('/admin/vote-totals',memory.token,'GET',null,403);
+  await call('/admin/lantern-vote-totals',lantern.token,'GET',null,403);
+  await call('/admin/staff/'+lantern.id,rootToken,'PATCH',{permissions:['lantern.votes.read']});
+  const lanternCounts=await call('/admin/lantern-vote-totals',lantern.token);assert.equal(lanternCounts.entries[0].votes,2);
+  await call('/admin/lantern-vote-totals',voting.token,'GET',null,403);
+  await call('/results',null,'GET',null,403);
+  await Controls.updateOne({_id:'event'},{$set:{votingStatus:'closed'}});
+  await command('announcement.open',rootToken);
+  const awards=await call('/results');
+  assert.deepEqual(awards.results.kings.map(row=>row.title),['Mrs Thadingyut','Prince']);
+  assert.deepEqual(awards.results.queens.map(row=>row.title),['Miss Thadingyut','Princess']);
+  assert.deepEqual(awards.results.kings.map(row=>row.votes),[2,1]);
+  await call('/admin/staff/'+voting.id,rootToken,'PATCH',{permissions:[]});
+  await call('/admin/vote-totals',voting.token,'GET',null,403);
+  const selectAwards=require('../utils/voteTotals').awards;
+  assert.throws(()=>selectAwards([{candidate:{category:'king'},votes:2},{candidate:{category:'king'},votes:2}]),/tied/);
+  assert.throws(()=>selectAwards([{candidate:{category:'queen'},votes:3},{candidate:{category:'queen'},votes:1},{candidate:{category:'queen'},votes:1}]),/tied/);
+  assert.equal(selectAwards([{candidate:{category:'king'},votes:0}]).kings.length,0);
   await Wish.create({user:users[0]._id,slot:1,message:'Public check wish'});
   const wishes=await call('/wishes');assert.equal(wishes.total,1);
   assert.equal(await Vote.countDocuments({}),3);

@@ -54,6 +54,7 @@ exports.command = catchAsync(async (req, res) => {
           break;
         case 'announcement.open':
           if (controls.votingStatus !== 'closed') throw new AppError('Voting must be fully closed first.', 409);
+          require('../utils/voteTotals').awards(await require('../utils/voteTotals').candidates(controls,session));
           controls.announcementOpen = true; break;
         case 'announcement.close': controls.announcementOpen = false; break;
         case 'votes.clear':

@@ -13,6 +13,8 @@ router.route('/staff').get(admin, accounts.list).post(admin, accounts.create);
 router.route('/staff/:id').patch(admin, accounts.update).delete(admin, accounts.remove);
 router.get('/candidates', permission('candidates.read'), candidates.getAdminCandidates);
 router.get('/candidates/:id', permission('candidates.read'), candidates.getAdminCandidate);
+router.get('/vote-totals',permission('votes.read'),require('../controller/voteTotalsController').candidates);
+router.get('/lantern-vote-totals',permission('lantern.votes.read'),require('../controller/voteTotalsController').lanterns);
 router.get('/settings', staff, settings.getSettings);
 router.post('/controls/:action', staff, settings.command);
 module.exports = router;

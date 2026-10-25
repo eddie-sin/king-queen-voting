@@ -1,6 +1,6 @@
 # King and Queen Voting
 
-Current role/workspace and Lantern extensions are documented in [role workspaces and Lantern voting](docs/role-workspaces-and-lantern-voting.md). That document supersedes the earlier two-role descriptions below.
+Current role/workspace and Lantern extensions are documented in [role workspaces and Lantern voting](docs/role-workspaces-and-lantern-voting.md). That document supersedes the earlier two-role descriptions below. The latest [imported pages, title awards and manual vote totals](docs/imported-pages-and-vote-snapshots.md) document supersedes the earlier all-candidate public results description and adds the optional vote-total permissions.
 
 Express/Mongoose API with React student and admin websites. This branch replaces the scheduled/key-based voting system with manual event controls.
 

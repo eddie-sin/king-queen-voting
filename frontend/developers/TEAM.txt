@@ -1,0 +1,68 @@
+TEAM 
+
+# Thant Sin Aung (M)
+- System Architect
+- Team Lead
+
+# Shun Lak Thaw Tar (F)
+- Backend Lead
+
+# Kaung Zaw Hein (M)
+- QA
+
+# Zin Zin Pwint Han (F)
+- Frontend Lead
+- UI/UX Designer
+- Frontend Developer
+
+# Lin Khant Kyaw (M)
+- UI/UX Designer
+- Frontend Devloper
+
+# Shin Thant (M)
+- UI/UX Designer
+
+# Pwint Phyu Soe (F)
+- UI/UX Designer
+
+# Hnin Thiri (F)
+- Backend Developer 
+
+# Aung Myint Myat (M)
+- Backend Developer
+
+# Kaung Myat (M)
+- Backend Developer
+ 
+# No Ko (M)
+- Backend Developer
+
+--------------------------------
+
+Managing Team
+- Thant Sin Aung (Project Manager)
+- Shun Lak Thaw Tar 
+- Kaung Zaw Hein 
+- No Ko
+
+UI/UX Team 
+- Zin Zin Pwint Han 
+- Lin Khant Kyaw 
+- Shin Thant 
+- Pwint Phyu Soe
+
+Frontend Team
+- Kaung Zaw Hein 
+- Zin Zin Pwint Han 
+- Aung Myint Myat
+
+Backend Team
+- Thant Sin Aung 
+- Shun Lak Thaw Tar 
+- No Ko 
+- Hnin Thiri
+- Kaung Myat
+
+QA Team 
+- Kaung Zaw Hein 
+- Thant Sin Aung
