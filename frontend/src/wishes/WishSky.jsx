@@ -66,7 +66,7 @@ export default function WishSky({api,session,onRequireLogin,accountOpen,paused})
  const reroute=i=>setFlightPaths(paths=>paths.map((path,index)=>index===i?makeFlightPath(false,path):path));
  return <div className={`wish-world ${paused?'motion-paused':''} ${reading||compose||accountOpen?'wish-dialog-open':''}`}>
   <Atmosphere/>
-  <div className="wish-world-content"><section className="wish-section" aria-label="Wish sky"><div className="free-sky-heading"><div className="eyebrow">LET A LITTLE HOPE TAKE FLIGHT</div><h2>A sky full of <em>wishes.</em></h2><p>Tap a glowing golden lantern to read its wish. The small distant lights decorate the sky.</p></div>
+  <div className="wish-world-content"><section className="wish-section" aria-label="Wish sky"><div className="free-sky-heading"><div className="eyebrow">LET A LITTLE HOPE TAKE FLIGHT</div><h2>A sky full of <em>wishes.</em></h2><p aria-live="polite">{model.total===null?'Gathering wishes…':`${model.total} ${model.total===1?'wish':'wishes'} in our shared sky`}</p><p>Tap a glowing golden lantern to read its wish. The small distant lights decorate the sky.</p></div>
    <div className="wish-sky" role="group" aria-label="Anonymous wishes drifting across the full sky"><div className="wish-lantern-grid">
     {model.slots.map((wish,i)=>model.release?.wish.id===wish.id?null:<button key={i} className="floating-wish" style={flightPaths[i]} aria-label={`Read wish ${i+1}`} onClick={()=>setReading({wish,index:i})} onAnimationIteration={e=>{if(e.target===e.currentTarget){reroute(i);model.rotate(i);}}}><WishLantern/></button>)}
     {model.release&&<ReleasedWish key={model.release.id} release={model.release} onRead={setReading} onFinish={model.finishRelease}/>}
@@ -83,14 +83,14 @@ export default function WishSky({api,session,onRequireLogin,accountOpen,paused})
   {reading&&<Dialog title="A little light, just for you" className="wish-reading-dialog" onClose={()=>setReading(null)}><div className="wish-reading"><WishLantern/><p className="wish-message">{reading.wish.message}</p><button className="text-button" onClick={async()=>{const index=reading.index<0?0:reading.index;const wish=await model.rotate(index);if(wish)setReading({wish,index});}}>Read another wish</button></div></Dialog>}
   {compose&&<Dialog title="Send a little hope." className="wish-compose-dialog" locked={model.busy} onClose={()=>setCompose(false)}><form className="wish-form" onSubmit={async e=>{e.preventDefault();setFormError('');try{const wish=await model.submit(draft.trim());if(wish){setCompose(false);setDraft('');setNotice('Your lantern is rising gently. Your wish has joined the sky.');}}catch(error){setFormError(error.message);}}}>
     <div className="eyebrow">YOUR LANTERN STARTS HERE</div><label htmlFor="wish-message">Your wish</label><textarea id="wish-message" value={draft} rows={4} required placeholder="What would you like to send into the sky?" onChange={e=>setDraft(e.target.value)} disabled={model.busy||!session}/>
-    <p className="wish-form-note">Only your message is shown. Your name and the time are kept out of the sky.</p>
+    <p className="wish-form-note">Your wish will be public: everyone can read it. Your name and the time are not displayed.</p>
     {remaining===0&&<p role="status">You have released all three wishes.</p>}
     {model.quotaError&&<p className="inline-error" role="alert">{model.quotaError}</p>}
     {formError&&<p className="inline-error" role="alert">{formError}</p>}
     {model.uncertain&&<div className="wish-uncertain"><p>Your release may have succeeded. {remaining===undefined?'Check your allowance.':`${remaining} wishes remain.`} Check the sky before sending the same wish again.</p><button type="button" className="btn secondary" disabled={model.busy} onClick={model.acknowledgeUncertain}>I understand — check remaining wishes</button></div>}
     <button className="btn primary" type="submit" disabled={!session||model.busy||!remaining||model.uncertain||!draft.trim()}>{model.busy?'Releasing your lantern…':'Release my lantern'}</button>
     {remaining===undefined&&<button type="button" className="text-button" onClick={model.loadQuota}>Check remaining wishes</button>}
-    <p className="wish-form-note">Up to three wishes per account. No voting key or event date is needed.</p>
+    <p className="wish-form-note">Up to three wishes per account. Your message joins the public sky.</p>
   </form></Dialog>}
  </div>;
 }

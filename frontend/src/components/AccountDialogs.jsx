@@ -4,6 +4,7 @@ import { Crown } from './Artwork.jsx';
 export function AccountDialog({ initialMode = 'login', onClose, onLogin, onRegister, registrationStatus, onRefreshControls }) {
   const [mode, setMode] = useState(initialMode), [email, setEmail] = useState(''), [password, setPassword] = useState('');
   const [error, setError] = useState(''), [busy, setBusy] = useState(false), [created, setCreated] = useState(false);
+  const [showPassword,setShowPassword]=useState(false);
   const register = mode === 'register';
   const switchMode = next => { setMode(next); setError(''); setPassword(''); };
   async function submit(event) {
@@ -25,7 +26,8 @@ export function AccountDialog({ initialMode = 'login', onClose, onLogin, onRegis
     {register && registrationStatus === 'unknown' && <button className="btn secondary" onClick={onRefreshControls}>Refresh status</button>}
     <form onSubmit={submit}>
       <label htmlFor="account-email">Email address</label><input id="account-email" type="email" autoComplete="email" maxLength={254} value={email} onChange={e => setEmail(e.target.value)} required disabled={busy}/>
-      <label htmlFor="account-password">Password</label><input id="account-password" type="password" autoComplete={register ? 'new-password' : 'current-password'} minLength={register ? 8 : undefined} value={password} onChange={e => setPassword(e.target.value)} required disabled={busy}/>
+      <label htmlFor="account-password">Password</label><input id="account-password" type={showPassword?'text':'password'} autoComplete={register ? 'new-password' : 'current-password'} minLength={register ? 8 : undefined} value={password} onChange={e => setPassword(e.target.value)} required disabled={busy}/>
+      <label className="show-password"><input type="checkbox" checked={showPassword} onChange={e=>setShowPassword(e.target.checked)}/> Show password</label>
       {register && <p className="fine-print">Use at least 8 characters and at most 72 UTF-8 bytes.</p>}
       {error && <p className="inline-error" role="alert">{error}</p>}
       <button className="btn primary full-width" disabled={busy || register && registrationStatus !== 'open'}>{busy ? 'Please wait…' : register ? 'Create account' : 'Sign in'}</button>

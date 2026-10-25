@@ -1,5 +1,7 @@
 # King and Queen Voting
 
+Current role/workspace and Lantern extensions are documented in [role workspaces and Lantern voting](docs/role-workspaces-and-lantern-voting.md). That document supersedes the earlier two-role descriptions below.
+
 Express/Mongoose API with React student and admin websites. This branch replaces the scheduled/key-based voting system with manual event controls.
 
 **Implementation phase:** the application changes are on `eddie/manual-voting-controls`. Correctness/concurrency/capacity testing, the corresponding test-suite rewrite, deployment preparation, and rollback rehearsal are intentionally deferred. The existing tests and older documentation describe the previous contract and must not be treated as validation of this version. Nothing in this branch is deployed automatically.

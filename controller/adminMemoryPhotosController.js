@@ -23,7 +23,7 @@ const photoResponse = (photo) => ({
 });
 
 exports.listPending = catchAsync(async (req, res) => {
-  const photos = await MemoryPhoto.find({ status: "PENDING" })
+  const photos = await MemoryPhoto.find({ cancelled: { $ne: true } })
     .select("_id owner status createdAt reviewedBy reviewedAt").sort({ createdAt: -1, _id: -1 }).lean();
   res.status(200).json({ status: "success", results: photos.length,
     data: { photos: photos.map(photoResponse) } });
@@ -66,10 +66,11 @@ exports.reviewPhoto = catchAsync(async (req, res) => {
   if (Object.keys(body).length !== 1 || !["APPROVED", "REJECTED"].includes(body.status)) {
     throw new AppError("Provide only status: APPROVED or REJECTED.", 400);
   }
-  const photo = await MemoryPhoto.findOneAndUpdate({ _id: id, status: "PENDING" }, {
+  const { staffMutation } = require('../utils/eventControls');
+  const photo = await staffMutation(req, body.status === 'APPROVED' ? 'memory.approve' : 'memory.reject', async ({session}) => MemoryPhoto.findOneAndUpdate({ _id: id, status: "PENDING" }, {
     $set: { status: body.status, reviewedBy: req.admin._id, reviewedAt: clock.now() },
   }, { returnDocument: "after", runValidators: true })
-    .select("_id owner status createdAt reviewedBy reviewedAt").lean();
+    .session(session).select("_id owner status createdAt reviewedBy reviewedAt").lean());
   if (!photo) {
     if (!(await MemoryPhoto.exists({ _id: id }))) throw new AppError("Memory Photo not found.", 404);
     throw new AppError("This Memory Photo has already been reviewed.", 409);

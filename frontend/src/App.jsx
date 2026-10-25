@@ -165,7 +165,7 @@ function FestivalApp({ api, wishApi, fixtureMode = false }) {
 
       </> : route==='lanterns' ? <>
         {heading('LIGHTS OF THADINGYUT',<>Lanterns and their <em>stories.</em></>,'Discover the craft, meaning, and warm glow behind the festival lanterns shared by our community.')}
-        <section className="source-section lantern-section"><LanternGallery lanterns={model.lanterns} state={model.lanternState} error={model.lanternError} onRetry={model.reloadLanterns}/></section>
+        <section className="source-section lantern-section"><LanternGallery api={api} session={model.session} onRequireLogin={()=>setAccountMode('login')} lanterns={model.lanterns} state={model.lanternState} error={model.lanternError} onRetry={model.reloadLanterns}/></section>
       </> : route==='wishes' ? <>
         <WishSky api={wishApi} session={model.session} onRequireLogin={() => setAccountMode('login')} accountOpen={Boolean(accountMode)} paused={false}/>
       </> : route==='entertainment' ? <>

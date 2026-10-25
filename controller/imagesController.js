@@ -1,7 +1,10 @@
 const Image = require("../model/imagesModel");
 const AppError = require("../utils/appError");
 const catchAsync = require("../utils/catchAsync");
-const { uploadImage } = require("../utils/imageStorage");
+const Vote = require('../model/lanternVotesModel');
+const { staffMutation, getControls } = require('../utils/eventControls');
+const guard = controls => { if(controls.lanternVotingOpen || controls.lanternAnnouncementOpen) throw new AppError('Close lantern voting and hide announcement before editing lanterns.',409); };
+const { uploadImage, deleteImage } = require("../utils/imageStorage");
 
 const lanternMetadata = (body) => {
   if (body.description !== undefined && typeof body.description !== "string") {
@@ -27,6 +30,7 @@ exports.getImages = catchAsync(async (req, res) => {
 });
 
 exports.createImages = catchAsync(async (req, res, next) => {
+  if(req.admin.role!=='admin' && req.body.section!=='lantern')throw new AppError('Only lanterns may be managed here.',403);
   if (!req.files || req.files.length === 0) {
     return next(new AppError("Please upload at least one image", 400));
   }
@@ -39,19 +43,23 @@ exports.createImages = catchAsync(async (req, res, next) => {
     metadata = lanternMetadata(req.body);
   }
 
-  const urls = await Promise.all(
-    req.files.map((file) => uploadImage(file, `gallery/${req.body.section}`)),
-  );
+  guard(await getControls());
+  const uploads = await Promise.allSettled(req.files.map(file => uploadImage(file, `gallery/${req.body.section}`)));
+  const urls = uploads.filter(item=>item.status==='fulfilled').map(item=>item.value);
+  const cleanup=()=>Promise.allSettled(urls.map(url=>deleteImage(url,`gallery/${req.body.section}`)));
+  if(uploads.some(item=>item.status==='rejected')) { await cleanup(); throw new AppError('Image upload failed. Please retry.',503); }
+  let images;
+  try {
 
-  const images = await Image.create(
+  images = await staffMutation(req, 'lantern.manage', async ({session,controls}) => { guard(controls); return Image.create(
     urls.map((url) => ({
       url,
       section: req.body.section,
       caption: req.body.caption,
       ...metadata,
-    })),
-  );
+    })), {session}); });
 
+  } catch(error) { if(error.isOperational && error.statusCode<500 || error.name==='ValidationError')await cleanup(); throw error; }
   res.status(201).json({ status: "success", data: { images } });
 });
 
@@ -59,22 +67,29 @@ exports.updateLantern = catchAsync(async (req, res, next) => {
   if (!req.body || Object.keys(req.body).some((field) => !["title", "description"].includes(field))) {
     return next(new AppError("Only lantern title and description can be updated.", 400));
   }
-  const image = await Image.findById(req.params.id);
-  if (!image) return next(new AppError("No image found with that ID", 404));
-  if (image.section !== "lantern") return next(new AppError("Only lantern metadata can be updated.", 400));
+  const image = await staffMutation(req, 'lantern.manage', async ({session,controls})=>{ guard(controls);
+  const image = await Image.findById(req.params.id).session(session);
+  if (!image) throw new AppError("No image found with that ID", 404);
+  if (image.section !== "lantern") throw new AppError("Only lantern metadata can be updated.", 400);
   const metadata = lanternMetadata({ title: req.body.title ?? image.title, description: req.body.description ?? image.description });
   image.title = metadata.title;
   image.description = metadata.description;
-  await image.save();
+  await image.save({session}); return image; });
   res.status(200).json({ status: "success", data: { image } });
 });
 
 exports.deleteImage = catchAsync(async (req, res, next) => {
-  const image = await Image.findByIdAndDelete(req.params.id);
+  const image = await staffMutation(req, 'lantern.manage', async ({session,controls})=>{ guard(controls);
+    const target=await Image.findById(req.params.id).session(session);
+    if(target && req.admin.role!=='admin' && target.section!=='lantern')throw new AppError('Only lanterns may be managed here.',403);
+    if(await Vote.exists({lantern:req.params.id}).session(session))throw new AppError('A lantern with recorded votes cannot be deleted.',409);
+    return Image.findByIdAndDelete(req.params.id).session(session);
+  });
 
   if (!image) {
     return next(new AppError("No image found with that ID", 404));
   }
 
+  try { await deleteImage(image.url, `gallery/${image.section}`); } catch { console.error('Gallery image cleanup pending.'); }
   res.status(204).send();
 });

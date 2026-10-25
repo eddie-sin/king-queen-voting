@@ -32,6 +32,11 @@ if (process.env.NODE_ENV !== "production") {
   }));
 }
 
+const lanternVoting = require('./controller/lanternVotingController');
+const userAuth = require('./middleware/authMiddleware');
+app.get('/api/v1/lantern-voting', lanternVoting.status);
+app.get('/api/v1/lantern-voting/mine', userAuth, lanternVoting.mine);
+app.post('/api/v1/lantern-voting', userAuth, lanternVoting.submit);
 app.use("/api/v1/voting", votingRouter);
 app.use("/api/v1/auth", authRouter);
 

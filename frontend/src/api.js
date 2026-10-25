@@ -42,6 +42,9 @@ export function createApi({ baseUrl = '/api/v1', fetchImpl = (...args) => fetch(
     }
   }
   return {
+    async lanternStatus() { return (await request('/lantern-voting')).data; },
+    async myLanternVote(token) { return (await request('/lantern-voting/mine', {token})).data; },
+    async voteLantern(token, lanternId, window) { return request('/lantern-voting', {method:'POST',token,body:{lanternId,window}}); },
     async memoryPhotoLikeStates(token, photoIds, options = {}) {
       if (!token) throw new ApiError('Please sign in first.', { status: 401 });
       if (!Array.isArray(photoIds) || photoIds.length < 1 || photoIds.length > 50 || photoIds.some(id => !/^[a-f0-9]{24}$/i.test(id)) || new Set(photoIds.map(id => id.toLowerCase())).size !== photoIds.length) throw new ApiError('Invalid photo IDs.');

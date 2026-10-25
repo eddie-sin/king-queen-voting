@@ -15,7 +15,7 @@ exports.seed = async () => {
   // Read-only guard BEFORE initialization: never reinterpret the old application's database.
   const legacy = await db.collection('elections').findOne({});
   const oldBallot = await db.collection('ballots').findOne({ credential: { $exists: true } });
-  const oldAdmin = await db.collection('admins').findOne({ role: { $nin: ['admin', 'voting_admin'] } });
+  const oldAdmin = await db.collection('admins').findOne({ role: { $nin: ['admin', 'voting_admin', 'memory_admin', 'lantern_admin'] } });
   const oldUser = await db.collection('users').findOne({ credentialIssued: { $exists: true } });
   if (legacy || oldBallot || oldAdmin || oldUser) throw new Error('Legacy test database detected. Select a separate empty v2 database; no data was migrated or deleted.');
   const hello = await db.admin().command({ hello: 1 });
@@ -39,6 +39,7 @@ exports.seed = async () => {
   await Controls.updateOne({ _id: 'event' }, { $setOnInsert: { schemaVersion: 2 } }, { upsert: true, runValidators: true });
   // An unexpected restart never resumes an interrupted open window automatically.
   await withControls(async ({ controls }) => {
+    if (controls.lanternVotingOpen) { controls.lanternVotingOpen=false; controls.revision++; }
     if (controls.votingStatus !== 'closed') { controls.votingStatus = 'closed'; controls.revision++; }
   });
   admission.close();

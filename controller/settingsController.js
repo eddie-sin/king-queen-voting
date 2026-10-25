@@ -4,7 +4,7 @@ const AppError = require('../utils/appError');
 const catchAsync = require('../utils/catchAsync');
 const { getControls, publicControls, staffMutation, withControls, audit, authorizeStaff } = require('../utils/eventControls');
 const admission = require('../utils/voteAdmission');
-const ACTIONS = ['registration.open', 'registration.close', 'voting.open', 'voting.close', 'announcement.open', 'announcement.close', 'votes.clear', 'memory.open', 'memory.close'];
+const ACTIONS = ['registration.open', 'registration.close', 'voting.open', 'voting.close', 'announcement.open', 'announcement.close', 'votes.clear', 'memory.open', 'memory.close', 'lantern.open', 'lantern.close', 'lantern.announce', 'lantern.hide'];
 let commandBusy = false;
 exports.getSettings = catchAsync(async (req, res) => {
   const controls = await getControls();
@@ -19,7 +19,7 @@ exports.command = catchAsync(async (req, res) => {
     || !Number.isSafeInteger(revision) || revision < 0 || typeof operationId !== 'string'
     || !/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(operationId)) throw new AppError('Refresh controls before performing this action.', 400);
   if (action === 'votes.clear' && confirmation !== 'CLEAR ALL VOTES') throw new AppError('Confirm by entering CLEAR ALL VOTES.', 400);
-  const permission = action.startsWith('memory.') ? 'admin' : action;
+  const permission = action;
   await authorizeStaff(req.admin, permission);
   if (commandBusy) throw new AppError('Another control is being updated. Refresh and retry shortly.', 409);
   commandBusy = true;
@@ -60,6 +60,16 @@ exports.command = catchAsync(async (req, res) => {
           if (controls.votingStatus !== 'closed' || controls.announcementOpen) throw new AppError('Close voting and hide announcement before clearing votes.', 409);
           clearedBallots = (await Ballot.deleteMany({}).session(session)).deletedCount;
           controls.round++; break;
+        case 'lantern.open':
+          if(controls.lanternAnnouncementOpen) throw new AppError('Hide lantern announcement before reopening voting.',409);
+          if(!controls.lanternVotingOpen) controls.lanternWindow=(controls.lanternWindow||0)+1;
+          controls.lanternVotingOpen=true; break;
+        case 'lantern.close': controls.lanternVotingOpen=false; break;
+        case 'lantern.announce':
+          if(controls.lanternVotingOpen) throw new AppError('Close lantern voting before announcing.',409);
+          await require('./lanternVotingController').winner(session);
+          controls.lanternAnnouncementOpen=true; break;
+        case 'lantern.hide': controls.lanternAnnouncementOpen=false; break;
         case 'memory.open': controls.memoryPhotosEnabled = true; break;
         case 'memory.close': controls.memoryPhotosEnabled = false; break;
       }

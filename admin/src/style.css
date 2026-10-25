@@ -159,3 +159,5 @@ button.photo-add{width:100%;font:inherit;padding:0}button.photo-add:focus-visibl
 @media(max-width:1200px){.control-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:740px){.control-grid{grid-template-columns:minmax(0,1fr)}.control-card{padding:20px}.event-controls-page>.page-header{flex-direction:column}.event-controls-page>.page-header>.button{width:100%;margin:0}}
 @media(max-width:620px){.sidebar{flex-wrap:wrap;gap:12px}.side-nav{order:3;flex-basis:100%;margin:0;overflow-x:auto;padding-bottom:4px}.side-nav .side-link{flex-shrink:0}.side-nav .side-text{display:inline;font-size:11px;white-space:nowrap}.sidebar-bottom{margin-left:auto}}
+
+.show-password{display:flex!important;flex-direction:row!important;align-items:center;gap:9px;font-size:13px;margin:10px 0 18px}.show-password input{width:17px!important;height:17px;accent-color:#d6ae68}

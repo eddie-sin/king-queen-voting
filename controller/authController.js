@@ -57,7 +57,7 @@ exports.adminLogin = catchAsync(async (req, res) => {
   const username = passwords.username(req.body.username);
   const admin = await Admin.findOne({ username }).select('+passwordHash');
   if (!(await checkPassword(req.body.password, admin)) || !admin) throw new AppError('Invalid username or password.', 401);
-  if (admin.status !== 'active' || !['admin', 'voting_admin'].includes(admin.role)) throw new AppError('This staff account is not active.', 403);
+  if (admin.status !== 'active' || !['admin', 'voting_admin', 'memory_admin', 'lantern_admin'].includes(admin.role)) throw new AppError('This staff account is not active.', 403);
   res.json({ status: 'success', data: { ...tokenResponse(admin, 'admin'), admin: staffResponse(admin) } });
 });
 exports.getMe = catchAsync(async (req, res) => res.json({ status: 'success', data: { user: await userResponse(req.user) } }));

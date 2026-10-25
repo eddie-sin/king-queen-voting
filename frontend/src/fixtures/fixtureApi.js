@@ -37,6 +37,9 @@ export function createFixtureApi({ scenario = 'open', delayMs = 300 } = {}) {
     return { status: 'success', message: 'Vote recorded.' };
   };
   return {
+    async lanternStatus(){return {open:false,announced:false,window:0,winner:null};},
+    async myLanternVote(){return {vote:null};},
+    async voteLantern(){throw new ApiError('Lantern voting is closed in this preview.');},
     async candidates() { await wait(); if (scenario === 'error') fail('Sample candidate service is unavailable.', 503); return scenario === 'empty' ? [] : candidates; },
     async lanterns() { await wait(); return []; },
     async settings() { await wait(); if (scenario === 'schedule-error') fail('Sample schedule service is unavailable.', 503); return controls; },

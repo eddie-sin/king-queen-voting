@@ -11,6 +11,7 @@ exports.getControls = async session => {
   return controls;
 };
 exports.publicControls = controls => ({
+  lanternVotingOpen: controls.lanternVotingOpen, lanternAnnouncementOpen: controls.lanternAnnouncementOpen, lanternWindow: controls.lanternWindow,
   registrationOpen: controls.registrationOpen, votingStatus: controls.votingStatus,
   announcementOpen: controls.announcementOpen, memoryPhotosEnabled: controls.memoryPhotosEnabled,
   round: controls.round, window: controls.window, revision: controls.revision,
