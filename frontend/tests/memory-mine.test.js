@@ -8,14 +8,14 @@ const photos = ['PENDING', 'APPROVED', 'REJECTED'].map((status, index) => ({ id:
 const data = { photos, quota: { limit: 3, acceptedCount: 3, remainingSlots: 0 } };
 const response = (body, status = 200) => new Response(JSON.stringify(body), { status });
 
-test('My Memories GET uses current JWT and existing no-store JSON API conventions', async () => {
+test('My Memories GET uses the cookie without exposing credentials in headers or URLs', async () => {
   let seen;
   const api = createApi({ fetchImpl: async (url, options) => { seen = { url, ...options }; return response({ status: 'success', data }); } });
   assert.deepEqual(await api.myMemoryPhotos('student-fixture-token'), data);
   assert.equal(seen.url, '/api/v1/memory-photos/mine');
   assert.equal(seen.method, 'GET'); assert.equal(seen.body, undefined);
-  assert.equal(seen.headers.Authorization, 'Bearer student-fixture-token');
-  assert.equal(seen.cache, 'no-store'); assert.equal(seen.credentials, 'omit');
+  assert.equal(seen.headers.Authorization, undefined);
+  assert.equal(seen.cache, 'no-store'); assert.equal(seen.credentials, 'same-origin');
   assert(!seen.url.includes('student-fixture-token'));
 });
 
@@ -57,6 +57,6 @@ test('Memory reuses the existing festival session store without a second token o
   t.after(() => { if (previous) Object.defineProperty(globalThis, 'localStorage', previous); else delete globalThis.localStorage; });
   const session = { token: 'session-fixture', user: { id: 'student-fixture' } };
   writeStoredSession(session); assert.deepEqual(readStoredSession(), session);
-  assert.deepEqual([...stored.keys()], ['thadingyut_voter_session']);
+  assert.deepEqual([...stored.keys()], []);
   writeStoredSession(null); assert.equal(readStoredSession(), null);
 });

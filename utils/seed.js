@@ -11,7 +11,9 @@ const { withControls } = require('./eventControls');
 const admission = require('./voteAdmission');
 exports.seed = async () => {
   if (typeof process.env.JWT_SECRET !== 'string' || Buffer.byteLength(process.env.JWT_SECRET) < 32) throw new Error('JWT_SECRET must contain at least 32 bytes.');
+  require('./accounts/config').validate();
   const db = mongoose.connection.db;
+  if (await db.collection('users').findOne({ $or: [{emailKey:{$exists:false}},{emailVerifiedAt:{$exists:false}}] })) throw new Error('Student test accounts need the explicit auth reset. No data was changed.');
   // Read-only guard BEFORE initialization: never reinterpret the old application's database.
   const legacy = await db.collection('elections').findOne({});
   const oldBallot = await db.collection('ballots').findOne({ credential: { $exists: true } });

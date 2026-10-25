@@ -25,7 +25,7 @@ exports.submit=catchAsync(async(req,res)=>{
  const body=req.body||{};
  if(Object.keys(body).some(k=>!['lanternId','window'].includes(k))||typeof body.lanternId!=='string'||!mongoose.isObjectIdOrHexString(body.lanternId)||!Number.isSafeInteger(body.window)) throw new AppError('Select a lantern and refresh voting status.',400);
  await withControls(async({controls,session})=>{
-  if(!await User.exists({_id:req.userId,status:'active',tokenVersion:req.user.tokenVersion}).session(session))throw new AppError('Active account required.',403);
+  if(!await User.exists({_id:req.userId,status:'active',emailVerifiedAt:{$exists:true},tokenVersion:req.user.tokenVersion}).session(session))throw new AppError('Active account required.',403);
   const existing=await Vote.findOne({user:req.userId}).session(session);
   if(existing){if(String(existing.lantern)===body.lanternId)return;throw new AppError('Your lantern vote is final and cannot be changed.',409);}
   if(!controls.lanternVotingOpen||controls.lanternAnnouncementOpen||controls.lanternWindow!==body.window)throw new AppError('Lantern voting is closed or has changed. Refresh first.',409);

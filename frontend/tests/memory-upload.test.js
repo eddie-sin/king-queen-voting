@@ -3,12 +3,14 @@ import assert from 'node:assert/strict';
 import { createApi } from '../src/api.js';
 import { uploadSelectionError, parseUploadedMemory } from '../src/memory/upload.js';
 import { memoryTabFromHash } from '../src/memory/demo.js';
+import './auth-fixture.js';
 const photo = { id: 'a'.repeat(24), status: 'PENDING', createdAt: '2026-10-22T10:00:00Z' };
-test('upload sends one FormData images file with JWT and browser-generated content type', async () => {
+test('upload sends one FormData images file with cookie/CSRF and browser-generated content type', async () => {
   const file = new File(['image'], 'memory.png', { type: 'image/png' });
   const api = createApi({ fetchImpl: async (url, options) => {
     assert.equal(url, '/api/v1/memory-photos'); assert.equal(options.method, 'POST');
-    assert.equal(options.headers.Authorization, 'Bearer student'); assert.equal(options.headers['Content-Type'], undefined);
+    assert.equal(options.headers.Authorization, undefined); assert.equal(options.headers['Content-Type'], undefined);
+    assert.equal(options.credentials,'same-origin');assert.equal(options.headers['X-CSRF-Token'],'fixture-csrf');
     assert(options.body instanceof FormData); assert.deepEqual([...options.body.keys()], ['images']);
     assert.equal(options.body.get('images').name, 'memory.png');
     return new Response(JSON.stringify({ status: 'success', data: { photo: { ...photo, imageKey: 'private' } } }), { status: 201 });

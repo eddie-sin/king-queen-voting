@@ -1,20 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { announcementState, eventState, savedChoices } from '../domain.js';
 const EMPTY = { king: null, queen: null };
-const SESSION_STORAGE_KEY = 'thadingyut_voter_session';
-export function readStoredSession() {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(SESSION_STORAGE_KEY) || 'null');
-    return parsed?.token && parsed?.user ? { token: parsed.token, user: parsed.user } : null;
-  } catch { return null; }
-}
-export function writeStoredSession(value) {
-  try {
-    if (value?.token && value?.user) localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ token: value.token, user: value.user }));
-    else localStorage.removeItem(SESSION_STORAGE_KEY);
-    if (typeof window !== 'undefined') window.dispatchEvent(new Event('festival-session-change'));
-  } catch { /* Restricted browser storage may be unavailable. */ }
-}
+import {readStoredSession,writeStoredSession,announceAccountChange} from '../authSession.js';
+export {readStoredSession,writeStoredSession} from '../authSession.js';
 export function useFestival(api) {
   const [candidates, setCandidates] = useState([]), [candidateState, setCandidateState] = useState('loading'), [candidateError, setCandidateError] = useState('');
   const [lanterns, setLanterns] = useState([]), [lanternState, setLanternState] = useState('loading'), [lanternError, setLanternError] = useState('');
@@ -27,10 +15,12 @@ export function useFestival(api) {
   const updateSession = useCallback(next => { current.current.session = next; setSession(next); writeStoredSession(next); }, []);
   const markChoices = state => { current.current.choiceState = state; setChoiceState(state); };
   const clearChoices = () => { current.current.choices = EMPTY; setChoices(EMPTY); markChoices('loading'); };
-  const signOut = useCallback((message = 'Signed out.') => {
+  const signOut = useCallback(async (message = 'Signed out.') => {
+    try { await api.logout?.(); } catch { setNotice({type:'error',text:'Sign-out could not be confirmed. Check your connection and retry.'}); return; }
+    window.google?.accounts?.id?.disableAutoSelect(); announceAccountChange();
     epoch.current++; accountSequence.current++; current.current.choices = EMPTY; current.current.choiceState = 'loading';
     updateSession(null); setChoices(EMPTY); setChoiceState('loading'); setNotice({ type: 'info', text: message });
-  }, [updateSession]);
+  }, [api, updateSession]);
   const loadCandidates = useCallback(async () => {
     setCandidateState('loading');
     try { const value = await api.candidates(); if (mounted.current) { setCandidates(value); setCandidateState('ready'); setCandidateError(''); } }
@@ -104,14 +94,16 @@ export function useFestival(api) {
   }, [api, refreshChoices, loadCandidates, loadResults]);
   useEffect(() => {
     mounted.current = true;
-    loadCandidates(); loadLanterns(); loadControls(); refreshChoices();
+    loadCandidates(); loadLanterns(); loadControls();
+    restoreSession();
     let timer, stopped = false;
     const poll = async () => {
       await loadControls();
       if (!stopped) timer = setTimeout(poll, document.hidden ? 30000 : 4500 + Math.random() * 1000);
     };
     timer = setTimeout(poll, 5000);
-    const focus = () => { loadControls(); refreshChoices(); };
+    const focus = () => { loadControls(); restoreSession(); };
+    const external = event => { if(event.key==='festival-account-change') restoreSession(); };
     const sync = () => {
       const next = readStoredSession();
       if (next?.token !== current.current.session?.token) {
@@ -120,20 +112,29 @@ export function useFestival(api) {
       }
     };
     const clock = setInterval(() => setNow(Date.now()), 1000);
-    window.addEventListener('focus', focus); window.addEventListener('storage', sync); window.addEventListener('festival-session-change', sync);
-    return () => { stopped = true; mounted.current = false; statusSequence.current++; resultSequence.current++; accountSequence.current++; clearTimeout(timer); clearInterval(clock); window.removeEventListener('focus', focus); window.removeEventListener('storage', sync); window.removeEventListener('festival-session-change', sync); };
+    window.addEventListener('focus', focus); window.addEventListener('storage', external); window.addEventListener('festival-session-change', sync);
+    return () => { stopped = true; mounted.current = false; statusSequence.current++; resultSequence.current++; accountSequence.current++; clearTimeout(timer); clearInterval(clock); window.removeEventListener('focus', focus); window.removeEventListener('storage', external); window.removeEventListener('festival-session-change', sync); };
   }, [loadCandidates, loadLanterns, loadControls, refreshChoices]);
-  async function login(email, password) {
-    const generation = ++epoch.current;
-    const data = await api.login(email, password);
-    if (!mounted.current || generation !== epoch.current) return;
-    if (!data?.token || !data?.user) throw new Error('The sign-in response is incomplete.');
-    clearChoices(); updateSession({ token: data.token, user: data.user });
-    setNotice({ type: 'success', text: 'Welcome back.' }); await refreshChoices();
+  async function restoreSession() {
+    const generation=epoch.current;
+    try {
+      const data=api.session?await api.session():null;
+      if(!mounted.current||generation!==epoch.current)return;
+      if(data?.sessionKey&&data.user){
+        if(current.current.session?.token!==data.sessionKey){epoch.current++;clearChoices();}
+        updateSession({token:data.sessionKey,user:data.user}); await refreshChoices();
+      }
+    } catch(error) { if([401,403].includes(error.status)&&generation===epoch.current){epoch.current++;updateSession(null);clearChoices();} }
   }
-  async function register(email, password) {
+  async function acceptLogin(data) {
+    if(!data?.user||!(data.sessionKey||data.token))throw new Error('The sign-in response is incomplete.');
+    epoch.current++;clearChoices();updateSession({token:data.sessionKey||data.token,user:data.user});announceAccountChange();
+    setNotice({type:'success',text:'Welcome to the celebration.'});await refreshChoices();
+  }
+  async function login(email,password){await acceptLogin(await api.login(email,password));}
+  async function register(email, password, operationId) {
     if (!current.current.controls?.registrationOpen) throw new Error('Registration is closed.');
-    return api.register(email, password);
+    return api.register(email, password, operationId);
   }
   async function mutate({ contest, candidate }) {
     if (locked.current) return false;
@@ -168,5 +169,5 @@ export function useFestival(api) {
     status: fresh ? eventState(controls) : { registration: 'unknown', voting: 'unknown' }, reloadControls: loadControls,
     resultsStage: fresh ? announcementState(controls) : 'unknown', results: fresh ? results : null, resultsLoad, resultsError, reloadResults: loadResults,
     session, choices, choiceState, busy, notice, celebration, dismissNotice: () => setNotice(null),
-    login, register, signOut, refreshChoices, mutate };
+    login, register, acceptLogin, signOut, refreshChoices, mutate };
 }

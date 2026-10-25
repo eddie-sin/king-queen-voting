@@ -1,11 +1,13 @@
+import { announceAccountChange } from './authSession.js';
 import { SiteHeader } from './components/SiteHeader.jsx';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import WishSky from './wishes/WishSky.jsx';
 import { readStoredSession, writeStoredSession, useFestival } from './hooks/useFestival.js';
 import { titleCase } from './domain.js';
 import { Brand, Crown, Sky, CategorySelection, CandidateCard, CandidateProfile, AccountDialog, StatusBanner, AccountPanel, ChoicesPage, VoteConfirmation, Celebration } from './components.jsx';
 import { LanternGallery } from './components/LanternGallery.jsx';
 import MusicPlayer from './components/MusicPlayer.jsx';
+import PrivacyPage from './components/PrivacyPage.jsx';
 import HomePage from './components/HomePage.jsx';
 import DevelopersPage from './components/DevelopersPage.jsx';
 import './home.css';
@@ -24,12 +26,13 @@ const NAV_ITEMS = [
 ];
 
 function readRoute() {
+  if(location.pathname==='/privacy'&&!location.hash)return 'privacy';
   const raw = location.hash.slice(1).toLowerCase();
   if (!raw || raw === 'home') return 'home';
   if (raw === 'choices' || raw === 'account') return 'account';
   if (raw === 'results' || raw === 'finalists') return 'results';
   if (raw === 'wish-sky') return 'wishes';
-  if (['candidates', 'king', 'queen', 'lanterns', 'wishes', 'entertainment', 'developers'].includes(raw)) return raw;
+  if (['candidates', 'king', 'queen', 'lanterns', 'wishes', 'entertainment', 'developers', 'privacy'].includes(raw)) return raw;
   return 'home';
 }
 
@@ -54,6 +57,8 @@ function PlaceholderStage({ badge, title, description, primaryAction }) {
 export default function App(props) {
   const [memoryMenuOpen, setMemoryMenuOpen] = useState(false);
   const [memorySession, setMemorySession] = useState(readStoredSession);
+  const [memoryAuthError,setMemoryAuthError]=useState('');
+  const memoryAuthSequence=useRef(0);
   const [returnToMemories, setReturnToMemories] = useState(false);
   const [memoryHash, setMemoryHash] = useState(() => location.hash);
   const memoryTab = memoryTabFromHash(memoryHash);
@@ -84,9 +89,17 @@ export default function App(props) {
     window.addEventListener('keydown', close);
     return () => { clearInterval(timer); window.removeEventListener('festival-session-change', sync); window.removeEventListener('storage', sync); window.removeEventListener('focus', sync); window.removeEventListener('keydown', close); };
   }, [Boolean(memoryTab)]);
+  useEffect(()=>{
+    if(!memoryTab||!props.api.session)return;let live=true;
+    const restore=async()=>{const sequence=++memoryAuthSequence.current;try{const data=await props.api.session();if(live&&sequence===memoryAuthSequence.current)writeStoredSession({token:data.sessionKey,user:data.user});}catch(e){if(live&&sequence===memoryAuthSequence.current&&[401,403].includes(e.status))writeStoredSession(null);}};
+    const external=e=>{if(e.key==='festival-account-change')restore();};restore();
+    window.addEventListener('focus',restore);window.addEventListener('storage',external);
+    return()=>{live=false;window.removeEventListener('focus',restore);window.removeEventListener('storage',external);};
+  },[Boolean(memoryTab),props.api]);
+  const memorySignOut=async()=>{try{await props.api.logout?.();memoryAuthSequence.current++;writeStoredSession(null);announceAccountChange();window.google?.accounts?.id?.disableAutoSelect();setMemoryAuthError('');}catch{setMemoryAuthError('Sign-out could not be confirmed. Check your connection and retry.');}};
   const memoryLogin = () => { setMemoryMenuOpen(false); setReturnToMemories(true); location.hash = '#account'; };
   // Memory pages reuse the session store without mounting unrelated API hooks.
-  return memoryTab ? <><div className="source-app memory-site-header"><SiteHeader items={NAV_ITEMS} route="memory-gallery" session={memorySession} menuOpen={memoryMenuOpen} setMenuOpen={setMemoryMenuOpen} onLogin={memoryLogin} onRegister={memoryLogin} onSignOut={() => writeStoredSession(null)}/></div><MemoryPhotoDemo tab={memoryTab} api={props.api} onRequireLogin={memoryLogin} demo={props.fixtureMode || ['#my-memories-demo', '#memory-gallery-demo', '#memory-upload-demo'].includes(memoryHash)}/></> : <FestivalApp {...props}/>;
+  return memoryTab ? <><div className="source-app memory-site-header"><SiteHeader items={NAV_ITEMS} route="memory-gallery" session={memorySession} menuOpen={memoryMenuOpen} setMenuOpen={setMemoryMenuOpen} onLogin={memoryLogin} onRegister={memoryLogin} onSignOut={memorySignOut}/>{memoryAuthError&&<p role="alert">{memoryAuthError}</p>}</div><MemoryPhotoDemo tab={memoryTab} api={props.api} onRequireLogin={memoryLogin} demo={props.fixtureMode || ['#my-memories-demo', '#memory-gallery-demo', '#memory-upload-demo'].includes(memoryHash)}/></> : <FestivalApp {...props}/>;
 }
 
 function FestivalApp({ api, wishApi, fixtureMode = false }) {
@@ -146,6 +159,7 @@ function FestivalApp({ api, wishApi, fixtureMode = false }) {
 
     {fixtureMode&&<div className="fixture-ribbon">LOCAL FIXTURE PREVIEW · Sample identities · No real votes are sent</div>}
     <main id="main" tabIndex="-1"><div className="source-page" key={route}>
+      {route === 'privacy' && <PrivacyPage/>}
       {route==='home' ? <HomePage/> : route==='developers' ? <DevelopersPage/> : route==='candidates' ? <>
         {heading('YOUR VOICE. THEIR MOMENT.',<>Every crown begins<br/>with <em>your choice.</em></>,'Choose a category, discover the candidates, and vote for the person who captures the spirit of our festival.')}
         <section className="source-section selection-section"><CategorySelection onSelect={go}/><p className="source-note">How it works: explore a category → open a candidate → sign in → confirm your final choice. One vote for King and one for Queen. <a href="#account">View your recorded choices</a> in your account.</p></section>
@@ -197,10 +211,10 @@ function FestivalApp({ api, wishApi, fixtureMode = false }) {
       </> : null}
       {model.notice&&<div className={`notice ${model.notice.type}`} role={model.notice.type==='error'?'alert':'status'}><p>{model.notice.text}</p><button aria-label="Dismiss message" onClick={model.dismissNotice}>×</button></div>}
     </div></main>
-    <footer className="site-footer"><a href="#home"><Brand/></a><p>Wishing you all a fun moment.<br/><span>Thadingyut · Festival of Lights celebration</span></p></footer>
+    <footer className="site-footer"><a href="#home"><Brand/></a><a href="#privacy">Privacy</a><p>Wishing you all a fun moment.<br/><span>Thadingyut · Festival of Lights celebration</span></p></footer>
     {route === 'wishes' && <MusicPlayer/>}
     {profile&&<CandidateProfile candidate={profile} selected={viewable&&model.choices[profile.category]?._id===profile._id} canVote={!allDisabled && (!model.session || viewable && !model.choices[profile.category])} votingStatus={model.status.voting} actionLabel={label} onVote={requestVote} onClose={()=>setProfile(null)}/>}
-    {accountMode&&<AccountDialog initialMode={accountMode} onClose={reason=>{setAccountMode(null);if(reason!=='authenticated'){setProfile(intent);setIntent(null);}}} onLogin={async(...args)=>{await model.login(...args);}} onRegister={model.register} registrationStatus={model.status.registration} onRefreshControls={model.reloadControls}/>}
+    {accountMode&&<AccountDialog api={api} onAuthenticated={model.acceptLogin} initialMode={accountMode} onClose={reason=>{setAccountMode(null);if(reason!=='authenticated'){setProfile(intent);setIntent(null);}}} onLogin={async(...args)=>{await model.login(...args);}} onRegister={model.register} registrationStatus={model.status.registration} onRefreshControls={model.reloadControls}/>}
 
     {pending&&<VoteConfirmation pending={pending} previous={model.choices[pending.contest]} busy={model.busy} canConfirm={viewable&&Boolean(model.session)&&model.status.voting==='open'&&!model.choices[pending.contest]} onClose={()=>{setProfile(pending.candidate);setPending(null);}} onConfirm={async()=>{const candidate=pending.candidate;const success=await model.mutate(pending);setPending(null);if(success)go('account');else setProfile(candidate);}}/>}
     <Celebration event={model.celebration}/>
