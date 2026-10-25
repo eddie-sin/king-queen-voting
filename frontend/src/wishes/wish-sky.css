@@ -16,6 +16,7 @@ body.wishes-mode #sky {
   background-color: #0a1b33;
   background-image: radial-gradient(ellipse at 50% 100%, #1d3b5b77, transparent 65%), linear-gradient(#0b1e39aa, #111e37aa);
 }
+.wish-world .sky-actions .wish-quota-note{text-align:left}
 .river-scene svg [fill="#203144"] {
   fill: #152b48;
 }

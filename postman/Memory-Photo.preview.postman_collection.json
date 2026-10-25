@@ -1,0 +1,1141 @@
+{
+  "info": {
+    "_postman_id": "548e8eea-22fe-413e-aa9d-65e8e8635753",
+    "name": "Memory Photo - manual local preview",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Run requests individually in order against the isolated preview only. No contestant, gallery, voting or data-reset mutations. Reuses the canonical Memory Photo requests. Moderator account is provisioned by the preview launcher."
+  },
+  "auth": {
+    "type": "noauth"
+  },
+  "item": [
+    {
+      "name": "01 Admin login",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "auth": {
+          "type": "noauth"
+        },
+        "url": "{{base_url}}/api/v1/auth/admin/login",
+        "description": "Expected HTTP 200. Run in collection order against a dedicated test database.",
+        "body": {
+          "mode": "raw",
+          "raw": "{{login_body}}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.variables.get('admin_username')) throw new Error('Set admin_username privately in the selected environment.');",
+              "if (!pm.variables.get('admin_password')) throw new Error('Set admin_password privately in the selected environment.');",
+              "pm.variables.set('login_body', JSON.stringify({ username: pm.variables.get('admin_username'), password: pm.variables.get('admin_password') }));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "if (pm.response.code !== 200) { pm.execution.setNextRequest(null); } else {",
+              "const body = pm.response.json();",
+              "pm.test('Response status', () => pm.expect(body.status).to.eql('success'));",
+              "pm.test('Bearer token returned', () => pm.expect(body.data.token).to.be.a('string').and.not.empty); pm.variables.set('admin_token', body.data.token);",
+              "pm.test('Full admin role preserved', () => pm.expect(body.data.admin.role).to.eql('ADMIN'));",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 Student login",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "auth": {
+          "type": "noauth"
+        },
+        "url": "{{base_url}}/api/v1/auth/login",
+        "description": "Expected HTTP 200. Run in collection order against a dedicated test database.",
+        "body": {
+          "mode": "raw",
+          "raw": "{{login_body}}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.variables.get('student_email')) throw new Error('Set student_email privately in the selected environment.');",
+              "if (!pm.variables.get('student_password')) throw new Error('Set student_password privately in the selected environment.');",
+              "pm.variables.set('login_body', JSON.stringify({ email: pm.variables.get('student_email'), password: pm.variables.get('student_password') }));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "if (pm.response.code !== 200) { pm.execution.setNextRequest(null); } else {",
+              "const body = pm.response.json();",
+              "pm.test('Response status', () => pm.expect(body.status).to.eql('success'));",
+              "pm.test('Bearer token returned', () => pm.expect(body.data.token).to.be.a('string').and.not.empty); pm.variables.set('student_token', body.data.token);",
+              "pm.variables.set('student_id', body.data.user.id);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 Memory Admin logs in through the existing admin login",
+      "request": {
+        "method": "POST",
+        "url": "{{base_url}}/api/v1/auth/admin/login",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "auth": {
+          "type": "noauth"
+        },
+        "description": "Expected HTTP 200. Database role governs authorization; no client-selected role is trusted.",
+        "body": {
+          "mode": "raw",
+          "raw": "{{memory_admin_body}}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "for (const key of ['memory_admin_username','memory_admin_password']) if (!pm.variables.get(key)) throw new Error('Set ' + key + ' privately first.');",
+              "pm.variables.set('memory_admin_body', JSON.stringify({username:pm.variables.get('memory_admin_username'),password:pm.variables.get('memory_admin_password')}));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "if (pm.response.code !== 200) { pm.execution.setNextRequest(null); } else {",
+              "const body = pm.response.json();",
+              "pm.test('Response status', () => pm.expect(body.status).to.eql('success'));",
+              "pm.test('Database role is MEMORY_ADMIN', () => pm.expect(body.data.admin.role).to.eql('MEMORY_ADMIN'));",
+              "pm.test('Bearer token returned', () => pm.expect(body.data.token).to.be.a('string').and.not.empty);",
+              "pm.variables.set('memory_admin_token', body.data.token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 Enable with real Boolean",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{admin_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "url": "{{base_url}}/api/v1/admin/settings",
+        "description": "Expected HTTP 200. Run in collection order against a dedicated test database.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"memoryPhotosEnabled\": true\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.variables.get('admin_token')) throw new Error('Log in as admin first.');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "if (pm.response.code !== 200) { pm.execution.setNextRequest(null); } else {",
+              "const body = pm.response.json();",
+              "pm.test('Response status', () => pm.expect(body.status).to.eql('success'));",
+              "pm.test('Feature setting', () => pm.expect(body.data.schedule.memoryPhotosEnabled).to.eql(true));",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 Public settings shows enabled",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "auth": {
+          "type": "noauth"
+        },
+        "url": "{{base_url}}/api/v1/settings",
+        "description": "Expected HTTP 200. Run in collection order against a dedicated test database."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "if (pm.response.code !== 200) { pm.execution.setNextRequest(null); } else {",
+              "const body = pm.response.json();",
+              "pm.test('Response status', () => pm.expect(body.status).to.eql('success'));",
+              "pm.test('Feature setting', () => pm.expect(body.data.schedule.memoryPhotosEnabled).to.eql(true));",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 Student upload 1 of 3",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{student_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "url": "{{base_url}}/api/v1/memory-photos",
+        "description": "Expected HTTP 201. Run in collection order against a dedicated test database.",
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "images",
+              "type": "file",
+              "src": "postman/fixtures/memory-photo.png",
+              "contentType": "image/png"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.variables.get('student_token')) throw new Error('Log in as student first.');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+              "if (pm.response.code !== 201) { pm.execution.setNextRequest(null); } else {",
+              "const body = pm.response.json();",
+              "pm.test('Response status', () => pm.expect(body.status).to.eql('success'));",
+              "pm.test('Accepted private photo metadata', () => { pm.expect(Object.keys(body.data.photo).sort()).to.eql(['createdAt','id','status']); pm.expect(body.data.photo.status).to.eql('PENDING'); }); pm.variables.set('photo_id', body.data.photo.id);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 Pending image is not public",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "auth": {
+          "type": "noauth"
+        },
+        "url": "{{base_url}}/api/v1/memory-photos/{{photo_id}}/image",
+        "description": "Expected HTTP 404. Run in collection order against a dedicated test database."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 404', () => pm.response.to.have.status(404));",
+              "if (pm.response.code !== 404) { pm.execution.setNextRequest(null); } else {",
+              "const body = pm.response.json();",
+              "pm.test('Response status', () => pm.expect(body.status).to.eql('fail'));",
+              "pm.test('Error message supplied', () => pm.expect(body.message).to.be.a('string')); ",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "My Memories and authoritative lifetime quota",
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/api/v1/memory-photos/mine",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{student_token}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+              "const d=pm.response.json().data; pm.test('Three lifetime slots',()=>pm.expect(d.quota.limit).to.eql(3)); pm.test('Photo list',()=>pm.expect(d.photos).to.be.an('array')); "
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 Pending queue contains submission",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{memory_admin_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "url": "{{base_url}}/api/v1/admin/memory-photos",
+        "description": "Expected HTTP 200. Run in collection order against a dedicated test database."
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.variables.get('memory_admin_token')) throw new Error('Log in as admin first.');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "if (pm.response.code !== 200) { pm.execution.setNextRequest(null); } else {",
+              "const body = pm.response.json();",
+              "pm.test('Response status', () => pm.expect(body.status).to.eql('success'));",
+              "pm.test('Own pending photo in admin queue', () => { pm.expect(body.data.photos.some(p => p.id === pm.variables.get('photo_id'))).to.eql(true); body.data.photos.forEach(p => { pm.expect(p.status).to.eql('PENDING'); pm.expect(p).not.to.have.property('imageKey'); }); });",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10 Review private bytes",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{memory_admin_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "url": "{{base_url}}/api/v1/admin/memory-photos/{{photo_id}}/image",
+        "description": "Expected HTTP 200. Run in collection order against a dedicated test database."
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.variables.get('memory_admin_token')) throw new Error('Log in as admin first.');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "if (pm.response.code !== 200) { pm.execution.setNextRequest(null); } else {",
+              "pm.test('Image content type', () => pm.expect(pm.response.headers.get('Content-Type')).to.match(new RegExp('^image/(png|jpeg|webp)(;|$)')));",
+              "pm.test('Image caching disabled', () => pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store')); ",
+              "pm.test('No sniffing or redirects', () => { pm.expect(pm.response.headers.get('X-Content-Type-Options')).to.eql('nosniff'); pm.expect(pm.response.headers.has('Location')).to.eql(false); });",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11 Approve first photo",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{memory_admin_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "url": "{{base_url}}/api/v1/admin/memory-photos/{{photo_id}}/review",
+        "description": "Expected HTTP 200. Run in collection order against a dedicated test database.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"APPROVED\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.variables.get('memory_admin_token')) throw new Error('Log in as admin first.');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "if (pm.response.code !== 200) { pm.execution.setNextRequest(null); } else {",
+              "const body = pm.response.json();",
+              "pm.test('Response status', () => pm.expect(body.status).to.eql('success'));",
+              "pm.test('Review saved', () => { pm.expect(body.data.photo.status).to.eql('APPROVED'); pm.expect(body.data.photo.reviewedBy).to.match(/^[a-f0-9]{24}$/); pm.expect(Number.isFinite(Date.parse(body.data.photo.reviewedAt))).to.eql(true); pm.expect(body.data.photo).not.to.have.property('imageKey'); });",
+              "pm.test('Audit records the Memory Admin', () => pm.expect(body.data.photo.reviewedBy).to.eql(pm.variables.get('memory_admin_id')));",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "12 Public gallery starts with zero likes",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "auth": {
+          "type": "noauth"
+        },
+        "url": "{{base_url}}/api/v1/memory-photos?page=1&limit=50",
+        "description": "Expected HTTP 200. Run in collection order against a dedicated test database."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "if (pm.response.code !== 200) { pm.execution.setNextRequest(null); } else {",
+              "const body = pm.response.json();",
+              "pm.test('Response status', () => pm.expect(body.status).to.eql('success'));",
+              "pm.test('Public metadata and own photo count', () => { body.data.photos.forEach(p => pm.expect(Object.keys(p).sort()).to.eql(['createdAt','id','likeCount'])); const own = body.data.photos.find(p => p.id === pm.variables.get('photo_id')); pm.expect(own, 'Own newly approved photo is on page 1 in isolated test data').to.exist; pm.expect(own.likeCount).to.eql(0); pm.expect(body.pagination.limit).to.eql(50); });",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "13 Anonymous approved image",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "auth": {
+          "type": "noauth"
+        },
+        "url": "{{base_url}}/api/v1/memory-photos/{{photo_id}}/image",
+        "description": "Expected HTTP 200. Run in collection order against a dedicated test database."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "if (pm.response.code !== 200) { pm.execution.setNextRequest(null); } else {",
+              "pm.test('Image content type', () => pm.expect(pm.response.headers.get('Content-Type')).to.match(new RegExp('^image/(png|jpeg|webp)(;|$)')));",
+              "pm.test('Image caching disabled', () => pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store')); ",
+              "pm.test('No sniffing or redirects', () => { pm.expect(pm.response.headers.get('X-Content-Type-Options')).to.eql('nosniff'); pm.expect(pm.response.headers.has('Location')).to.eql(false); });",
+              "pm.test('No reusable image validators', () => { pm.expect(pm.response.headers.has('ETag')).to.eql(false); pm.expect(pm.response.headers.has('Last-Modified')).to.eql(false); });",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "14 Like",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{student_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "url": "{{base_url}}/api/v1/memory-photos/{{photo_id}}/like",
+        "description": "Expected HTTP 200. Run in collection order against a dedicated test database."
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.variables.get('student_token')) throw new Error('Log in as student first.');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "if (pm.response.code !== 200) { pm.execution.setNextRequest(null); } else {",
+              "const body = pm.response.json();",
+              "pm.test('Response status', () => pm.expect(body.status).to.eql('success'));",
+              "pm.test('Like count and state', () => { pm.expect(body.data.likeCount).to.eql(1); pm.expect(body.data.liked).to.eql(true); pm.expect(body.data.photoId).to.eql(pm.variables.get('photo_id')); pm.expect(body.data).not.to.have.property('userId'); });",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "15 Repeat like - still one",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{student_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "url": "{{base_url}}/api/v1/memory-photos/{{photo_id}}/like",
+        "description": "Expected HTTP 200. Run in collection order against a dedicated test database."
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.variables.get('student_token')) throw new Error('Log in as student first.');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "if (pm.response.code !== 200) { pm.execution.setNextRequest(null); } else {",
+              "const body = pm.response.json();",
+              "pm.test('Response status', () => pm.expect(body.status).to.eql('success'));",
+              "pm.test('Like count and state', () => { pm.expect(body.data.likeCount).to.eql(1); pm.expect(body.data.liked).to.eql(true); pm.expect(body.data.photoId).to.eql(pm.variables.get('photo_id')); pm.expect(body.data).not.to.have.property('userId'); });",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "17 Unlike",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{student_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "url": "{{base_url}}/api/v1/memory-photos/{{photo_id}}/like",
+        "description": "Expected HTTP 200. Run in collection order against a dedicated test database."
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.variables.get('student_token')) throw new Error('Log in as student first.');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "if (pm.response.code !== 200) { pm.execution.setNextRequest(null); } else {",
+              "const body = pm.response.json();",
+              "pm.test('Response status', () => pm.expect(body.status).to.eql('success'));",
+              "pm.test('Like count and state', () => { pm.expect(body.data.likeCount).to.eql(0); pm.expect(body.data.liked).to.eql(false); pm.expect(body.data.photoId).to.eql(pm.variables.get('photo_id')); pm.expect(body.data).not.to.have.property('userId'); });",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Batch liked state for approved photo",
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/api/v1/memory-photos/like-status?photoIds={{photo_id}}",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{student_token}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200',()=>pm.response.to.have.status(200));",
+              "pm.test('Private no-store',()=>pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store')); "
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "18 Repeat unlike - still zero",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{student_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "url": "{{base_url}}/api/v1/memory-photos/{{photo_id}}/like",
+        "description": "Expected HTTP 200. Run in collection order against a dedicated test database."
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.variables.get('student_token')) throw new Error('Log in as student first.');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "if (pm.response.code !== 200) { pm.execution.setNextRequest(null); } else {",
+              "const body = pm.response.json();",
+              "pm.test('Response status', () => pm.expect(body.status).to.eql('success'));",
+              "pm.test('Like count and state', () => { pm.expect(body.data.likeCount).to.eql(0); pm.expect(body.data.liked).to.eql(false); pm.expect(body.data.photoId).to.eql(pm.variables.get('photo_id')); pm.expect(body.data).not.to.have.property('userId'); });",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "29 Student cannot list admin queue",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{student_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "url": "{{base_url}}/api/v1/admin/memory-photos",
+        "description": "Expected HTTP 403. Run in collection order against a dedicated test database."
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.variables.get('student_token')) throw new Error('Log in as student first.');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+              "if (pm.response.code !== 403) { pm.execution.setNextRequest(null); } else {",
+              "const body = pm.response.json();",
+              "pm.test('Response status', () => pm.expect(body.status).to.eql('fail'));",
+              "pm.test('Error message supplied', () => pm.expect(body.message).to.be.a('string')); ",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "31 Anonymous cannot read admin private image",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "auth": {
+          "type": "noauth"
+        },
+        "url": "{{base_url}}/api/v1/admin/memory-photos/{{pending_photo_id}}/image",
+        "description": "Expected HTTP 401. Run in collection order against a dedicated test database."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 401', () => pm.response.to.have.status(401));",
+              "if (pm.response.code !== 401) { pm.execution.setNextRequest(null); } else {",
+              "const body = pm.response.json();",
+              "pm.test('Response status', () => pm.expect(body.status).to.eql('fail'));",
+              "pm.test('Error message supplied', () => pm.expect(body.message).to.be.a('string')); ",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "46 Memory Admin cannot read admin settings",
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/api/v1/admin/settings",
+        "header": [],
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{memory_admin_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "description": "Expected HTTP 403. Database role governs authorization; no client-selected role is trusted."
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.variables.get('memory_admin_token')) throw new Error('Login token required: memory_admin_token');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+              "if (pm.response.code !== 403) { pm.execution.setNextRequest(null); } else {",
+              "const body = pm.response.json();",
+              "pm.test('Response status', () => pm.expect(body.status).to.eql('fail'));",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "47 Memory Admin cannot enable Memory Photo",
+      "request": {
+        "method": "PATCH",
+        "url": "{{base_url}}/api/v1/admin/settings",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{memory_admin_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "description": "Expected HTTP 403. Database role governs authorization; no client-selected role is trusted.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"memoryPhotosEnabled\":true}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.variables.get('memory_admin_token')) throw new Error('Login token required: memory_admin_token');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+              "if (pm.response.code !== 403) { pm.execution.setNextRequest(null); } else {",
+              "const body = pm.response.json();",
+              "pm.test('Response status', () => pm.expect(body.status).to.eql('fail'));",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "52 Memory Admin cannot provision another moderator",
+      "request": {
+        "method": "POST",
+        "url": "{{base_url}}/api/v1/admin/memory-admins",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{memory_admin_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "description": "Expected HTTP 403. Database role governs authorization; no client-selected role is trusted.",
+        "body": {
+          "mode": "raw",
+          "raw": "{}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.variables.get('memory_admin_token')) throw new Error('Login token required: memory_admin_token');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+              "if (pm.response.code !== 403) { pm.execution.setNextRequest(null); } else {",
+              "const body = pm.response.json();",
+              "pm.test('Response status', () => pm.expect(body.status).to.eql('fail'));",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "67 Disable feature",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{admin_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "url": "{{base_url}}/api/v1/admin/settings",
+        "description": "Expected HTTP 200. Run in collection order against a dedicated test database.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"memoryPhotosEnabled\": false\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.variables.get('admin_token')) throw new Error('Log in as admin first.');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "if (pm.response.code !== 200) { pm.execution.setNextRequest(null); } else {",
+              "const body = pm.response.json();",
+              "pm.test('Response status', () => pm.expect(body.status).to.eql('success'));",
+              "pm.test('Feature setting', () => pm.expect(body.data.schedule.memoryPhotosEnabled).to.eql(false));",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "69 Public gallery disabled",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "auth": {
+          "type": "noauth"
+        },
+        "url": "{{base_url}}/api/v1/memory-photos",
+        "description": "Expected HTTP 403. Run in collection order against a dedicated test database."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+              "if (pm.response.code !== 403) { pm.execution.setNextRequest(null); } else {",
+              "const body = pm.response.json();",
+              "pm.test('Response status', () => pm.expect(body.status).to.eql('fail'));",
+              "pm.test('Error message supplied', () => pm.expect(body.message).to.be.a('string')); ",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "74 Admin queue still available",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{memory_admin_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "url": "{{base_url}}/api/v1/admin/memory-photos",
+        "description": "Expected HTTP 200. Run in collection order against a dedicated test database."
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (!pm.variables.get('memory_admin_token')) throw new Error('Log in as admin first.');"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "if (pm.response.code !== 200) { pm.execution.setNextRequest(null); } else {",
+              "const body = pm.response.json();",
+              "pm.test('Response status', () => pm.expect(body.status).to.eql('success'));",
+              "pm.test('Own pending photo in admin queue', () => { pm.expect(body.data.photos.some(p => p.id === pm.variables.get('pending_photo_id'))).to.eql(true); body.data.photos.forEach(p => { pm.expect(p.status).to.eql('PENDING'); pm.expect(p).not.to.have.property('imageKey'); }); });",
+              "}"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

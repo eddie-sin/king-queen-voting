@@ -20,3 +20,4 @@ mount();
 
 import './source-match.css';
 import './wishes/wish-sky.css';
+import './components/music-player.css';

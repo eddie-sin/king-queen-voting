@@ -217,3 +217,102 @@ test("like operations never change quota, photo moderation or image references",
   assert.deepEqual(await MemoryPhoto.findById(photo._id).lean(), beforePhoto);
   assert.deepEqual(await Quota.findById(user._id).lean(), beforeQuota);
 });
+const likeStatus = async ({ auth = token, query = `photoIds=${photo._id}`, body, contentType = "application/json" } = {}) => {
+  // Node fetch forbids GET bodies, so use HTTP directly to test the server boundary.
+  const http = require("node:http");
+  const data = body === undefined ? undefined : typeof body === "string" ? body : JSON.stringify(body);
+  return new Promise((resolve, reject) => {
+    const request = http.request(`${base}/like-status${query ? `?${query}` : ""}`, {
+      method: "GET", headers: { ...(auth ? { Authorization: `Bearer ${auth}` } : {}),
+        ...(data === undefined ? {} : { "Content-Type": contentType, "Content-Length": Buffer.byteLength(data) }) },
+    }, response => {
+      let text = ""; response.setEncoding("utf8"); response.on("data", chunk => text += chunk);
+      response.on("end", () => { try { resolve({ status: response.statusCode, headers: response.headers, body: JSON.parse(text) }); } catch (error) { reject(error); } });
+    });
+    request.on("error", reject); request.end(data);
+  });
+};
+
+test("like-status isolates students, returns true/false in requested order and is read-only", async () => {
+  const second = await MemoryPhoto.create({ owner: other._id, imageKey: "private/second", status: "APPROVED" });
+  await Like.create([{ photoId: photo._id, userId: user._id }, { photoId: second._id, userId: other._id }]);
+  const before = await Like.find().sort({ _id: 1 }).lean();
+  const query = `photoIds=${second._id},${String(photo._id).toUpperCase()}`;
+  const first = await likeStatus({ query });
+  assert.equal(first.status, 200);
+  assert.deepEqual(first.body, { status: "success", results: 2, data: { photos: [
+    { photoId: String(second._id), liked: false }, { photoId: String(photo._id), liked: true },
+  ] } });
+  assert.deepEqual((await likeStatus({ query, auth: otherToken })).body.data.photos, [
+    { photoId: String(second._id), liked: true }, { photoId: String(photo._id), liked: false },
+  ]);
+  assert.deepEqual(await Like.find().sort({ _id: 1 }).lean(), before);
+  assert.equal(first.headers["cache-control"], "private, no-store");
+  assert.match(first.headers.vary, /Authorization/i);
+  for (const entry of first.body.data.photos) assert.deepEqual(Object.keys(entry).sort(), ["liked", "photoId"]);
+});
+
+test("like-status uniformly omits missing, pending, rejected and cancellation markers", async () => {
+  const hidden = await MemoryPhoto.create([
+    { owner: user._id, imageKey: "private/pending", status: "PENDING" },
+    { owner: user._id, imageKey: "private/rejected", status: "REJECTED" },
+    { owner: user._id, cancelled: true, status: "APPROVED" },
+  ]);
+  await Like.create(hidden.map(item => ({ photoId: item._id, userId: user._id })));
+  const ids = [...hidden.map(item => String(item._id)), String(new mongoose.Types.ObjectId())];
+  assert.deepEqual((await likeStatus({ query: `photoIds=${ids.join(",")}` })).body, { status: "success", results: 0, data: { photos: [] } });
+  const mixed = await likeStatus({ query: `photoIds=${ids.join(",")},${photo._id}` });
+  assert.equal(mixed.status, 200);
+  assert.deepEqual(mixed.body.data.photos, [{ photoId: String(photo._id), liked: false }]);
+});
+
+test("like-status enforces active student authentication and private error headers", async () => {
+  const admin = jwt.sign({ adminId: String(new mongoose.Types.ObjectId()), role: "admin" }, process.env.JWT_SECRET);
+  const expired = jwt.sign({ userId: String(user._id), role: "user" }, process.env.JWT_SECRET, { expiresIn: -1 });
+  for (const [auth, expected] of [[null, 401], ["invalid", 401], [expired, 401], [admin, 403]]) {
+    const response = await likeStatus({ auth }); assert.equal(response.status, expected);
+    assert.equal(response.headers["cache-control"], "private, no-store");
+  }
+  await User.updateOne({ _id: user._id }, { status: "disabled" });
+  assert.equal((await likeStatus()).status, 403);
+  await User.deleteOne({ _id: user._id }); assert.equal((await likeStatus()).status, 401);
+});
+
+test("like-status rejects malformed, duplicate and unsupported query inputs", async () => {
+  for (const query of ["", "photoIds=", "photoIds=bad", "photoIds=123456789012", `photoIds=${photo._id},`,
+    `photoIds=${photo._id},${photo._id}`, `photoIds=${photo._id},${String(photo._id).toUpperCase()}`,
+    `photoIds=${photo._id}&photoIds=${other._id}`, `photoIds[]=${photo._id}`,
+    `photoIds=${photo._id}&userId=${other._id}`, `photoIds=${photo._id}&extra=1`,
+    `photoIds=${Array.from({ length: 51 }, () => String(new mongoose.Types.ObjectId())).join(",")}`]) {
+    const response = await likeStatus({ query }); assert.equal(response.status, 400, query);
+    assert.equal(response.headers["cache-control"], "private, no-store");
+  }
+});
+
+test("like-status accepts the full 50-ID boundary and rejects request bodies including empty JSON", async () => {
+  const ids = [String(photo._id), ...Array.from({ length: 49 }, () => String(new mongoose.Types.ObjectId()))];
+  const valid = await likeStatus({ query: `photoIds=${ids.join(",")}` });
+  assert.equal(valid.status, 200); assert.equal(valid.body.results, 1);
+  for (const body of [{}, [], { userId: String(other._id) }]) assert.equal((await likeStatus({ body })).status, 400);
+  assert.equal((await likeStatus({ body: "hello", contentType: "text/plain" })).status, 400);
+});
+
+test("like-status respects disabled and absent feature configuration", async () => {
+  await mutate();
+  for (const change of [() => Election.updateOne({}, { memoryPhotosEnabled: false }),
+    () => Election.collection.updateOne({}, { $unset: { memoryPhotosEnabled: "" } }), () => Election.deleteMany({})]) {
+    await change(); const result = await likeStatus(); assert.equal(result.status, 403);
+    assert.equal(result.headers["cache-control"], "private, no-store"); assert.equal(await Like.countDocuments(), 1);
+  }
+});
+
+test("like-status reads follow idempotent mutations without personalizing the public gallery", async () => {
+  assert.equal((await likeStatus()).body.data.photos[0].liked, false);
+  await mutate(); await mutate();
+  assert.equal((await likeStatus()).body.data.photos[0].liked, true);
+  assert.equal((await gallery()).data.photos[0].likeCount, 1);
+  assert.deepEqual(Object.keys((await gallery()).data.photos[0]).sort(), ["createdAt", "id", "likeCount"]);
+  await mutate("DELETE"); await mutate("DELETE");
+  assert.equal((await likeStatus()).body.data.photos[0].liked, false);
+  assert.equal((await gallery()).data.photos[0].likeCount, 0);
+});

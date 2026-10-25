@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const Election = require("../model/electionModel");
 const MemoryPhoto = require("../model/memoryPhotosModel");
+const MemoryPhotoQuota = require("../model/memoryPhotoQuotasModel");
 const quota = require("../utils/memoryPhotoQuota");
 const storage = require("../utils/memoryPhotoStorage");
 const validateImage = require("../utils/validateMemoryPhoto");
@@ -15,6 +16,27 @@ const requireEnabled = async () => {
 exports.requireEnabled = catchAsync(async (req, res, next) => {
   await requireEnabled();
   next();
+});
+
+exports.listMine = catchAsync(async (req, res) => {
+  res.set("Cache-Control", "private, no-store");
+  res.vary("Authorization");
+  if (Object.keys(req.query).length || Object.keys(req.body || {}).length) {
+    throw new AppError("My Memories does not accept body or query fields.", 400);
+  }
+  // Model query middleware excludes permanent cancellation fences, including
+  // fences created by converting an ambiguously committed insert.
+  const photos = await MemoryPhoto.find({ owner: req.userId })
+    .select("_id status createdAt").sort({ createdAt: -1, _id: -1 }).lean();
+  const usage = await MemoryPhotoQuota.findById(req.userId).select("slots").lean();
+  // Include legacy photos before quota initialization, and never advertise a
+  // free slot already occupied by an unresolved reservation or retained history.
+  const occupied = new Set([...(usage?.slots || []), ...photos.map(photo => photo._id)].map(String));
+  await requireEnabled();
+  res.status(200).json({ status: "success", results: photos.length, data: {
+    photos: photos.map(photo => ({ id: photo._id, status: photo.status, createdAt: photo.createdAt })),
+    quota: { limit: 3, acceptedCount: photos.length, remainingSlots: Math.max(0, 3 - occupied.size) },
+  } });
 });
 
 exports.submitPhoto = catchAsync(async (req, res) => {

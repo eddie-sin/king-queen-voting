@@ -104,6 +104,117 @@ const files = async () => {
   catch (error) { if (error.code === "ENOENT") return []; throw error; }
 };
 
+const mine = async (auth = token, query = "") => {
+  const response = await fetch(`${base}/api/v1/memory-photos/mine${query}`, {
+    headers: auth ? { Authorization: `Bearer ${auth}` } : {},
+  });
+  return { status: response.status, body: await response.json(), headers: response.headers };
+};
+
+test("My Memories requires an active student, rejecting anonymous, forged, expired and admin tokens", async () => {
+  assert.equal((await mine(null)).status, 401);
+  assert.equal((await mine("not-a-token")).status, 401);
+  const expired = jwt.sign({ userId: String(user._id), role: "user" }, process.env.JWT_SECRET, { expiresIn: -1 });
+  assert.equal((await mine(expired)).status, 401);
+  for (const adminRole of ["ADMIN", "MEMORY_ADMIN"]) {
+    const adminToken = jwt.sign({ adminId: String(new mongoose.Types.ObjectId()), role: "admin", adminRole }, process.env.JWT_SECRET);
+    assert.equal((await mine(adminToken)).status, 403);
+  }
+  await User.updateOne({ _id: user._id }, { status: "disabled" });
+  assert.equal((await mine()).status, 403);
+  await User.deleteOne({ _id: user._id });
+  assert.equal((await mine()).status, 401);
+});
+
+test("My Memories returns only the JWT owner's safe metadata in deterministic newest-first order", async () => {
+  const other = await User.create({ email: "mine-other@example.com", passwordHash: "test-only-hash" });
+  const reviewer = new mongoose.Types.ObjectId();
+  const sameDate = new Date("2026-10-22T00:00:00Z");
+  const saved = await MemoryPhoto.create(["PENDING", "APPROVED", "REJECTED"].map((status, index) => ({
+    owner: user._id, imageKey: `private-never-exposed-${index}`, status,
+    createdAt: index === 0 ? new Date("2026-10-21") : sameDate,
+    reviewedBy: reviewer, reviewedAt: sameDate,
+  })));
+  await MemoryPhoto.create({ owner: other._id, imageKey: "other-private-key" });
+  await Quota.create({ _id: user._id, slots: saved.map(photo => photo._id) });
+  const response = await mine();
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get("cache-control"), /private.*no-store/);
+  assert.match(response.headers.get("vary"), /Authorization/);
+  const expected = [...saved].sort((a, b) => +b.createdAt - +a.createdAt || String(b._id).localeCompare(String(a._id)));
+  assert.deepEqual(response.body.data.photos.map(photo => photo.id), expected.map(photo => String(photo._id)));
+  assert.equal(response.body.results, 3);
+  assert.deepEqual(new Set(response.body.data.photos.map(photo => photo.status)), new Set(["PENDING", "APPROVED", "REJECTED"]));
+  for (const photo of response.body.data.photos) assert.deepEqual(Object.keys(photo).sort(), ["createdAt", "id", "status"]);
+  assert.deepEqual(response.body.data.quota, { limit: 3, acceptedCount: 3, remainingSlots: 0 });
+  for (const query of [`?userId=${other._id}`, `?owner=${other._id}`, "?status=APPROVED"]) assert.equal((await mine(token, query)).status, 400);
+  const otherToken = jwt.sign({ userId: String(other._id), role: "user" }, process.env.JWT_SECRET);
+  const own = await mine(otherToken);
+  assert.equal(own.body.results, 1);
+  assert(!own.body.data.photos.some(photo => saved.some(item => String(item._id) === photo.id)));
+});
+
+test("My Memories uses legacy records without creating quota state and handles an empty history", async () => {
+  assert.deepEqual((await mine()).body.data, { photos: [], quota: { limit: 3, acceptedCount: 0, remainingSlots: 3 } });
+  await MemoryPhoto.create({ owner: user._id, imageKey: "legacy", status: "REJECTED" });
+  assert.deepEqual((await mine()).body.data.quota, { limit: 3, acceptedCount: 1, remainingSlots: 2 });
+  assert.equal(await Quota.countDocuments(), 0);
+});
+
+test("My Memories excludes cancellation markers while retaining unresolved reservation capacity", async () => {
+  const failed = new mongoose.Types.ObjectId();
+  await quota.reserve(user._id, failed);
+  await quota.release(user._id, failed);
+  const converted = await MemoryPhoto.create({ owner: user._id, imageKey: "cancelled-key", status: "APPROVED" });
+  await quota.cancel(user._id, converted._id);
+  assert.equal(await MemoryPhoto.collection.countDocuments({ owner: user._id, cancelled: true }), 2);
+  assert.deepEqual((await mine()).body.data, { photos: [], quota: { limit: 3, acceptedCount: 0, remainingSlots: 3 } });
+  const accepted = await submit();
+  assert.equal(accepted.status, 201);
+  const unresolved = new mongoose.Types.ObjectId();
+  await quota.reserve(user._id, unresolved);
+  const response = await mine();
+  assert.equal(response.body.results, 1);
+  assert.deepEqual(response.body.data.quota, { limit: 3, acceptedCount: 1, remainingSlots: 1 });
+  assert.equal((await Quota.findById(user._id)).slots.length, 2);
+  // Deleted records never make their retained lifetime slots available again.
+  await MemoryPhoto.deleteOne({ _id: accepted.body.data.photo.id });
+  assert.deepEqual((await mine()).body.data.quota, { limit: 3, acceptedCount: 0, remainingSlots: 1 });
+});
+
+test("My Memories remains disabled for false, missing and absent feature settings", async () => {
+  await MemoryPhoto.create({ owner: user._id, imageKey: "hidden-when-disabled" });
+  await Election.updateOne({}, { memoryPhotosEnabled: false });
+  assert.equal((await mine()).status, 403);
+  await Election.collection.updateOne({}, { $unset: { memoryPhotosEnabled: "" } });
+  assert.equal((await mine()).status, 403);
+  await Election.deleteMany({});
+  assert.equal((await mine()).status, 403);
+});
+
+test("My Memories rechecks the feature after reading and propagates database errors safely", async () => {
+  const find = MemoryPhoto.find;
+  MemoryPhoto.find = function (...args) {
+    const query = find.apply(this, args);
+    const lean = query.lean;
+    query.lean = async function (...options) {
+      const photos = await lean.apply(this, options);
+      await Election.updateOne({}, { memoryPhotosEnabled: false });
+      return photos;
+    };
+    return query;
+  };
+  try { assert.equal((await mine()).status, 403); }
+  finally { MemoryPhoto.find = find; }
+  await Election.updateOne({}, { memoryPhotosEnabled: true });
+  MemoryPhoto.find = () => { throw new Error("private-database-detail"); };
+  try {
+    const response = await mine();
+    assert.equal(response.status, 500);
+    assert(!JSON.stringify(response.body).includes("private-database-detail"));
+  } finally { MemoryPhoto.find = find; }
+});
+
 test("only active authenticated students may submit; admins and anonymous callers are rejected", async () => {
   assert.equal((await submit({ auth: null })).status, 401);
   assert.equal((await submit({ auth: "invalid-token" })).status, 401);

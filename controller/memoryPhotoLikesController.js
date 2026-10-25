@@ -4,6 +4,28 @@ const Like = require("../model/memoryPhotoLikesModel");
 const AppError = require("../utils/appError");
 const catchAsync = require("../utils/catchAsync");
 
+exports.getLikeStatus = catchAsync(async (req, res) => {
+  // Reject even empty JSON bodies and unparsed body types on this read-only API.
+  if (req.headers["transfer-encoding"] || Number(req.headers["content-length"] || 0) > 0
+    || req.body !== undefined || Object.keys(req.query).some((key) => key !== "photoIds")
+    || typeof req.query.photoIds !== "string") {
+    throw new AppError("Provide only a photoIds query parameter and no request body.", 400);
+  }
+  const ids = req.query.photoIds.split(",");
+  if (ids.length < 1 || ids.length > 50 || ids.some((id) => !/^[a-f0-9]{24}$/i.test(id))
+    || new Set(ids.map((id) => id.toLowerCase())).size !== ids.length) {
+    throw new AppError("photoIds must contain 1–50 unique valid photo IDs.", 400);
+  }
+  const approved = await MemoryPhoto.find({ _id: { $in: ids }, status: "APPROVED" }).select("_id").lean();
+  const approvedIds = new Set(approved.map((photo) => String(photo._id)));
+  const likes = approved.length ? await Like.find({ userId: req.userId, photoId: { $in: approved.map((photo) => photo._id) } })
+    .select("photoId -_id").lean() : [];
+  const likedIds = new Set(likes.map((like) => String(like.photoId)));
+  const photos = ids.map((id) => id.toLowerCase()).filter((id) => approvedIds.has(id))
+    .map((photoId) => ({ photoId, liked: likedIds.has(photoId) }));
+  res.status(200).json({ status: "success", results: photos.length, data: { photos } });
+});
+
 const setLiked = (liked) => catchAsync(async (req, res) => {
   if (!mongoose.isObjectIdOrHexString(req.params.id)) {
     throw new AppError("A valid Memory Photo ID is required.", 400);

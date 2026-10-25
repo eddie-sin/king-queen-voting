@@ -1,13 +1,17 @@
+import { SiteHeader } from './components/SiteHeader.jsx';
 import { useEffect, useState } from 'react';
 import WishSky from './wishes/WishSky.jsx';
-import { useFestival } from './hooks/useFestival.js';
+import { readStoredSession, writeStoredSession, useFestival } from './hooks/useFestival.js';
 import { titleCase } from './domain.js';
-import { Brand, Crown, UserIcon, Sky, CategorySelection, CandidateCard, CandidateProfile, AccountDialog, UnlockDialog, ScheduleBanner, AccountPanel, ChoicesPage, VoteConfirmation, Celebration } from './components.jsx';
+import { Brand, Crown, Sky, CategorySelection, CandidateCard, CandidateProfile, AccountDialog, UnlockDialog, ScheduleBanner, AccountPanel, ChoicesPage, VoteConfirmation, Celebration } from './components.jsx';
 import { LanternGallery } from './components/LanternGallery.jsx';
+import MusicPlayer from './components/MusicPlayer.jsx';
 import { FinalistsPage } from './components/Finalists.jsx';
 import HomePage from './components/HomePage.jsx';
 import DevelopersPage from './components/DevelopersPage.jsx';
 import './home.css';
+import MemoryPhotoDemo from './memory/MemoryPhotoDemo.jsx';
+import { memoryTabFromHash } from './memory/demo.js';
 
 const NAV_ITEMS = [
   { id: 'home', href: '#home', label: 'Home', hint: 'About the festival, dates & venue', match: ['home'] },
@@ -15,6 +19,7 @@ const NAV_ITEMS = [
   { id: 'finalists', href: '#finalists', label: 'Finalists', hint: 'Top 5 Kings & Top 5 Queens', match: ['finalists'] },
   { id: 'lanterns', href: '#lanterns', label: 'Lanterns', hint: 'Community lantern gallery', match: ['lanterns'] },
   { id: 'wish-sky', href: '#wishes', label: 'Wish Sky', hint: 'Write & share your wishes', match: ['wishes'] },
+  { id: 'memory-gallery', href: '#memory-gallery', label: 'Memory Photo', hint: 'Browse festival memories & share your photos', match: ['memory-gallery', 'my-memories', 'memory-upload'] },
   { id: 'entertainment', href: '#entertainment', label: 'Entertainment', hint: 'Event day agenda & stage lineup', match: ['entertainment'] },
 ];
 
@@ -46,7 +51,45 @@ function PlaceholderStage({ badge, title, description, primaryAction }) {
   );
 }
 
-export default function App({ api, wishApi, fixtureMode = false }) {
+export default function App(props) {
+  const [memoryMenuOpen, setMemoryMenuOpen] = useState(false);
+  const [memorySession, setMemorySession] = useState(readStoredSession);
+  const [returnToMemories, setReturnToMemories] = useState(false);
+  const [memoryHash, setMemoryHash] = useState(() => location.hash);
+  const memoryTab = memoryTabFromHash(memoryHash);
+  useEffect(() => {
+    const changed = () => { setMemoryHash(location.hash); setMemoryMenuOpen(false); };
+    window.addEventListener('hashchange', changed);
+    return () => window.removeEventListener('hashchange', changed);
+  }, []);
+  useEffect(() => {
+    if (!returnToMemories) return;
+    if (location.hash !== '#account') { setReturnToMemories(false); return; }
+    const resume = () => {
+      if (location.hash === '#account' && readStoredSession()) { setReturnToMemories(false); location.hash = '#memory-gallery'; }
+    };
+    resume(); const timer = setInterval(resume, 250);
+    return () => clearInterval(timer);
+  }, [returnToMemories, memoryHash]);
+  useEffect(() => {
+    if (!memoryTab) return;
+    const sync = () => {
+      const next = readStoredSession();
+      setMemorySession(previous => previous?.token === next?.token && previous?.user?.email === next?.user?.email ? previous : next);
+    };
+    const close = event => { if (event.key === 'Escape') setMemoryMenuOpen(false); };
+    sync(); const timer = setInterval(sync, 500);
+    window.addEventListener('festival-session-change', sync);
+    window.addEventListener('storage', sync); window.addEventListener('focus', sync);
+    window.addEventListener('keydown', close);
+    return () => { clearInterval(timer); window.removeEventListener('festival-session-change', sync); window.removeEventListener('storage', sync); window.removeEventListener('focus', sync); window.removeEventListener('keydown', close); };
+  }, [Boolean(memoryTab)]);
+  const memoryLogin = () => { setMemoryMenuOpen(false); setReturnToMemories(true); location.hash = '#account'; };
+  // Memory pages reuse the session store without mounting unrelated API hooks.
+  return memoryTab ? <><div className="source-app memory-site-header"><SiteHeader items={NAV_ITEMS} route="memory-gallery" session={memorySession} menuOpen={memoryMenuOpen} setMenuOpen={setMemoryMenuOpen} onLogin={memoryLogin} onRegister={memoryLogin} onSignOut={() => writeStoredSession(null)}/></div><MemoryPhotoDemo tab={memoryTab} api={props.api} onRequireLogin={memoryLogin} demo={props.fixtureMode || ['#my-memories-demo', '#memory-gallery-demo', '#memory-upload-demo'].includes(memoryHash)}/></> : <FestivalApp {...props}/>;
+}
+
+function FestivalApp({ api, wishApi, fixtureMode = false }) {
   const model = useFestival(api);
   const [route, setRoute] = useState(readRoute);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -108,120 +151,8 @@ export default function App({ api, wishApi, fixtureMode = false }) {
 
   return <div className={`festival-app source-app ${route === 'home' ? 'home-route' : ''} ${route === 'wishes' ? 'wish-route' : ''}`}>
     <a className="skip-link" href="#main">Skip to content</a><Sky/>
-    <header className={`site-header ${menuOpen ? 'menu-is-open' : ''}`}>
-      <div className="site-header-inner">
-        <a className="brand-link" href="#home" aria-label="Thadingyut Festival of Lights" onClick={() => setMenuOpen(false)}><Brand/></a>
+    <SiteHeader items={NAV_ITEMS} route={route} session={model.session} menuOpen={menuOpen} setMenuOpen={setMenuOpen} onLogin={() => setAccountMode('login')} onRegister={() => setAccountMode('register')} onSignOut={model.signOut}/>
 
-        <nav className="site-nav" aria-label="Main navigation">
-          {NAV_ITEMS.map(item => {
-            const active = item.match.includes(route);
-            return (
-              <a
-                key={item.id}
-                href={item.href}
-                className={`nav-tab ${item.featured ? 'is-featured' : ''} ${active ? 'is-active' : ''}`}
-                aria-current={active ? 'page' : undefined}
-              >
-                {item.featured && <span className="nav-crown" aria-hidden="true">♔</span>}
-                <span>{item.label}</span>
-              </a>
-            );
-          })}
-        </nav>
-
-        <div className="header-actions">
-          {model.session ? (
-            <a
-              href="#account"
-              className={`account-button is-logged-in ${route === 'account' ? 'is-active' : ''}`}
-              aria-current={route === 'account' ? 'page' : undefined}
-              aria-label="Account and my choices"
-              title={model.session.user?.email || 'Account'}
-              onClick={() => setMenuOpen(false)}
-            >
-              <span className="account-icon-wrap" aria-hidden="true"><UserIcon /></span>
-              <span className="account-label">Account</span>
-            </a>
-          ) : (
-            <button
-              type="button"
-              className="account-button"
-              onClick={() => { setMenuOpen(false); setAccountMode('login'); }}
-              aria-label="Sign in"
-            >
-              <span className="account-icon-wrap" aria-hidden="true"><UserIcon /></span>
-              <span className="account-label">Sign in</span>
-            </button>
-          )}
-
-          <button
-            type="button"
-            className={`menu-toggle-btn ${menuOpen ? 'is-open' : ''}`}
-            aria-expanded={menuOpen}
-            aria-controls="mobile-nav-drawer"
-            aria-label={menuOpen ? 'Close navigation menu' : 'Open navigation menu'}
-            onClick={() => setMenuOpen(v => !v)}
-          >
-            <span className="menu-toggle-bars" aria-hidden="true">
-              <i /><i /><i />
-            </span>
-          </button>
-        </div>
-      </div>
-
-      {menuOpen && (
-        <>
-          <div className="mobile-nav-backdrop" aria-hidden="true" onClick={() => setMenuOpen(false)} />
-          <div id="mobile-nav-drawer" className="mobile-nav-drawer" role="dialog" aria-label="Site navigation">
-            <div className="mobile-nav-grid">
-              {NAV_ITEMS.map(item => {
-                const active = item.match.includes(route);
-                return (
-                  <a
-                    key={item.id}
-                    href={item.href}
-                    className={`mobile-nav-card ${item.featured ? 'is-featured' : ''} ${active ? 'is-active' : ''}`}
-                    aria-current={active ? 'page' : undefined}
-                    onClick={() => setMenuOpen(false)}
-                  >
-                    <div className="mobile-nav-title">
-                      {item.featured && <span className="nav-crown" aria-hidden="true">♔</span>}
-                      <span>{item.label}</span>
-                    </div>
-                    <small>{item.hint}</small>
-                  </a>
-                );
-              })}
-            </div>
-            <div className="mobile-nav-footer">
-              {model.session ? (
-                <div className="mobile-account-bar">
-                  <div className="mobile-account-user">
-                    <span className="account-icon-wrap" aria-hidden="true"><UserIcon /></span>
-                    <div>
-                      <span className="eyebrow">SIGNED IN AS</span>
-                      <strong>{model.session.user?.email}</strong>
-                    </div>
-                  </div>
-                  <div className="mobile-account-actions">
-                    <a className="btn primary" href="#account" onClick={() => setMenuOpen(false)}>Account &amp; Choices</a>
-                    <button type="button" className="btn secondary" onClick={() => { setMenuOpen(false); model.signOut(); }}>Sign out</button>
-                  </div>
-                </div>
-              ) : (
-                <div className="mobile-account-bar">
-                  <p>Sign in to view your account details and manage your King &amp; Queen choices.</p>
-                  <div className="mobile-account-actions">
-                    <button type="button" className="btn primary" onClick={() => { setMenuOpen(false); setAccountMode('login'); }}>Sign in</button>
-                    <button type="button" className="btn secondary" onClick={() => { setMenuOpen(false); setAccountMode('register'); }}>Create account</button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </>
-      )}
-    </header>
 
     {fixtureMode&&<div className="fixture-ribbon">LOCAL FIXTURE PREVIEW · Sample identities · No real votes are sent</div>}
     <main id="main" tabIndex="-1"><div className="source-page" key={route}>
@@ -290,6 +221,7 @@ export default function App({ api, wishApi, fixtureMode = false }) {
       {model.notice&&<div className={`notice ${model.notice.type}`} role={model.notice.type==='error'?'alert':'status'}><p>{model.notice.text}</p><button aria-label="Dismiss message" onClick={model.dismissNotice}>×</button></div>}
     </div></main>
     <footer className="site-footer"><a href="#home"><Brand/></a><p>Wishing you all a fun moment.<br/><span>Thadingyut · Festival of Lights celebration</span></p></footer>
+    {route === 'wishes' && <MusicPlayer/>}
     {profile&&<CandidateProfile candidate={profile} selected={viewable&&model.choices[profile.category]?._id===profile._id} canVote={!allDisabled} votingStatus={model.status.voting} actionLabel={label} onVote={requestVote} onClose={()=>setProfile(null)}/>}
     {accountMode&&<AccountDialog initialMode={accountMode} onClose={reason=>{setAccountMode(null);if(reason!=='authenticated'){setProfile(intent);setIntent(null);}}} onLogin={async(...args)=>{await model.login(...args);}} onRegister={model.register} registrationStatus={model.status.registration} schedule={model.schedule} onRefreshSchedule={model.reloadSchedule}/>}
     {unlockOpen&&<UnlockDialog onClose={reason=>{setUnlockOpen(false);if(reason!=='unlocked'){setProfile(intent);setIntent(null);}}} onUnlock={async key=>{await model.unlock(key);}} busy={model.busy} sessionPresent={Boolean(model.session)}/>}

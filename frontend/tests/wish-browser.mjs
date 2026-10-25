@@ -17,6 +17,12 @@ try {
     await page.locator('.floating-wish').first().waitFor();
     assert.equal(await page.locator('.floating-wish').count(), viewport.width < 580 ? 12 : 24);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    const releaseButton = await page.getByRole('button', { name: 'Release a wish' }).boundingBox();
+    const quotaNote = page.locator('.wish-quota-note');
+    const noteBox = await quotaNote.boundingBox();
+    assert.ok(Math.abs(noteBox.x - releaseButton.x) <= 1);
+    assert.ok(noteBox.y >= releaseButton.y + releaseButton.height && noteBox.y - releaseButton.y - releaseButton.height <= 12);
+    assert.equal(await quotaNote.evaluate(element => getComputedStyle(element).textAlign), 'left');
     await page.getByRole('button', { name: 'Read wish 1', exact: true }).click();
     await page.getByRole('dialog').getByText(/May our small acts of kindness/).waitFor();
     await page.getByRole('button', { name: 'Read another wish' }).click();

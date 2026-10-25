@@ -4,7 +4,7 @@ import { finalistsState, savedChoices, scheduleState, validKey } from '../domain
 const EMPTY = { king: null, queen: null };
 const SESSION_STORAGE_KEY = 'thadingyut_voter_session';
 
-function readStoredSession() {
+export function readStoredSession() {
   try {
     if (typeof localStorage === 'undefined') return null;
     const raw = localStorage.getItem(SESSION_STORAGE_KEY);
@@ -16,7 +16,7 @@ function readStoredSession() {
   }
 }
 
-function writeStoredSession(value) {
+export function writeStoredSession(value) {
   try {
     if (typeof localStorage === 'undefined') return;
     if (value?.token && value?.user) {
@@ -24,6 +24,7 @@ function writeStoredSession(value) {
     } else {
       localStorage.removeItem(SESSION_STORAGE_KEY);
     }
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event('festival-session-change'));
   } catch {
     // Ignore storage errors in private browsing or restricted environments.
   }
