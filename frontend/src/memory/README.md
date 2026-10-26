@@ -13,7 +13,7 @@ The server's limit, acceptedCount and remainingSlots are displayed without
 deriving lifetime usage from cards. Only approved records request image bytes,
 using the configured backend `/memory-photos/:id/image` URL, never a storage
 URL. Pending/rejected submissions use sealed envelopes without image requests.
-Gallery hearts use the authenticated like APIs. The connected Upload tab submits images for review.
+Archived owner photos use the authenticated owner image endpoint and remain private; they are not requested from the public gallery endpoint. Gallery hearts use the authenticated like APIs. The connected Upload tab submits images for review.
 
 `/#my-memories-demo` explicitly selects sample review states. The existing
 Vite fixture mode also shows only clearly labeled samples. `/#memory-gallery`
@@ -94,7 +94,8 @@ not contact MongoDB or AWS. Unit tests and the production build also pass.
 Sign in at `/#account`, then visit `/#memory-upload`. It uses the same student
 session and `/memory-photos/mine` quota as My Memories. The three-slot studio
 previews JPEG/PNG/WebP files up to 5 MiB each; selection and submission are
-bounded by the server's remainingSlots, including rejected lifetime submissions.
+bounded by the server's remainingSlots for active pending/approved photos;
+rejected and permanently deleted submissions release their slot.
 Client validation is a convenience; backend file-content validation remains authoritative.
 
 Submission rechecks quota, sends one `images` FormData file per request,

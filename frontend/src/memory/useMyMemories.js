@@ -48,5 +48,11 @@ export function useMyMemories(api) {
       window.removeEventListener('focus', refresh); window.removeEventListener('storage', refresh); window.removeEventListener('festival-session-change', refresh);
     };
   }, [refresh]);
-  return { ...state, refresh };
+  const mutate = async (action, id) => {
+    const session = readStoredSession();
+    if (!session) throw new Error('Please sign in again.');
+    await api[action](session.token, id);
+    await refresh();
+  };
+  return { ...state, refresh, archive: id => mutate('archiveMemoryPhoto', id), unarchive: id => mutate('unarchiveMemoryPhoto', id), remove: id => mutate('deleteMemoryPhoto', id) };
 }

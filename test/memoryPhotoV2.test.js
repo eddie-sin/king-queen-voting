@@ -45,7 +45,7 @@ test('My Memories authenticates active students, isolates owners, hides sensitiv
   const mine = await fixture.request('GET', '/memory-photos/mine', { token: first.token });
   assert.equal(mine.status, 200); assert.deepEqual(mine.body.data.photos.map(photo => photo.id), [newer.id, older.id]);
   assert.deepEqual(Object.keys(mine.body.data.photos[0]).sort(), ['createdAt', 'id', 'status']);
-  assert.deepEqual(mine.body.data.quota, { limit: 3, acceptedCount: 2, remainingSlots: 0 });
+  assert.deepEqual(mine.body.data.quota, { limit: 3, acceptedCount: 2, remainingSlots: 1 });
   assert.equal(JSON.stringify(mine.body).includes('imageKey'), false); assert.equal(JSON.stringify(mine.body).includes('reviewedBy'), false);
   assert.equal((await fixture.request('GET', '/memory-photos/mine')).status, 401);
   assert.equal((await fixture.request('GET', '/memory-photos/mine', { token: fixture.token })).status, 401);
@@ -90,10 +90,10 @@ test('successful upload stores one private PENDING image and returns no key, byt
   assert.equal(JSON.stringify(response.body).includes(stored.imageKey), false);
 });
 
-test('all moderation statuses consume the three lifetime slots and a fourth upload is rejected', async () => {
+test('rejected submissions release one active slot while pending and approved photos remain capped at three', async () => {
   const [student] = await students(1); await enable(); const photos = [await submit(student), await submit(student), await submit(student)];
   assert.equal((await review(photos[0].id, 'APPROVED')).status, 200); assert.equal((await review(photos[1].id, 'REJECTED')).status, 200);
-  assert.equal((await upload(student)).status, 409);
+  assert.equal((await upload(student)).status, 201);
   const mine = await fixture.request('GET', '/memory-photos/mine', { token: student.token });
   assert.deepEqual(mine.body.data.quota, { limit: 3, acceptedCount: 3, remainingSlots: 0 });
   assert.deepEqual(new Set(mine.body.data.photos.map(photo => photo.status)), new Set(['APPROVED', 'REJECTED', 'PENDING']));
@@ -156,7 +156,7 @@ test('moderation history is newest-first across all statuses and never exposes p
   assert.equal((await review(first.id, 'APPROVED')).status, 200); assert.equal((await review(second.id, 'REJECTED')).status, 200);
   const queue = await fixture.request('GET', '/admin/memory-photos', { token: fixture.token });
   assert.equal(queue.status, 200); assert.deepEqual(queue.body.data.photos.map(photo => [photo.id, photo.status]), [
-    [third.id, 'PENDING'], [second.id, 'REJECTED'], [first.id, 'APPROVED'],
+    [third.id, 'PENDING'], [first.id, 'APPROVED'],
   ]);
   for (const photo of queue.body.data.photos.filter(photo => photo.status !== 'PENDING')) {
     assert.match(String(photo.reviewedBy), /^[a-f0-9]{24}$/i); assert(Number.isFinite(Date.parse(photo.reviewedAt)));
@@ -238,4 +238,26 @@ test('like-status preserves request order, isolates students and omits every non
   for (const endpoint of [`/memory-photos/like-status?photoIds=${approved.id},${approved.id}`, '/memory-photos/like-status?photoIds=bad', `/memory-photos/like-status?photoIds=${approved.id}&userId=${first.user.id}`]) {
     assert.equal((await fixture.request('GET', endpoint, { token: first.token })).status, 400);
   }
+});
+
+test('approved owners can archive or delete only their own photos, while moderators can remove approved photos', async () => {
+  const [owner, other] = await students(2); const moderator = await memoryAdmin(['memory.delete'], 'memory-delete'); await enable();
+  const archived = await submit(owner); assert.equal((await review(archived.id, 'APPROVED')).status, 200);
+  assert.equal((await fixture.request('PATCH', `/memory-photos/${archived.id}/archive`, { token: other.token })).status, 409);
+  assert.equal((await fixture.request('PATCH', `/memory-photos/${archived.id}/archive`, { token: owner.token })).status, 200);
+  assert.equal((await fixture.request('GET', `/memory-photos/mine/${archived.id}/image`, { token: owner.token })).status, 200);
+  assert.equal((await fixture.request('GET', `/admin/memory-photos/${archived.id}/image`, { token: fixture.token })).status, 200);
+  assert.equal((await fixture.request('GET', `/memory-photos/mine/${archived.id}/image`, { token: other.token })).status, 404);
+  assert.equal((await fixture.request('GET', '/memory-photos?page=1&limit=20')).body.data.photos.some(photo => photo.id === archived.id), false);
+  assert.equal((await fixture.request('GET', `/memory-photos/${archived.id}/image`)).status, 404);
+  assert.equal((await fixture.request('POST', `/memory-photos/${archived.id}/like`, { token: other.token })).status, 404);
+  assert.equal((await fixture.request('PATCH', `/memory-photos/${archived.id}/unarchive`, { token: owner.token })).status, 200);
+  assert.equal((await fixture.request('GET', '/memory-photos?page=1&limit=20')).body.data.photos.some(photo => photo.id === archived.id), true);
+  const deleted = await submit(owner); assert.equal((await review(deleted.id, 'APPROVED')).status, 200);
+  assert.equal((await fixture.request('DELETE', `/memory-photos/${deleted.id}`, { token: other.token })).status, 409);
+  assert.equal((await fixture.request('DELETE', `/memory-photos/${deleted.id}`, { token: owner.token })).status, 200);
+  assert.equal((await fixture.request('GET', `/memory-photos/${deleted.id}/image`)).status, 404);
+  const moderatorPhoto = await submit(owner); assert.equal((await review(moderatorPhoto.id, 'APPROVED')).status, 200);
+  assert.equal((await fixture.request('DELETE', `/admin/memory-photos/${moderatorPhoto.id}`, { token: moderator.token })).status, 200);
+  assert.equal((await fixture.request('GET', `/memory-photos/${moderatorPhoto.id}/image`)).status, 404);
 });

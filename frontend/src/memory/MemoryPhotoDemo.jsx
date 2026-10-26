@@ -55,10 +55,10 @@ function UploadStudio() {
       <div className="mp-local-note"><Icon name="image"/><span><strong>Make yourself at home.</strong>This is a local preview. No sign-in, uploads or account changes.</span></div>
       <div className={`mp-drop ${dragging ? 'is-dragging' : ''}`} onDragOver={event => { event.preventDefault(); setDragging(true); }} onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget)) setDragging(false); }} onDrop={event => { event.preventDefault(); setDragging(false); addFiles([...event.dataTransfer.files]); }}>
         <div className="mp-slots">{[0, 1, 2].map(index => <div className={`mp-slot ${selected[index] ? 'is-filled' : ''}`} key={index}>{selected[index] ? <><img src={selected[index].url} alt={`Selected local photo ${index + 1}`}/><button className="mp-remove" aria-label={`Remove selected photo ${index + 1}`} onClick={() => remove(selected[index].id)}>×</button><span className="mp-slot-label">Photo {index + 1}</span></> : <button className="mp-slot-choose" onClick={() => files.current.click()} aria-label={`Choose photo for slot ${index + 1}`}><span className="mp-slot-number">0{index + 1}</span><Icon name="plus"/><em>Your {['first', 'second', 'third'][index]}<br/>moment</em></button>}</div>)}</div>
-        <p className="mp-drop-hint">Drop photos here, or choose below.</p><div className="mp-file-actions"><button className="mp-button mp-gold" onClick={() => files.current.click()}><Icon name="image"/>Choose photos</button><button className="mp-button mp-outline" onClick={() => camera.current.click()}><Icon name="camera"/>Take a photo</button></div><p className="mp-file-help">JPG, PNG or WebP · Up to 5 MB each</p>
+        <p className="mp-drop-hint">Drop photos here, or choose below.</p><div className="mp-file-actions"><button className="mp-button mp-gold" onClick={() => files.current.click()}><Icon name="image"/>Choose from gallery</button><button className="mp-button mp-outline" onClick={() => camera.current.click()} title="On supported phones, opens the rear camera. Desktop browsers may show a file chooser."><Icon name="camera"/>Take a photo</button></div><p className="mp-file-help">JPG, PNG or WebP · Up to 5 MB each</p>
       </div>
-      <input ref={files} type="file" accept="image/jpeg,image/png,image/webp" multiple hidden onChange={event => { addFiles([...event.target.files]); event.target.value = ''; }}/><input ref={camera} type="file" accept="image/jpeg,image/png,image/webp" capture="environment" hidden onChange={event => { addFiles([...event.target.files]); event.target.value = ''; }}/>
-      <p className="mp-error" role="alert">{error}</p><div className="mp-review-explanation"><Icon name="clock"/><p><strong>A little care before we share.</strong>In the live experience, photos are reviewed before appearing on the wall. The lifetime allowance is three, including rejected submissions.</p></div>
+      <input ref={files} type="file" accept="image/jpeg,image/png,image/webp" multiple hidden onChange={event => { addFiles([...event.target.files]); event.target.value = ''; }}/><input ref={camera} type="file" accept="image/*" capture="environment" hidden onChange={event => { addFiles([...event.target.files]); event.target.value = ''; }}/>
+      <p className="mp-error" role="alert">{error}</p><div className="mp-review-explanation"><Icon name="clock"/><p><strong>A little care before we share.</strong>In the live experience, photos are reviewed before appearing on the wall. Three active photos may be pending or approved at one time; rejected photos release their slot.</p></div>
       <button className="mp-button mp-gold mp-submit" disabled={!selected.length} onClick={() => setPreviewed(true)}>Preview submission <Icon name="arrow"/></button>
       <div className="mp-preview-result" role="status">{previewed && <>✦ Your {selected.length === 1 ? 'photo is' : 'photos are'} ready in this preview. Nothing was sent. <a href="#my-memories-demo">Explore sample review states →</a></>}</div>
     </section>
@@ -69,12 +69,21 @@ export default function MemoryPhotoDemo({ tab, api, demo = false, onRequireLogin
   const [liked, setLiked] = useState(new Set());
   const [viewer, setViewer] = useState(null);
   const main = useRef(null);
+  const shell = useRef(null);
   const liveUpload = tab === 'upload' && !demo;
   const liveAll = tab === 'all' && !demo;
   const liveMine = tab === 'mine' && !demo;
   useEffect(() => { setViewer(null); window.scrollTo(0, 0); main.current?.focus({ preventScroll: true }); }, [tab, demo]);
+  useEffect(() => {
+    const header = document.querySelector('.memory-site-header');
+    const update = () => shell.current?.style.setProperty('--memory-header-height', `${header?.getBoundingClientRect().height || 0}px`);
+    update();
+    const observer = header && 'ResizeObserver' in window ? new ResizeObserver(update) : null;
+    observer?.observe(header); window.addEventListener('resize', update);
+    return () => { observer?.disconnect(); window.removeEventListener('resize', update); };
+  }, []);
   const toggleLike = id => setLiked(previous => { const next = new Set(previous); if (next.has(id)) next.delete(id); else next.add(id); return next; });
-  return <div className="mp-demo">
+  return <div className="mp-demo" ref={shell}>
     <FestivalMotion key={`${tab}-${demo}`}/>
     <a className="mp-skip" href="#mp-content" onClick={event => { event.preventDefault(); main.current.focus(); }}>Skip to memories</a>
     <div className="mp-sparkles" aria-hidden="true">{Array.from({ length: 9 }, (_, index) => <span key={index} style={{ '--i': index }}>✦</span>)}</div>

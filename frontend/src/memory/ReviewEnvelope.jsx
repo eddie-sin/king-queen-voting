@@ -4,7 +4,7 @@ export function ReviewEnvelope({ rejected = false, demo = true, index = rejected
     <div className="mp-envelope" aria-hidden="true"><div className="mp-envelope-paper">GUSTO<br/><em>a little light, kept safe.</em></div><div className="mp-envelope-fold"/><span className="mp-wax">✦</span><span className="mp-postmark">THADINGYUT<br/>2026</span></div>
     <span className={`mp-status ${rejected ? 'mp-rejected' : 'mp-pending'}`}>{rejected ? 'Rejected' : 'Pending review'}</span>
     <h3>{rejected ? 'Some moments stay with us.' : 'A little patience. A little magic.'}</h3>
-    <p>{rejected ? `This ${demo ? 'demo ' : ''}submission wasn’t approved for the public wall. It still counts toward the three-photo lifetime limit.` : 'Sealed with care while an administrator reviews your photo. Pending images stay off the public wall.'}</p>
+    <p>{rejected ? `This ${demo ? 'demo ' : ''}submission wasn’t approved for the public wall. Its active slot is released after private cleanup.` : 'Sealed with care while an administrator reviews your photo. Pending images stay off the public wall.'}</p>
     <span className="mp-review-note">{demo ? 'Sample review state · no real submission' : <time dateTime={createdAt}>Submitted {new Date(createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Yangon' })}</time>}</span>
   </article>;
 }

@@ -12,6 +12,10 @@ router.get("/like-status", (req, res, next) => {
   next();
 }, authenticate, controller.requireEnabled, likes.getLikeStatus);
 router.get("/mine", authenticate, controller.requireEnabled, controller.listMine);
+router.get("/mine/:id/image", authenticate, controller.requireEnabled, controller.getOwnImage);
+router.patch("/:id/archive", authenticate, controller.requireEnabled, controller.archiveOwn);
+router.patch("/:id/unarchive", authenticate, controller.requireEnabled, controller.unarchiveOwn);
+router.delete("/:id", authenticate, controller.requireEnabled, controller.deleteOwn);
 router.get("/", publicController.publicAccess, publicController.listApproved);
 router.get("/:id/image", publicController.publicAccess, publicController.getApprovedImage);
 router.post("/", authenticate, controller.requireEnabled, memoryPhotoImages, controller.submitPhoto);

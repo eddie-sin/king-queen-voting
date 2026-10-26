@@ -83,9 +83,36 @@ export function createApi({ baseUrl = '/api/v1', fetchImpl = (...args) => fetch(
       try { return parseMyMemories(data); }
       catch { throw new ApiError('Your memories returned incomplete information. Please try again.'); }
     },
+    async archiveMemoryPhoto(token, id) {
+      if (!token || !/^[a-f0-9]{24}$/i.test(id)) throw new ApiError('Invalid archive request.', { status: 400 });
+      const { data } = await request(`/memory-photos/${id}/archive`, { method: 'PATCH', token, body: {} });
+      return data.photo;
+    },
+    async unarchiveMemoryPhoto(token, id) {
+      if (!token || !/^[a-f0-9]{24}$/i.test(id)) throw new ApiError('Invalid restore request.', { status: 400 });
+      const { data } = await request(`/memory-photos/${id}/unarchive`, { method: 'PATCH', token, body: {} });
+      return data.photo;
+    },
+    async deleteMemoryPhoto(token, id) {
+      if (!token || !/^[a-f0-9]{24}$/i.test(id)) throw new ApiError('Invalid delete request.', { status: 400 });
+      const { data } = await request(`/memory-photos/${id}`, { method: 'DELETE', token, body: {} });
+      return data;
+    },
     memoryPhotoImageUrl(id) {
       if (!/^[a-f0-9]{24}$/i.test(id)) throw new ApiError('Invalid Memory Photo ID.');
       return `${baseUrl}/memory-photos/${id}/image`;
+    },
+    memoryPhotoOwnerImageUrl(id) {
+      if (!/^[a-f0-9]{24}$/i.test(id)) throw new ApiError('Invalid Memory Photo ID.');
+      return `${baseUrl}/memory-photos/mine/${id}/image`;
+    },
+    async memoryPhotoOwnerImage(token, id, options = {}) {
+      if (!token || !/^[a-f0-9]{24}$/i.test(id)) throw new ApiError('Invalid private image request.', { status: 400 });
+      const response = await fetch(this.memoryPhotoOwnerImageUrl(id), { credentials: 'same-origin', cache: 'no-store', signal: options.signal, headers: { Accept: 'image/jpeg,image/png,image/webp' } });
+      if (!response.ok) throw new ApiError('Archived photo is unavailable.', { status: response.status });
+      const blob = await response.blob();
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(blob.type)) throw new ApiError('Invalid private image response.', { status: 503 });
+      return blob;
     },
     async candidates(options) {
       const { data } = await request('/candidates', options);

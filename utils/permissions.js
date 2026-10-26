@@ -1,6 +1,6 @@
 exports.ROLE_PERMISSIONS = Object.freeze({
   voting_admin: ['votes.read','candidates.create','candidates.update','candidates.delete','voting.open','voting.close','votes.clear','announcement.open','announcement.close','registration.open','registration.close'],
-  memory_admin: ['memory.open','memory.close','memory.approve','memory.reject'],
+  memory_admin: ['memory.open','memory.close','memory.approve','memory.reject','memory.delete'],
   lantern_admin: ['lantern.votes.read','lantern.open','lantern.close','lantern.announce','lantern.hide'],
 });
 exports.PERMISSIONS = Object.freeze(Object.values(exports.ROLE_PERMISSIONS).flat());

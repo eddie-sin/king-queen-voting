@@ -16,7 +16,7 @@ exports.getLikeStatus = catchAsync(async (req, res) => {
     || new Set(ids.map((id) => id.toLowerCase())).size !== ids.length) {
     throw new AppError("photoIds must contain 1–50 unique valid photo IDs.", 400);
   }
-  const approved = await MemoryPhoto.find({ _id: { $in: ids }, status: "APPROVED" }).select("_id").lean();
+  const approved = await MemoryPhoto.find({ _id: { $in: ids }, status: "APPROVED", archived: { $ne: true }, deletedAt: { $exists: false } }).select("_id").lean();
   const approvedIds = new Set(approved.map((photo) => String(photo._id)));
   const likes = approved.length ? await Like.find({ userId: req.userId, photoId: { $in: approved.map((photo) => photo._id) } })
     .select("photoId -_id").lean() : [];
@@ -33,7 +33,7 @@ const setLiked = (liked) => catchAsync(async (req, res) => {
   if (Object.keys(req.body || {}).length || Object.keys(req.query).length) {
     throw new AppError("Like requests do not accept body or query fields.", 400);
   }
-  if (!(await MemoryPhoto.exists({ _id: req.params.id, status: "APPROVED" }))) {
+  if (!(await MemoryPhoto.exists({ _id: req.params.id, status: "APPROVED", archived: { $ne: true }, deletedAt: { $exists: false } }))) {
     throw new AppError("Memory Photo not found.", 404);
   }
   // Also await initialization for consumers that mount app.js without server.js.

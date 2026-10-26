@@ -40,7 +40,7 @@ exports.listApproved = catchAsync(async (req, res) => {
   }
   const page = pageNumber(req.query.page, 1, 1000, "page");
   const limit = pageNumber(req.query.limit, 20, 50, "limit");
-  const photos = await MemoryPhoto.find({ status: "APPROVED" }).select("_id createdAt")
+  const photos = await MemoryPhoto.find({ status: "APPROVED", archived: { $ne: true }, deletedAt: { $exists: false } }).select("_id createdAt")
     .sort({ createdAt: -1, _id: -1 }).skip((page - 1) * limit).limit(limit + 1).lean();
   const pagePhotos = photos.slice(0, limit);
   const counts = pagePhotos.length ? await Like.aggregate([
@@ -60,7 +60,7 @@ exports.getApprovedImage = catchAsync(async (req, res) => {
   if (!mongoose.isObjectIdOrHexString(req.params.id)) {
     throw new AppError("A valid Memory Photo ID is required.", 400);
   }
-  const filter = { _id: req.params.id, status: "APPROVED" };
+  const filter = { _id: req.params.id, status: "APPROVED", archived: { $ne: true }, deletedAt: { $exists: false } };
   const photo = await MemoryPhoto.findOne(filter).select("imageKey").lean();
   // Use the same response for absent, pending and rejected records.
   if (!photo) throw new AppError("Memory Photo not found.", 404);

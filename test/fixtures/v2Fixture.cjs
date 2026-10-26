@@ -13,7 +13,9 @@ const freePort = () => new Promise((resolve, reject) => {
 });
 
 exports.createV2Fixture = async () => {
-  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'kqv-v2-fixture-'));
+  const root = path.resolve(process.env.TEST_MONGOD_ROOT || os.tmpdir());
+  await fs.mkdir(root, { recursive: true });
+  const directory = await fs.mkdtemp(path.join(root, 'kqv-v2-fixture-'));
   const database = 'test_v2_' + crypto.randomBytes(6).toString('hex');
   const port = await freePort();
   const uri = `mongodb://127.0.0.1:${port}/${database}?replicaSet=testV2`;
@@ -58,7 +60,7 @@ exports.createV2Fixture = async () => {
     assert.equal(client.db().databaseName, database);
   }
   function assertOwnedDirectory() {
-    assert.equal(path.dirname(directory), os.tmpdir());
+    assert.equal(path.dirname(directory), root);
     assert(path.basename(directory).startsWith('kqv-v2-fixture-'));
   }
   async function close() {
@@ -155,9 +157,12 @@ exports.createV2Fixture = async () => {
     mongoExit = new Promise(resolve => mongo.once('exit', resolve));
     const direct = new MongoClient(`mongodb://127.0.0.1:${port}/?directConnection=true`, { serverSelectionTimeoutMS: 300 });
     try {
+      const startupDeadline = Date.now() + Number(process.env.TEST_MONGOD_STARTUP_TIMEOUT_MS || 10000);
       for (let attempt = 0; ; attempt++) {
         try { await direct.connect(); break; } catch {
-          if (spawnError || mongo.exitCode !== null || attempt > 80) throw Error('Disposable v2 MongoDB failed to start');
+          if (spawnError) throw Error(`Disposable v2 MongoDB could not be launched: ${spawnError.code || spawnError.message}`);
+          if (mongo.exitCode !== null) throw Error(`Disposable v2 MongoDB exited during startup (exit code ${mongo.exitCode}).`);
+          if (Date.now() >= startupDeadline) throw Error(`Disposable v2 MongoDB readiness timed out after ${Number(process.env.TEST_MONGOD_STARTUP_TIMEOUT_MS || 10000)}ms.`);
           await sleep(100);
         }
       }

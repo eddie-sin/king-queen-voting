@@ -7,6 +7,8 @@ const accounts = require('../controller/adminAccountsController');
 router.get('/memory-photos', permission('memory.read'), memory.listPending);
 router.get('/memory-photos/:id/image', permission('memory.read'), memory.getImage);
 router.patch('/memory-photos/:id/review', staff, memory.reviewPhoto);
+router.post('/memory-photos/:id/cleanup', permission('memory.reject'), memory.cleanupRejected);
+router.delete('/memory-photos/:id', permission('memory.delete'), memory.deleteApproved);
 router.route('/voting-admins').get(admin, accounts.list).post(admin, accounts.create);
 router.route('/voting-admins/:id').patch(admin, accounts.update).delete(admin, accounts.remove);
 router.route('/staff').get(admin, accounts.list).post(admin, accounts.create);
