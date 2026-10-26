@@ -1,3 +1,4 @@
+import { LanternResultsPage, SectionResultsLink } from './components/SectionResults.jsx';
 import { announceAccountChange } from './authSession.js';
 import { SiteHeader } from './components/SiteHeader.jsx';
 import { useEffect, useRef, useState } from 'react';
@@ -17,9 +18,8 @@ import { memoryTabFromHash } from './memory/demo.js';
 
 const NAV_ITEMS = [
   { id: 'home', href: '#home', label: 'Home', hint: 'About the festival, dates & venue', match: ['home'] },
-  { id: 'candidates', href: '#candidates', label: 'King & Queen', hint: 'Meet candidates & cast your crown', featured: true, match: ['candidates', 'king', 'queen'] },
-  { id: 'results', href: '#results', label: 'Results', hint: 'Current King & Queen vote totals', match: ['results'] },
-  { id: 'lanterns', href: '#lanterns', label: 'Lanterns', hint: 'Community lantern gallery', match: ['lanterns'] },
+  { id: 'candidates', href: '#candidates', label: 'King & Queen', hint: 'Meet candidates & cast your crown', featured: true, match: ['candidates', 'king', 'queen', 'results'] },
+  { id: 'lanterns', href: '#lanterns', label: 'Lanterns', hint: 'Community lantern gallery', match: ['lanterns', 'lantern-results'] },
   { id: 'wish-sky', href: '#wishes', label: 'Wish Sky', hint: 'Write & share your wishes', match: ['wishes'] },
   { id: 'memory-gallery', href: '#memory-gallery', label: 'Memory Photo', hint: 'Browse festival memories & share your photos', match: ['memory-gallery', 'my-memories', 'memory-upload'] },
   { id: 'entertainment', href: '#entertainment', label: 'Entertainment', hint: 'Event day agenda & stage lineup', match: ['entertainment'] },
@@ -31,6 +31,7 @@ function readRoute() {
   if (!raw || raw === 'home') return 'home';
   if (raw === 'choices' || raw === 'account') return 'account';
   if (raw === 'results' || raw === 'finalists') return 'results';
+  if (raw === 'lantern-results') return 'lantern-results';
   if (raw === 'wish-sky') return 'wishes';
   if (['candidates', 'king', 'queen', 'lanterns', 'wishes', 'entertainment', 'developers', 'privacy'].includes(raw)) return raw;
   return 'home';
@@ -160,10 +161,11 @@ function FestivalApp({ api, wishApi, fixtureMode = false }) {
     {fixtureMode&&<div className="fixture-ribbon">LOCAL FIXTURE PREVIEW · Sample identities · No real votes are sent</div>}
     <main id="main" tabIndex="-1"><div className="source-page" key={route}>
       {route === 'privacy' && <PrivacyPage/>}
-      {route==='home' ? <HomePage/> : route==='developers' ? <DevelopersPage/> : route==='candidates' ? <>
+      {route==='home' ? <HomePage/> : route==='developers' ? <DevelopersPage/> : route==='candidates' ? <><SectionResultsLink href="#results"/>
+      
         {heading('YOUR VOICE. THEIR MOMENT.',<>Every crown begins<br/>with <em>your choice.</em></>,'Choose a category, discover the candidates, and vote for the person who captures the spirit of our festival.')}
         <section className="source-section selection-section"><CategorySelection onSelect={go}/><p className="source-note">How it works: explore a category → open a candidate → sign in → confirm your final choice. One vote for King and one for Queen. <a href="#account">View your recorded choices</a> in your account.</p></section>
-      </> : route==='king'||route==='queen' ? <>
+      </> : route==='king'||route==='queen' ? <> <SectionResultsLink href="#results"/>
         {heading('THE FACES OF THE FESTIVAL',<>Meet the <em>{category==='king'?'Kings':'Queens'}.</em></>,'Get to know each candidate before choosing who deserves your crown.')}
         <section className="source-section gallery-section"><div className="source-tabs" aria-label="Candidate category">{['king','queen'].map(c=><a href={`#${c}`} key={c} aria-current={category===c?'page':undefined}>{c==='king'?'♔':'♕'} &nbsp; {titleCase(c)}s</a>)}</div>
         <StatusBanner status={model.status.voting} error={model.controlsError} onRetry={model.reloadControls}/>
@@ -173,9 +175,11 @@ function FestivalApp({ api, wishApi, fixtureMode = false }) {
         <ResultsPage stage={model.resultsStage} results={model.results} load={model.resultsLoad} error={model.resultsError} onRetry={model.reloadResults} onRefreshControls={model.reloadControls}/>
 
       </> : route==='lanterns' ? <>
+        <SectionResultsLink href="#lantern-results"/>
         {heading('LIGHTS OF THADINGYUT',<>Lanterns and their <em>stories.</em></>,'Discover the craft, meaning, and warm glow behind the festival lanterns shared by our community.')}
         <section className="source-section lantern-section"><LanternGallery api={api} session={model.session} onRequireLogin={()=>setAccountMode('login')} lanterns={model.lanterns} state={model.lanternState} error={model.lanternError} onRetry={model.reloadLanterns}/></section>
-      </> : route==='wishes' ? <>
+      </> : route==='lantern-results' ? <LanternResultsPage/>
+      : route==='wishes' ? <>
         <WishSky api={wishApi} session={model.session} onRequireLogin={() => setAccountMode('login')} accountOpen={Boolean(accountMode)} paused={false}/>
       </> : route==='entertainment' ? <>
         {heading('FESTIVAL STAGE & LINEUP',<>Event day <em>entertainment.</em></>,'Explore the full agenda of live performances, cultural showcases, music, and activities on festival day.')}
