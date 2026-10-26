@@ -15,7 +15,7 @@ test('student voting uses cookies, CSRF and immutable votes with manual round/wi
 });
 test('unsuccessful HTTP status is rejected even with success payload', async () => {
   const api = createApi({ fetchImpl: async () => new Response(JSON.stringify({ status: 'success', message: 'Wrong key' }), { status: 401 }) });
-  await assert.rejects(api.myVotes('token', 'a'.repeat(64)), error => error instanceof ApiError && error.status === 401);
+  await assert.rejects(api.myVotes('token'), error => error instanceof ApiError && error.status === 401);
 });
 test('fail body, network interruption and unreadable JSON are rejected', async () => {
   const api = createApi({ fetchImpl: async () => new Response(JSON.stringify({ status: 'fail', message: 'Not open' })) });
@@ -25,8 +25,19 @@ test('fail body, network interruption and unreadable JSON are rejected', async (
   const invalid = createApi({ fetchImpl: async () => new Response('not JSON') });
   await assert.rejects(invalid.submit('marker', 'c1', 'king',{round:1,window:1}), error => error.interrupted);
 });
-test('server messages do not echo a voting key into the UI', async () => {
-  const key = 'c'.repeat(64);
-  const api = createApi({ fetchImpl: async () => new Response(JSON.stringify({ status: 'fail', message: `Invalid key ${key}` }), { status: 401 }) });
-  await assert.rejects(api.myVotes('token', key), error => !error.message.includes(key));
+test('server messages redact accidental secret-like values from UI errors', async () => {
+  const secret = 'c'.repeat(64);
+  const api = createApi({ fetchImpl: async () => new Response(JSON.stringify({ status: 'fail', message: `Invalid session ${secret}` }), { status: 401 }) });
+  await assert.rejects(api.myVotes('token'), error => error.message.includes('[redacted]') && !error.message.includes(secret));
+});
+test('settings and announced results use current public v2 response shapes', async () => {
+  const seen = [];
+  const responses = [
+    { status: 'success', data: { controls: { registrationOpen: true, votingStatus: 'closed', announcementOpen: true, round: 2, window: 5, revision: 9 } } },
+    { status: 'success', data: { results: { round: 2, revision: 9, kings: [], queens: [] } } },
+  ];
+  const api = createApi({ fetchImpl: async (url) => { seen.push(url); return new Response(JSON.stringify(responses.shift())); } });
+  assert.equal((await api.settings()).announcementOpen, true);
+  assert.deepEqual(await api.results(), { king: [], queen: [], round: 2, revision: 9 });
+  assert.deepEqual(seen, ['/api/v1/settings', '/api/v1/results']);
 });

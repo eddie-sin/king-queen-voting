@@ -1,20 +1,24 @@
 # Memory Photo admin moderation
 
-All endpoints below require an active Admin Bearer JWT whose database role is
-ADMIN or MEMORY_ADMIN, and remain available regardless of `memoryPhotosEnabled`.
-Ordinary User tokens are rejected. Only ADMIN may provision a moderator or change
-settings. See [roles and provisioning](memory-admin-roles.md).
+All endpoints below require an active staff Bearer JWT and remain available
+regardless of `memoryPhotosEnabled`. Full `admin` accounts retain all access.
+`memory_admin` accounts can always list submissions and retrieve their private
+images; approving and rejecting require the corresponding `memory.approve` or
+`memory.reject` grant. Ordinary User tokens are rejected. Only full `admin` may
+provision staff. See [current role workspaces](role-workspaces-and-lantern-voting.md).
 
 | Method | Path | Behavior |
 | --- | --- | --- |
-| GET | `/api/v1/admin/memory-photos` | List PENDING records, newest first, with ID as a deterministic tie breaker |
+| GET | `/api/v1/admin/memory-photos` | List all non-cancelled records, newest first, with ID as a deterministic tie breaker |
 | GET | `/api/v1/admin/memory-photos/:id/image` | Return private image bytes for authenticated review |
 | PATCH | `/api/v1/admin/memory-photos/:id/review` | Set a PENDING photo's status to APPROVED or REJECTED |
 
 Listing returns `{ status: "success", results, data: { photos: [...] } }`.
 Photo metadata contains `id`, `owner`, `status`, `createdAt` and any review
-metadata. Storage keys and public URLs are never returned. The queue always
-filters PENDING; query parameters cannot expose other statuses.
+metadata. Storage keys and public URLs are never returned. The moderation history
+contains PENDING, APPROVED and REJECTED records. The administrator interface shows
+their status and disables approval/rejection controls for every non-PENDING item.
+Cancellation fencing markers are never returned.
 
 Image retrieval returns JPEG, PNG or WebP content directly, with
 `Cache-Control: private, no-store`, `Vary: Authorization`, and

@@ -1,98 +1,62 @@
-// Browser → Vite proxy → Express → temporary MongoDB → browser.
-// Requires a local mongod binary; never uses the database in config.env.
+// Browser -> Vite proxy -> Express -> disposable v2 replica set -> browser.
+// Uses generated accounts and private local storage; never reads config.env or AWS.
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
-import { randomBytes } from 'node:crypto';
-import { mkdtemp, rm } from 'node:fs/promises';
-import net from 'node:net';
-import os from 'node:os';
-import path from 'node:path';
 import { createRequire } from 'node:module';
 import { chromium } from 'playwright';
 import { createServer } from 'vite';
 
 const require = createRequire(import.meta.url);
-const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
-
-const freePort = () => new Promise((resolve, reject) => {
-  const server = net.createServer();
-  server.once('error', reject);
-  server.listen(0, '127.0.0.1', () => {
-    const { port } = server.address();
-    server.close(() => resolve(port));
-  });
-});
-const listen = server => new Promise(resolve => server.once('listening', resolve));
-process.env.NODE_ENV = 'test';
-process.env.JWT_SECRET = randomBytes(32).toString('hex');
-process.env.ADMIN_USERNAME = 'wish-browser-admin';
-process.env.ADMIN_PASSWORD = randomBytes(20).toString('hex');
-delete process.env.WISH_SKY_EVENT_DATE;
-const User = require('../../model/usersModel.js');
-const Wish = require('../../model/wishesModel.js');
-const app = require('../../app.js');
-const { seed } = require('../../utils/seed.js');
-
-let mongo;
-let apiServer;
-let vite;
-let browser;
-const tempDir = await mkdtemp(path.join(os.tmpdir(), 'wish-live-browser-'));
+const { createV2Fixture } = require('../../test/fixtures/v2Fixture.cjs');
+const fixture = await createV2Fixture();
+let vite, browser;
 try {
-  const mongoPort = await freePort();
-  mongo = spawn(process.env.MONGOD_BINARY || 'mongod', [
-    '--bind_ip', '127.0.0.1', '--port', String(mongoPort),
-    '--dbpath', tempDir, '--logpath', path.join(tempDir, 'mongod.log'),
-  ], { stdio: 'ignore' });
-  for (let attempt = 0; ; attempt++) {
-    try {
-      await mongoose.connect(`mongodb://127.0.0.1:${mongoPort}/wish_browser_test`, { serverSelectionTimeoutMS: 300 });
-      break;
-    } catch (error) {
-      if (attempt >= 40 || mongo.exitCode !== null) throw new Error(`Temporary MongoDB did not start: ${error.message}`);
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-  }
-  await seed();
-  await User.create({ email: 'wish-browser@example.test', passwordHash: await bcrypt.hash('festival123', 10), status: 'active' });
-  apiServer = app.listen(0, '127.0.0.1');
-  await listen(apiServer);
-  process.env.VOTING_API_TARGET = `http://127.0.0.1:${apiServer.address().port}`;
-  vite = await createServer({ configFile: 'vite.config.js', mode: 'development', server: { host: '127.0.0.1', port: 0 } });
+  await fixture.reset();
+  const student = await fixture.student('wishbrowser@gmail.com');
+  const email = student.user.email;
+  process.env.VOTING_API_TARGET = fixture.baseUrl;
+  vite = await createServer({ configFile: 'vite.config.js', mode: 'development', server: { host: 'localhost', port: 5173 } });
   await vite.listen();
-  browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
+  browser = await chromium.launch({ headless: true,
+    ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } : {}), args: ['--no-sandbox'] });
   const page = await browser.newPage({ reducedMotion: 'reduce' });
-  const errors = [];
+  const errors = [], consoleErrors = [], serverErrors = [];
   page.on('pageerror', error => errors.push(error.message));
-  const base = `http://127.0.0.1:${vite.httpServer.address().port}`;
+  page.on('console', event => { if (event.type() === 'error') consoleErrors.push(event.text()); });
+  page.on('response', response => { if (response.url().includes('/api/v1/') && response.status() >= 500) serverErrors.push([response.status(), response.url()]); });
+  const base = 'http://localhost:5173';
   await page.goto(`${base}/#wishes`);
   await page.getByText('The sky is waiting for its first wish.').waitFor();
   await page.getByRole('button', { name: 'Release a wish' }).click();
-  const login = page.getByRole('dialog');
-  await login.getByLabel('Email address').fill('wish-browser@example.test');
-  await login.getByLabel('Password', { exact: true }).fill('festival123');
-  await login.getByRole('button', { name: 'Login', exact: true }).last().click();
+  const login = page.locator('dialog.account-dialog');
+  await login.getByLabel('Gmail address').fill(email);
+  await login.getByLabel('Password', { exact: true }).fill(fixture.password);
+  const loginResponse = page.waitForResponse(response => new URL(response.url()).pathname === '/api/v1/auth/login');
+  await login.locator('form').getByRole('button', { name: 'Sign in', exact: true }).click();
+  const signedIn = await loginResponse;
+  assert.equal(signedIn.status(), 200, `Wish live login returned ${signedIn.status()}`);
+  await page.waitForTimeout(100);
+  if (await login.getByRole('alert').count()) throw Error(`Wish live login failed: ${await login.getByRole('alert').innerText()}`);
+  await login.waitFor({ state: 'detached' });
+  if (!await page.getByRole('heading', { name: 'Send a little hope.' }).count()) await page.getByRole('button', { name: 'Release a wish' }).click();
   await page.getByRole('heading', { name: 'Send a little hope.' }).waitFor();
-  await page.getByLabel('Your wish', { exact: true }).fill('A wish saved through the real API');
+  await page.getByLabel('Your wish', { exact: true }).fill('A wish saved through the real v2 API');
   await page.getByRole('button', { name: 'Release my lantern' }).click();
   await page.getByText('2 of 3 wishes remaining', { exact: true }).waitFor();
-  assert.equal(await Wish.countDocuments(), 1);
+  assert.equal(await fixture.db.collection('wishes').countDocuments(), 1);
   await page.reload();
-  await page.getByRole('button', { name: 'Read wish 1', exact: true }).waitFor();
-  await page.getByRole('button', { name: 'Read wish 1', exact: true }).click();
-  await page.getByRole('dialog').getByText('A wish saved through the real API').waitFor();
+  const lantern = page.getByRole('button', { name: 'Read wish 1', exact: true });
+  await lantern.waitFor();
+  const box = await lantern.locator('.wish-lantern-shape').boundingBox();
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await page.getByRole('dialog').getByText('A wish saved through the real v2 API').waitFor();
+  await page.keyboard.press('Escape');
+  assert.equal(await lantern.evaluate(element => document.activeElement === element), true);
   assert.deepEqual(errors, []);
-  console.log('Wish Sky live flow passed: browser → API → MongoDB → browser.');
+  assert.deepEqual(serverErrors, []);
+  assert.equal(consoleErrors.every(message => /^Failed to load resource:/.test(message)), true, `Unexpected console errors: ${consoleErrors.join(' | ')}`);
+  console.log('Wish Sky v2 live flow passed: browser -> API -> replica set -> browser.');
 } finally {
   if (browser) await browser.close();
   if (vite) await vite.close();
-  if (apiServer) await new Promise(resolve => apiServer.close(resolve));
-  await mongoose.disconnect();
-  if (mongo && mongo.exitCode === null) {
-    const exited = new Promise(resolve => mongo.once('exit', resolve));
-    mongo.kill('SIGTERM');
-    await exited;
-  }
-  await rm(tempDir, { recursive: true, force: true });
+  await fixture.close();
 }
