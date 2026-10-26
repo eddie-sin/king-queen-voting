@@ -42,8 +42,9 @@ export default function GoogleSignIn({ api, onSignIn, disabled }) {
     let live = true;
     (async () => {
       try {
+        if (!api?.authConfig) return;
         const config = await api.authConfig();
-        if (!config.googleClientId) return;
+        if (!config?.googleClientId) return;
         await loadGoogle();
         if (!live) return;
         const flow = await api.authAction("/google/start", {});
@@ -72,10 +73,11 @@ export default function GoogleSignIn({ api, onSignIn, disabled }) {
         });
         window.google.accounts.id.renderButton(box.current, {
           type: "standard",
-          theme: "outline",
+          theme: "filled_black",
           size: "large",
           text: "continue_with",
-          width: 280,
+          shape: "pill",
+          width: 300,
         });
       } catch (e) {
         if (live) setError(e.message);
