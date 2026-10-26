@@ -1,8 +1,12 @@
 import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
+import {mkdtemp,rm} from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { createServer } from 'vite';
 
-const server = process.env.TEST_BASE_URL ? null : await createServer({ configFile: 'vite.config.js', mode: 'development', server: { host: '127.0.0.1', port: 0 } });
+const cache = await mkdtemp(path.join(os.tmpdir(),'kqv-browser-v2-cache-'));
+const server = process.env.TEST_BASE_URL ? null : await createServer({ configFile: 'vite.config.js', mode: 'development', cacheDir:cache, optimizeDeps:{include:['react','react-dom/client','react/jsx-runtime','react/jsx-dev-runtime']}, server: { host: '127.0.0.1', port: 0 } });
 if (server) await server.listen();
 const base = process.env.TEST_BASE_URL || `http://127.0.0.1:${server.httpServer.address().port}`;
 const browser = await chromium.launch({ headless: true,
@@ -72,7 +76,9 @@ async function setup(state, viewport = { width: 1440, height: 950 }) {
     }
     throw Error(`Unexpected API request: ${path}`);
   });
-  await page.goto(`${base}/#king`); await page.getByRole('button', { name: 'Meet Aung' }).first().waitFor();
+  await page.goto(`${base}/#king`);
+  try { await page.getByRole('button', { name: 'Meet Aung', exact:true }).first().waitFor({timeout:30000}); }
+  catch(error) { throw new Error(JSON.stringify({url:page.url(),errors,consoleErrors,body:(await page.locator('body').innerText()).slice(0,2000)}), {cause:error}); }
   return { page, context, errors, consoleErrors };
 }
 
@@ -149,4 +155,4 @@ try {
     report.push('320px layout, keyboard dialog focus, candidate/control error states');
   }
   console.log(report.map(item => `PASS: ${item}`).join('\n'));
-} finally { await browser.close(); await server?.close(); }
+} finally { await browser.close(); await server?.close(); await rm(cache,{recursive:true,force:true}); }

@@ -1,5 +1,7 @@
 # EC2 deployment
 
+For the prepared authentication release, [LAUNCH.md](LAUNCH.md) supersedes older setup and recovery instructions. No live deployment was authorized for Phase 3.
+
 This repository deploys one API process and two static websites to the same EC2.
 The voter website is `/`, the admin website is `/admin/`, and the API is `/api/v1/`.
 Nginx serves the builds and proxies API traffic to port 5000. Do not expose that port
@@ -22,13 +24,14 @@ in the EC2 security group. SSH stays restricted to the operator's public IP.
 - The service runs `node server.js` with `NODE_ENV=production`. This is the same
   application mode as `npm run prod`, without requiring the development-only
   `cross-env` package in a production dependency installation.
-- Startup creates required indexes and may seed admin/schedule documents or finalize
-  results when due. Verify the database and dates before starting. Never run tests
+- Startup verifies the v2 schema, creates indexes and seeds only missing staff/controls.
+  An interrupted open voting window closes on restart; no scheduled dates finalize results. Never run tests
   against the production database.
 
 ## GitHub Actions
 
-The workflow runs on pushes to `main` and supports manual runs on that branch.
+The workflow validates main, `eddie/manual-voting-controls`, and pull requests.
+AWS deployment steps require main plus the existing explicit enable variable.
 It installs locked dependencies, tests against temporary local MongoDB instances,
 and builds both frontends on a GitHub-hosted Ubuntu runner. Backend dependencies,
 including Sharp's Linux binary, are installed on EC2 as the unprivileged `voting`
@@ -52,8 +55,9 @@ The archive contains only the API runtime files and built frontend directories;
 it excludes credentials, development fixtures, tests, and local dependencies.
 SSM passes the commit ID and archive checksum to the root-owned helper. The helper
 checks both, installs dependencies in a new release, switches the current symlink,
-starts the service and checks `/api/v1/settings` for success. It restores the
-previous code release if startup fails. Deployment is serialized in GitHub and by
+starts the service and checks auth readiness, the production audience/cookie contract,
+and public HTTPS website shells. It restores previous code only when its manifest
+and protected-configuration fingerprint are compatible; otherwise it stops closed. Deployment is serialized in GitHub and by
 a server-side lock. A first deployment has no previous release to restore.
 
 ## Recovery and maintenance

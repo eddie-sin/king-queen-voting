@@ -6,7 +6,7 @@ Current role/workspace and Lantern extensions are documented in [role workspaces
 
 Express/Mongoose API with React student and admin websites. This branch replaces the scheduled/key-based voting system with manual event controls.
 
-**Implementation phase:** the application changes are on `eddie/manual-voting-controls`. Focused authentication, role, Lantern, frontend and browser checks are implemented; full voting-event capacity testing, the remaining legacy backend test rewrite, deployment preparation and rollback rehearsal remain separate. Nothing in this branch is deployed automatically.
+**Authentication release preparation:** changes remain on `eddie/manual-voting-controls`. See [the launch runbook](deploy/LAUNCH.md) for isolated tests, production configuration, exact-commit packaging and rollback rehearsal. Public deployment, real-domain provider checks and whole-event capacity certification remain separate. This branch is not deployed automatically.
 
 ## Setup for this version
 
@@ -118,6 +118,6 @@ Wish Sky, music, Lantern browsing, student Memory Photo upload/history/gallery/l
 
 ## Checks and next phase
 
-Run `npm run test:auth` for isolated Google verification, student-account/session/mail checks, focused staff/Memory/Lantern/title checks and browser auth coverage. Run `npm --prefix frontend test` for frontend adapter/domain tests. Production builds of both websites and the backend dependency audit are checked as well. The legacy root `npm test` still includes retired election-model tests; see the authentication guide for exact results and limits.
+Run `npm run test:auth` for isolated Google verification, student-account/session/mail checks, focused staff/Memory/Lantern/title checks and browser auth coverage. Run `npm --prefix frontend test` for frontend adapter/domain tests. Production builds of both websites and the backend dependency audit are checked as well. The root `npm test` combines the migrated v2 regressions with the detailed cookie-based Memory suites. `npm run test:all` adds authentication, browser, HTTPS proxy and release-policy checks.
 
 Thirty concurrent registration starts are covered. A separate event-capacity pass must still cover 100 simultaneous votes, voting crash recovery and the remaining old backend test contracts. Deployment-helper changes, compatible configuration/database cutover, and rollback rehearsal also remain separate. Do not merge/deploy this branch based on compilation alone. The existing main-only deployment workflow has not been changed in this implementation phase.

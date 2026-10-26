@@ -89,7 +89,7 @@ async function cooldown(email) {
 }
 (async () => {
   await mongoose.connect(
-    `mongodb://127.0.0.1:27018/${database}?replicaSet=kqvLocal`,
+    process.env.AUTH_TEST_MONGO_URI.replace("/?", `/${database}?`),
     { autoCreate: false, autoIndex: false, serverSelectionTimeoutMS: 3000 },
   );
   try {
@@ -243,6 +243,7 @@ async function cooldown(email) {
     });
     assert.equal(linked.user.id, uid);
     await a.request("/auth/me");
+    assert.equal((await a.request("/wishes/mine")).used,1);
     await a.request(
       "/auth/google/link/verify",
       { flowId: link.flowId, code: "000000" },
@@ -324,6 +325,13 @@ async function cooldown(email) {
       { flowId: pending.flowId, code: await code(pending) },
       400,
     );
+    // Google-only accounts add a password through ownership-proven recovery.
+    await cooldown("second@gmail.com");
+    const addPassword = await a.request("/auth/password/recovery/start",{email:"second@gmail.com",operationId:op()});
+    const addGrant = await a.request("/auth/password/recovery/verify",{flowId:addPassword.flowId,code:await code(addPassword)});
+    await a.request("/auth/password/recovery/complete",{resetId:addGrant.resetId,password:"google-added-password123"});
+    const addedLogin=await a.request("/auth/login",{email:"second@gmail.com",password:"google-added-password123"});
+    assert.equal(addedLogin.user.id,second.user.id);
     await User.updateOne(
       { _id: second.user.id },
       { $set: { status: "disabled" } },
@@ -419,19 +427,37 @@ async function cooldown(email) {
     );
     // Thirty independent browsers sharing an IP can start registration. No real mail is sent.
     await Limit.deleteMany({});
+    const burstStarted = performance.now();
+    const durations=[];
     const batch = await Promise.all(
       Array.from({ length: 30 }, async (_, n) => {
         const peer = client();
         await peer.init();
-        return peer.request("/auth/register/start", {
+        const started=performance.now();
+        const result = await peer.request("/auth/register/start", {
           email: `burst${n}@gmail.com`,
           password: "password123",
           operationId: op(),
         });
+        durations.push(performance.now()-started);return result;
       }),
     );
     assert.equal(new Set(batch.map((f) => f.flowId)).size, 30);
+    durations.sort((a,b)=>a-b);
+    console.log(`Shared-IP signup burst: ${batch.length}/30 accepted, 0 unexpected refusals; total ${Math.round(performance.now()-burstStarted)}ms, p50 ${Math.round(durations[14])}ms, p95 ${Math.round(durations[28])}ms. Fake mail only.`);
     assert.equal((await Limit.findById(`mail-signup:${day}`)).count, 30);
+    const loadHash=await require("../utils/passwords").hash("shared-ip-password123");
+    await User.create(Array.from({length:10},(_,n)=>({email:`signinburst${n}@gmail.com`,emailKey:`signinburst${n}@gmail.com`,emailVerifiedAt:new Date(),passwordHash:loadHash})));
+    for(const kind of ["login","recovery"]){
+      const began=performance.now(),times=[];
+      await Promise.all(Array.from({length:10},async(_,n)=>{
+        const peer=client();await peer.init();const started=performance.now();
+        if(kind==="login")await peer.request("/auth/login",{email:`signinburst${n}@gmail.com`,password:"shared-ip-password123"});
+        else await peer.request("/auth/password/recovery/start",{email:`signinburst${n}@gmail.com`,operationId:op()});
+        times.push(performance.now()-started);
+      }));times.sort((a,b)=>a-b);
+      console.log(`Shared-IP ${kind} burst: 10/10 accepted, 0 unexpected refusals; total ${Math.round(performance.now()-began)}ms, p50 ${Math.round(times[4])}ms, p95 ${Math.round(times[9])}ms. Fake mail only.`);
+    }
     await c.request("/auth/register/start", {
       email: "queuefailure@gmail.com",
       password: "password123",
@@ -504,6 +530,13 @@ async function cooldown(email) {
     const failed = await c.request("/auth/pending");
     assert.equal(failed.delivery, "failed");
     assert.match(failed.deliveryMessage, /allowance/);
+    await Limit.updateOne({_id:`password-attempt:${security.digest("eddie@gmail.com")}`},{$set:{count:20,until:new Date(Date.now()+900000)}},{upsert:true});
+    await a.request("/auth/login",{email:"ed.die+alias@gmail.com",password:"newpassword123"},429);
+    // Returning Google identity still signs in during email/quota exhaustion.
+    start = await a.request("/auth/google/start",{});
+    google.verify = async()=>({email:"eddie@gmail.com",emailKey:"eddie@gmail.com",sub:"google-eddie",nonce:start.nonce});
+    await a.request("/auth/google/complete",{flowId:start.flowId,credential:"fake",operationId:op()});
+    google.verify = original;
     // Expired session denied even before TTL cleanup.
     await Session.updateMany({}, { $set: { expiresAt: new Date(0) } });
     await a.request("/auth/me", null, 401);

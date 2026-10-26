@@ -1,4 +1,4 @@
-import { csrfHeaders } from '../authSession.js';
+import { csrfHeaders, clearAuthConfig } from '../authSession.js';
 // Only id + message cross the presentation boundary. Authors/timestamps are discarded.
 export const WISH_LIMIT = 3;
 export function publicWish(raw) {
@@ -29,6 +29,7 @@ export function createWishApi(config = null) {
       const response = await fetchImpl(baseUrl + spec.path, { method:spec.method || 'GET', signal:controller.signal, cache:'no-store',credentials:'same-origin',
         headers:{Accept:'application/json',...((spec.method||'GET')!=='GET'?await csrfHeaders(fetchImpl,baseUrl):{}),...(spec.body?{'Content-Type':'application/json'}:{})},...(spec.body?{body:JSON.stringify(spec.body)}:{}) });
       let body;try{body=await response.json();}catch{throw new WishError('The wish response could not be read.',{status:response.status,interrupted:spec.method==='POST'});}
+      if(response.status===403)clearAuthConfig();
       if(!response.ok || body.status==='fail' || body.status==='error') throw new WishError(response.status===401?'Please sign in again to release a wish.':response.status===403||response.status===409?'This wish could not be released. Refresh your remaining wishes.':'The wish service could not complete this request.',{status:response.status,interrupted:response.status>=500&&spec.method==='POST'});
       return body;
     }catch(error){if(error instanceof WishError)throw error;throw new WishError('Connection interrupted. Please check your connection.',{interrupted:spec.method==='POST'});}

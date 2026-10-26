@@ -2,6 +2,8 @@ name: Check and deploy EC2
 
 on:
   push:
+    branches: [main, eddie/manual-voting-controls]
+  pull_request:
     branches: [main]
   workflow_dispatch:
 
@@ -10,7 +12,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: king-queen-voting-production
+  group: king-queen-voting-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -50,20 +52,27 @@ jobs:
           tar -xzf "$RUNNER_TEMP/mongodb.tgz" --strip-components=1 -C "$RUNNER_TEMP/mongodb"
           echo "MONGOD_BINARY=$RUNNER_TEMP/mongodb/bin/mongod" >> "$GITHUB_ENV"
 
+      - name: Install isolated browser engines
+        run: cd frontend && npx playwright install --with-deps chromium webkit
+
+      - name: Install local proxy test binary
+        run: sudo apt-get install --yes --no-install-recommends nginx
+
       - name: Test backend and both frontends without Atlas
         run: |
           npm test
+          npm run test:auth
+          npm run test:nginx
           npm --prefix frontend test
           npm --prefix admin test
+          python3 -m unittest discover -s deploy -p "test_*.py"
 
       - name: Build voter and admin websites
         run: |
-          npm --prefix frontend run build
-          npm --prefix admin run build -- --base=/admin/
-          python3 deploy/make-release.py --output "$RUNNER_TEMP/voting-release.tar.gz"
+          python3 deploy/build-release.py --output "$RUNNER_TEMP/voting-release.tar.gz"
 
       - name: Authenticate to AWS with temporary credentials
-        if: vars.KQV_DEPLOY_ENABLED == 'true' && github.ref == 'refs/heads/main'
+        if: vars.KQV_DEPLOY_ENABLED == 'true' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
           role-to-assume: ${{ vars.KQV_DEPLOY_ROLE_ARN }}
@@ -73,7 +82,7 @@ jobs:
           allowed-account-ids: '052081696303'
 
       - name: Upload release and deploy through Systems Manager
-        if: vars.KQV_DEPLOY_ENABLED == 'true' && github.ref == 'refs/heads/main'
+        if: vars.KQV_DEPLOY_ENABLED == 'true' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         env:
           DEPLOY_BUCKET: ${{ vars.KQV_DEPLOY_BUCKET }}
           INSTANCE_ID: ${{ vars.KQV_INSTANCE_ID }}

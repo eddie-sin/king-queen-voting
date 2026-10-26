@@ -1,8 +1,8 @@
 # Legacy API test migration to v2
 
 `test/api.test.js` previously exercised the retired Election, fixed-schedule,
-finalist and voting-key architecture. The historical source remains commented in
-that file as a reviewable migration record; its current executable cases live in
+finalist and voting-key architecture. The historical entry point remains in
+that file; its current executable cases live in
 `test/apiV2.cjs`. They use the random disposable replica set and local storage
 owned by `test/fixtures/v2Fixture.cjs`.
 

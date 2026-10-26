@@ -23,9 +23,10 @@ export default function PrivacyPage() {
           Votes are linked to your account to enforce voting limits. Individual
           choices are not publicly listed; candidate totals are shown when
           organisers open announcements. Wishes are public. Approved Memory
-          Photos appear in the public gallery; submitted originals and
-          moderation history are restricted to their owner and authorised staff.
-          Likes and submission limits are linked to accounts.
+          Photos and their images appear in the public gallery. Pending and
+          rejected images are available to authorised staff for moderation.
+          You can check your submission status and allowance in My Memories.
+          Moderation decisions, likes and submission limits are linked to accounts.
         </p>
         <h2>Service providers and retention</h2>
         <p>
