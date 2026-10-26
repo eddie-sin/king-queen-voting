@@ -41,7 +41,7 @@ exports.getWishes = catchAsync(async (req, res) => {
   const found = await query;
   const wishes = found.slice(0, limit);
   const nextCursor = found.length > limit && wishes.length ? encodeCursor(wishes[wishes.length - 1]) : null;
-  res.status(200).json({ status: "success", results: wishes.length, data: { wishes: wishes.map(publicWish), page, nextCursor } });
+  res.status(200).json({ status: "success", results: wishes.length, data: { wishes: wishes.map(publicWish), page, nextCursor, total: await Wish.countDocuments({}) } });
 });
 
 exports.createWish = catchAsync(async (req, res) => {

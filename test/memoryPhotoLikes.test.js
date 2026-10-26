@@ -13,7 +13,8 @@ process.env.NODE_ENV = "test";
 process.env.JWT_SECRET = crypto.randomBytes(32).toString("hex");
 const app = require("../app");
 const User = require("../model/usersModel");
-const Election = require("../model/electionModel");
+const Controls = require("../model/eventControlsModel");
+const { createUser, studentToken, headers: authHeaders } = require("./helpers/accounts.cjs");
 const MemoryPhoto = require("../model/memoryPhotosModel");
 const Like = require("../model/memoryPhotoLikesModel");
 const Quota = require("../model/memoryPhotoQuotasModel");
@@ -28,7 +29,7 @@ let token;
 let otherToken;
 let photo;
 
-const sign = (account) => jwt.sign({ userId: String(account._id), role: "user" }, process.env.JWT_SECRET);
+const sign = studentToken;
 before(async () => {
   directory = await fs.mkdtemp(path.join(os.tmpdir(), "memory-photo-likes-"));
   const listener = net.createServer();
@@ -36,7 +37,7 @@ before(async () => {
   const port = listener.address().port;
   await new Promise((resolve) => listener.close(resolve));
   mongo = spawn(process.env.MONGOD_BINARY || "mongod", [
-    "--bind_ip", "127.0.0.1", "--port", String(port), "--dbpath", directory,
+    "--replSet", "isolatedTests", "--bind_ip", "127.0.0.1", "--port", String(port), "--dbpath", directory,
     "--logpath", path.join(directory, "mongod.log"),
   ], { stdio: "ignore" });
   let spawnError;
@@ -54,25 +55,25 @@ before(async () => {
         await new Promise((resolve) => setTimeout(resolve, 100));
       }
     }
+    await require("./helpers/replica.cjs").initialize(client, port);
   } finally { await client.close(); }
   await mongoose.connect(`mongodb://127.0.0.1:${port}/memory_photo_likes_test`);
-  await Promise.all([User.init(), Election.init(), MemoryPhoto.init(), Like.init(), Quota.init()]);
+  await Promise.all([...Object.values(mongoose.models).map(model => model.init()), Controls.init(), MemoryPhoto.init(), Like.init(), Quota.init()]);
   server = app.listen(0, "127.0.0.1");
   await new Promise((resolve) => server.once("listening", resolve));
   base = `http://127.0.0.1:${server.address().port}/api/v1/memory-photos`;
 }, { timeout: 30000 });
 
 beforeEach(async () => {
-  await Promise.all([User.deleteMany({}), Election.deleteMany({}), MemoryPhoto.deleteMany({}), Like.deleteMany({}), Quota.deleteMany({})]);
-  [user, other] = await User.create([
-    { email: "one@example.com", passwordHash: "test-only-hash" },
-    { email: "two@example.com", passwordHash: "test-only-hash" },
+  await Promise.all([User.deleteMany({}), Controls.deleteMany({}), MemoryPhoto.deleteMany({}), Like.deleteMany({}), Quota.deleteMany({})]);
+  [user, other] = await createUser([
+    { email: "one@gmail.com", passwordHash: "test-only-hash" },
+    { email: "two@gmail.com", passwordHash: "test-only-hash" },
   ]);
-  token = sign(user);
-  otherToken = sign(other);
+  token = await sign(user);
+  otherToken = await sign(other);
   photo = await MemoryPhoto.create({ owner: user._id, imageKey: "private/not-read-for-likes.png", status: "APPROVED" });
-  await Election.create({ registrationClosesAt: new Date("2026-11-06"), votingOpensAt: new Date("2026-10-28"),
-    votingClosesAt: new Date("2026-11-02"), resultsPublishedAt: new Date("2026-11-03"), memoryPhotosEnabled: true });
+  await Controls.create({ _id: "event", memoryPhotosEnabled: true });
 });
 
 after(async () => {
@@ -84,7 +85,7 @@ after(async () => {
 
 const mutate = async (method = "POST", { auth = token, id = photo._id, body, query = "" } = {}) => {
   const response = await fetch(`${base}/${id}/like${query}`, {
-    method, headers: { ...(auth ? { Authorization: `Bearer ${auth}` } : {}), "Content-Type": "application/json" },
+    method, headers: { ...(authHeaders(auth)), "Content-Type": "application/json" },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   return { status: response.status, body: await response.json() };
@@ -114,15 +115,15 @@ test("likes and unlikes are idempotent and use only the authenticated user's ide
 });
 
 test("anonymous, invalid, expired, admin, disabled and deleted users cannot mutate likes", async () => {
-  const adminToken = jwt.sign({ adminId: String(new mongoose.Types.ObjectId()), role: "admin" }, process.env.JWT_SECRET);
-  const expired = jwt.sign({ userId: String(user._id), role: "user" }, process.env.JWT_SECRET, { expiresIn: -1 });
+  const adminToken = jwt.sign({ adminId: String(new mongoose.Types.ObjectId()), role: "admin", v: 0 }, process.env.JWT_SECRET);
+  const expired = await studentToken(user, {expired: true});
   for (const method of ["POST", "DELETE"]) {
-    for (const [auth, status] of [[null, 401], ["invalid", 401], [expired, 401], [adminToken, 403]]) {
+    for (const [auth, status] of [[null, 401], ["invalid", 401], [expired, 401], [adminToken, 401]]) {
       assert.equal((await mutate(method, { auth })).status, status);
     }
   }
   await User.updateOne({ _id: user._id }, { status: "disabled" });
-  for (const method of ["POST", "DELETE"]) assert.equal((await mutate(method)).status, 403);
+  for (const method of ["POST", "DELETE"]) assert.equal((await mutate(method)).status, 401);
   await User.deleteOne({ _id: user._id });
   for (const method of ["POST", "DELETE"]) assert.equal((await mutate(method)).status, 401);
   assert.equal(await Like.countDocuments(), 0);
@@ -131,9 +132,9 @@ test("anonymous, invalid, expired, admin, disabled and deleted users cannot muta
 test("disabled and missing feature configuration prevents changes and preserves existing likes", async () => {
   await mutate();
   for (const change of [
-    () => Election.updateOne({}, { memoryPhotosEnabled: false }),
-    () => Election.collection.updateOne({}, { $unset: { memoryPhotosEnabled: "" } }),
-    () => Election.deleteMany({}),
+    () => Controls.updateOne({}, { memoryPhotosEnabled: false }),
+    () => Controls.collection.updateOne({}, { $unset: { memoryPhotosEnabled: "" } }),
+    () => Controls.deleteMany({}),
   ]) {
     await change();
     for (const method of ["POST", "DELETE"]) assert.equal((await mutate(method)).status, 403);
@@ -223,7 +224,7 @@ const likeStatus = async ({ auth = token, query = `photoIds=${photo._id}`, body,
   const data = body === undefined ? undefined : typeof body === "string" ? body : JSON.stringify(body);
   return new Promise((resolve, reject) => {
     const request = http.request(`${base}/like-status${query ? `?${query}` : ""}`, {
-      method: "GET", headers: { ...(auth ? { Authorization: `Bearer ${auth}` } : {}),
+      method: "GET", headers: { ...(authHeaders(auth)),
         ...(data === undefined ? {} : { "Content-Type": contentType, "Content-Length": Buffer.byteLength(data) }) },
     }, response => {
       let text = ""; response.setEncoding("utf8"); response.on("data", chunk => text += chunk);
@@ -248,7 +249,7 @@ test("like-status isolates students, returns true/false in requested order and i
   ]);
   assert.deepEqual(await Like.find().sort({ _id: 1 }).lean(), before);
   assert.equal(first.headers["cache-control"], "private, no-store");
-  assert.match(first.headers.vary, /Authorization/i);
+  assert.match(first.headers.vary, /Cookie/i);
   for (const entry of first.body.data.photos) assert.deepEqual(Object.keys(entry).sort(), ["liked", "photoId"]);
 });
 
@@ -267,14 +268,14 @@ test("like-status uniformly omits missing, pending, rejected and cancellation ma
 });
 
 test("like-status enforces active student authentication and private error headers", async () => {
-  const admin = jwt.sign({ adminId: String(new mongoose.Types.ObjectId()), role: "admin" }, process.env.JWT_SECRET);
-  const expired = jwt.sign({ userId: String(user._id), role: "user" }, process.env.JWT_SECRET, { expiresIn: -1 });
-  for (const [auth, expected] of [[null, 401], ["invalid", 401], [expired, 401], [admin, 403]]) {
+  const admin = jwt.sign({ adminId: String(new mongoose.Types.ObjectId()), role: "admin", v: 0 }, process.env.JWT_SECRET);
+  const expired = await studentToken(user, {expired: true});
+  for (const [auth, expected] of [[null, 401], ["invalid", 401], [expired, 401], [admin, 401]]) {
     const response = await likeStatus({ auth }); assert.equal(response.status, expected);
     assert.equal(response.headers["cache-control"], "private, no-store");
   }
   await User.updateOne({ _id: user._id }, { status: "disabled" });
-  assert.equal((await likeStatus()).status, 403);
+  assert.equal((await likeStatus()).status, 401);
   await User.deleteOne({ _id: user._id }); assert.equal((await likeStatus()).status, 401);
 });
 
@@ -299,8 +300,8 @@ test("like-status accepts the full 50-ID boundary and rejects request bodies inc
 
 test("like-status respects disabled and absent feature configuration", async () => {
   await mutate();
-  for (const change of [() => Election.updateOne({}, { memoryPhotosEnabled: false }),
-    () => Election.collection.updateOne({}, { $unset: { memoryPhotosEnabled: "" } }), () => Election.deleteMany({})]) {
+  for (const change of [() => Controls.updateOne({}, { memoryPhotosEnabled: false }),
+    () => Controls.collection.updateOne({}, { $unset: { memoryPhotosEnabled: "" } }), () => Controls.deleteMany({})]) {
     await change(); const result = await likeStatus(); assert.equal(result.status, 403);
     assert.equal(result.headers["cache-control"], "private, no-store"); assert.equal(await Like.countDocuments(), 1);
   }

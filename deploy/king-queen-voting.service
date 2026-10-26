@@ -11,6 +11,7 @@ User=voting
 Group=voting
 WorkingDirectory=/srv/king-queen-voting/current
 Environment=NODE_ENV=production
+Environment=AUTH_ENVIRONMENT=production
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
 ExecStart=/usr/local/bin/node server.js
 Restart=on-failure

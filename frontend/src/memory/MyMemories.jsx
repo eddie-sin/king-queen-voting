@@ -16,7 +16,7 @@ function ApprovedMemory({ photo, index, imageUrl, onView, onRefresh }) {
 }
 
 const messages = {
-  anonymous: ['A little place of your own.', 'Sign in with your student account to see your submissions. Your voting key is not needed.'],
+  anonymous: ['A little place of your own.', 'Sign in with your student account to see your submissions. Your submissions are saved to your account.'],
   loading: ['Opening your keepsake…', 'Gathering your photos and current submission allowance.'],
   expired: ['A fresh hello.', 'Your session has expired. Please sign in again to view your memories.'],
   forbidden: ['Student access is unavailable.', 'This account cannot view student submissions. Try an active student account.'],

@@ -1,7 +1,8 @@
+import { authConfig, csrfHeaders, clearAuthConfig } from './authSession.js';
 import { parseLikeStates, parseLikeMutation } from './memory/likes.js';
 import { uploadSelectionError, parseUploadedMemory } from './memory/upload.js';
 import { parseMemoryGallery } from './memory/gallery.js';
-import { publicCandidate, publicFinalists, publicLantern } from './domain.js';
+import { publicCandidate, publicResults, publicLantern } from './domain.js';
 import { parseMyMemories } from './memory/mine.js';
 
 export class ApiError extends Error {
@@ -20,17 +21,18 @@ export function createApi({ baseUrl = '/api/v1', fetchImpl = (...args) => fetch(
     const multipart = body instanceof FormData;
     try {
       const response = await fetchImpl(baseUrl + path, {
-        method, signal: controller.signal, cache: 'no-store', credentials: 'omit',
-        headers: { Accept: 'application/json', ...(body && !multipart ? { 'Content-Type': 'application/json' } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        method, signal: controller.signal, cache: 'no-store', credentials: 'same-origin',
+        headers: { Accept: 'application/json', ...(body && !multipart ? { 'Content-Type': 'application/json' } : {}), ...(!['GET','HEAD'].includes(method) ? await csrfHeaders(fetchImpl,baseUrl) : {}) },
         ...(body ? { body: multipart ? body : JSON.stringify(body) } : {}),
       });
       let payload;
       try { payload = await response.json(); } catch {
         throw new ApiError('The server returned an unreadable response. Please try refreshing.', { status: response.status, interrupted: method !== 'GET' });
       }
+      if (response.status === 403) clearAuthConfig();
       if (!response.ok || payload.status !== 'success') {
-        // Do not expose a key even if a backend error inadvertently echoes one.
-        const message = typeof payload.message === 'string' ? payload.message.replace(/[a-f0-9]{64}/gi, '[private key]') : 'The request could not be completed.';
+        // Keep accidental long secret-like strings out of error messages.
+        const message = typeof payload.message === 'string' ? payload.message.replace(/[a-f0-9]{64}/gi, '[redacted]') : 'The request could not be completed.';
         throw new ApiError(message, { status: response.status, interrupted: response.status >= 500 });
       }
       return payload;
@@ -42,6 +44,13 @@ export function createApi({ baseUrl = '/api/v1', fetchImpl = (...args) => fetch(
     }
   }
   return {
+    authConfig: () => authConfig(fetchImpl,baseUrl),
+    async authAction(path, body) { return (await request('/auth'+path,{method:'POST',body})).data; },
+    async pendingAuth() { return (await request('/auth/pending')).data; },
+    async logout() { return request('/auth/logout',{method:'POST',body:{}}); },
+    async lanternStatus() { return (await request('/lantern-voting')).data; },
+    async myLanternVote(token) { return (await request('/lantern-voting/mine', {token})).data; },
+    async voteLantern(token, lanternId, window) { return request('/lantern-voting', {method:'POST',token,body:{lanternId,window}}); },
     async memoryPhotoLikeStates(token, photoIds, options = {}) {
       if (!token) throw new ApiError('Please sign in first.', { status: 401 });
       if (!Array.isArray(photoIds) || photoIds.length < 1 || photoIds.length > 50 || photoIds.some(id => !/^[a-f0-9]{24}$/i.test(id)) || new Set(photoIds.map(id => id.toLowerCase())).size !== photoIds.length) throw new ApiError('Invalid photo IDs.');
@@ -88,14 +97,13 @@ export function createApi({ baseUrl = '/api/v1', fetchImpl = (...args) => fetch(
       if (!Array.isArray(data?.images)) throw new ApiError('Lantern gallery data is unavailable.');
       return data.images.map(publicLantern).filter(Boolean);
     },
-    async settings(options) { return (await request('/settings', options)).data?.schedule ?? null; },
-    async finalists(options) { return publicFinalists((await request('/results', options)).data?.results); },
-    async register(email, password) { return (await request('/auth/register', { method: 'POST', body: { email, password } })).data; },
+    async settings(options) { return (await request('/settings', options)).data?.controls ?? null; },
+    async results(options) { return publicResults((await request('/results', options)).data?.results); },
+    async register(email, password, operationId = crypto.randomUUID()) { return (await request('/auth/register', { method: 'POST', body: { email, password, operationId } })).data; },
     async login(email, password) { return (await request('/auth/login', { method: 'POST', body: { email, password } })).data; },
     async me(token) { return (await request('/auth/me', { token })).data?.user; },
-    async myVotes(token, votingKey) { return (await request('/voting/my-votes', { method: 'POST', token, body: { votingKey } })).data?.votes; },
-    async submit(token, votingKey, candidateId, contest) { return request('/voting/submit', { method: 'POST', token, body: { votingKey, candidateId, contest } }); },
-    async change(token, votingKey, candidateId, contest) { return request('/voting/change', { method: 'PATCH', token, body: { votingKey, candidateId, contest } }); },
-    async remove(token, votingKey, contest) { return request('/voting/remove', { method: 'DELETE', token, body: { votingKey, contest } }); },
+    async session() { return (await request('/auth/me')).data; },
+    async myVotes(token) { return (await request('/voting/my-votes', { token })).data; },
+    async submit(token, candidateId, contest, controls) { return request('/voting/submit', { method: 'POST', token, body: { candidateId, contest, round: controls.round, window: controls.window } }); },
   };
 }

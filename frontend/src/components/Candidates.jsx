@@ -32,7 +32,7 @@ export function CandidateProfile({ candidate, selected, canVote, actionLabel, on
         {candidate.bio && <p className="biography">{candidate.bio}</p>}
         {candidate.hobbiesAndInterests?.length > 0 && <div className="interests"><h3>Little things they love</h3><div>{candidate.hobbiesAndInterests.map((hobby, index) => <span className="chip" key={`${hobby}-${index}`}>{hobby}</span>)}</div></div>}
         <div className="profile-action"><Crown/>{selected ? <p className="gold">✓ Your crown is here</p> : <button className="btn primary" disabled={!canVote} onClick={() => onVote(candidate)}>{actionLabel}</button>}
-        <p className="fine-print">{votingStatus === 'open' ? 'One King. One Queen. Your choices, your celebration.' : 'Meet the candidates now. Voting follows the event schedule.'}</p></div>
+        <p className="fine-print">{votingStatus === 'open' ? 'One King. One Queen. Your choices, your celebration.' : 'Meet the candidates now. The organisers control when voting opens.'}</p></div>
       </div>
     </div>
   </Dialog>;

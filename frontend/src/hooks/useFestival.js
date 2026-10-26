@@ -1,268 +1,173 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { finalistsState, savedChoices, scheduleState, validKey } from '../domain.js';
-
+import { announcementState, eventState, savedChoices } from '../domain.js';
 const EMPTY = { king: null, queen: null };
-const SESSION_STORAGE_KEY = 'thadingyut_voter_session';
-
-export function readStoredSession() {
-  try {
-    if (typeof localStorage === 'undefined') return null;
-    const raw = localStorage.getItem(SESSION_STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return parsed?.token && parsed?.user ? { token: parsed.token, user: parsed.user } : null;
-  } catch {
-    return null;
-  }
-}
-
-export function writeStoredSession(value) {
-  try {
-    if (typeof localStorage === 'undefined') return;
-    if (value?.token && value?.user) {
-      localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ token: value.token, user: value.user }));
-    } else {
-      localStorage.removeItem(SESSION_STORAGE_KEY);
-    }
-    if (typeof window !== 'undefined') window.dispatchEvent(new Event('festival-session-change'));
-  } catch {
-    // Ignore storage errors in private browsing or restricted environments.
-  }
-}
-
+import {readStoredSession,writeStoredSession,announceAccountChange} from '../authSession.js';
+export {readStoredSession,writeStoredSession} from '../authSession.js';
 export function useFestival(api) {
-  const [candidates, setCandidates] = useState([]);
-  const [candidateState, setCandidateState] = useState('loading');
-  const [candidateError, setCandidateError] = useState('');
-  const [lanterns, setLanterns] = useState([]);
-  const [lanternState, setLanternState] = useState('loading');
-  const [lanternError, setLanternError] = useState('');
-  const [schedule, setSchedule] = useState(null);
-  const [scheduleError, setScheduleError] = useState('');
-  const [checkedAt, setCheckedAt] = useState(0);
-  const [now, setNow] = useState(Date.now());
-  const [session, setSession] = useState(readStoredSession);
-  const sessionRef = useRef(session);
-  const keyRef = useRef(''); // Never persisted; only POST/PATCH/DELETE JSON bodies carry this value.
-  const epoch = useRef(0);
-  const lock = useRef(false);
-  const [choices, setChoices] = useState(EMPTY);
-  const [choiceState, setChoiceState] = useState('locked');
-  const choiceStateRef = useRef('locked');
-  const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState(null);
-  const [celebration, setCelebration] = useState(0);
-  const scheduleRef = useRef(null);
-  const checkedAtRef = useRef(0);
-
-  const updateSession = useCallback(next => {
-    sessionRef.current = next;
-    setSession(next);
-    writeStoredSession(next);
-  }, []);
-  const markChoices = useCallback(state => { choiceStateRef.current = state; setChoiceState(state); }, []);
-  const lockChoices = useCallback(() => { keyRef.current = ''; setChoices(EMPTY); markChoices('locked'); }, [markChoices]);
-  const signOut = useCallback((message = 'Signed out. Your session and voting key have been cleared.') => {
-    epoch.current++; updateSession(null); lockChoices();
-    setNotice({ type: 'info', text: message });
-  }, [lockChoices, updateSession]);
-
+  const [candidates, setCandidates] = useState([]), [candidateState, setCandidateState] = useState('loading'), [candidateError, setCandidateError] = useState('');
+  const [lanterns, setLanterns] = useState([]), [lanternState, setLanternState] = useState('loading'), [lanternError, setLanternError] = useState('');
+  const [controls, setControls] = useState(null), [controlsError, setControlsError] = useState(''), [checkedAt, setCheckedAt] = useState(0), [now, setNow] = useState(Date.now());
+  const [session, setSession] = useState(readStoredSession), [choices, setChoices] = useState(EMPTY), [choiceState, setChoiceState] = useState('loading');
+  const [busy, setBusy] = useState(false), [notice, setNotice] = useState(null), [celebration, setCelebration] = useState(0);
+  const [results, setResults] = useState(null), [resultsLoad, setResultsLoad] = useState('idle'), [resultsError, setResultsError] = useState('');
+  const current = useRef({ controls: null, checkedAt: 0, session, choices: EMPTY, choiceState: 'loading', results: null });
+  const epoch = useRef(0), locked = useRef(false), mounted = useRef(true), statusSequence = useRef(0), accountSequence = useRef(0), resultSequence = useRef(0);
+  const updateSession = useCallback(next => { current.current.session = next; setSession(next); writeStoredSession(next); }, []);
+  const markChoices = state => { current.current.choiceState = state; setChoiceState(state); };
+  const clearChoices = () => { current.current.choices = EMPTY; setChoices(EMPTY); markChoices('loading'); };
+  const signOut = useCallback(async (message = 'Signed out.') => {
+    try { await api.logout?.(); } catch { setNotice({type:'error',text:'Sign-out could not be confirmed. Check your connection and retry.'}); return; }
+    window.google?.accounts?.id?.disableAutoSelect(); announceAccountChange();
+    epoch.current++; accountSequence.current++; current.current.choices = EMPTY; current.current.choiceState = 'loading';
+    updateSession(null); setChoices(EMPTY); setChoiceState('loading'); setNotice({ type: 'info', text: message });
+  }, [api, updateSession]);
   const loadCandidates = useCallback(async () => {
-    setCandidateState('loading'); setCandidateError('');
-    try { setCandidates(await api.candidates()); setCandidateState('ready'); }
-    catch (e) { setCandidateState('error'); setCandidateError(e.message); }
-  }, [api]);
-  const loadSchedule = useCallback(async () => {
-    try {
-      const value = await api.settings();
-      if (!value) throw new Error('The event schedule is unavailable.');
-      scheduleRef.current = value; checkedAtRef.current = Date.now();
-      setSchedule(value); setCheckedAt(checkedAtRef.current); setScheduleError('');
-      return value;
-    } catch (e) {
-      checkedAtRef.current = 0; setCheckedAt(0); setScheduleError(e.message); return null;
-    }
+    setCandidateState('loading');
+    try { const value = await api.candidates(); if (mounted.current) { setCandidates(value); setCandidateState('ready'); setCandidateError(''); } }
+    catch (error) { if (mounted.current) { setCandidateState('error'); setCandidateError(error.message); } }
   }, [api]);
   const loadLanterns = useCallback(async () => {
-    setLanternState('loading'); setLanternError('');
-    try { setLanterns(await api.lanterns()); setLanternState('ready'); }
-    catch (e) { setLanternState('error'); setLanternError(e.message); }
+    setLanternState('loading');
+    try { const value = await api.lanterns(); if (mounted.current) { setLanterns(value); setLanternState('ready'); setLanternError(''); } }
+    catch (error) { if (mounted.current) { setLanternState('error'); setLanternError(error.message); } }
   }, [api]);
-  useEffect(() => { loadCandidates(); loadSchedule(); loadLanterns(); }, [loadCandidates, loadSchedule, loadLanterns]);
-  useEffect(() => {
-    const clock = setInterval(() => setNow(Date.now()), 1000);
-    const poll = setInterval(loadSchedule, 30000);
-    const focus = () => { setNow(Date.now()); loadSchedule(); };
-    window.addEventListener('focus', focus);
-    return () => { clearInterval(clock); clearInterval(poll); window.removeEventListener('focus', focus); };
-  }, [loadSchedule]);
-
-  const fresh = checkedAt > 0 && now - checkedAt < 90000;
-  const status = fresh ? scheduleState(schedule, now) : { registration: 'unknown', voting: 'unknown' };
-  const statusRef = useRef(status); statusRef.current = status;
-  const openNow = () => checkedAtRef.current > 0 && Date.now() - checkedAtRef.current < 90000 && scheduleState(scheduleRef.current).voting === 'open';
-
-  // Finalists: 'idle' → 'loading' → 'ready'; 'pending' when the server is not releasing them yet.
-  const finalistStage = fresh ? finalistsState(schedule, now) : 'unknown';
-  const [finalists, setFinalists] = useState(null);
-  const [finalistLoad, setFinalistLoad] = useState('idle');
-  const [finalistError, setFinalistError] = useState('');
-  const loadFinalists = useCallback(async () => {
-    setFinalistLoad('loading'); setFinalistError('');
-    try { setFinalists(await api.finalists()); setFinalistLoad('ready'); }
-    catch (e) {
-      if (e.status === 403 || e.status === 404) { setFinalists(null); setFinalistLoad('pending'); }
-      else { setFinalistLoad('error'); setFinalistError(e.message); }
-    }
-  }, [api]);
-  useEffect(() => {
-    if (finalistStage === 'announced' && finalistLoad === 'idle') loadFinalists();
-    // If the schedule moves the announcement back, hide anything already loaded.
-    if (finalistStage === 'waiting' && finalistLoad !== 'idle') { setFinalists(null); setFinalistLoad('idle'); }
-  }, [finalistStage, finalistLoad, loadFinalists]);
-  useEffect(() => {
-    // The server may release results a little after the local clock; try again calmly.
-    if (finalistLoad !== 'pending') return;
-    const retry = setTimeout(() => setFinalistLoad('idle'), 60000);
-    return () => clearTimeout(retry);
-  }, [finalistLoad]);
-
-  // Selected identities disappear as soon as the period closes or its state is unknown.
-  useEffect(() => { if (status.voting !== 'open') lockChoices(); }, [status.voting, lockChoices]);
-
-  async function verifyAccount(generation = epoch.current) {
-    const active = sessionRef.current;
+  const refreshChoices = useCallback(async () => {
+    const active = current.current.session;
     if (!active) return false;
+    const generation = epoch.current, sequence = ++accountSequence.current;
     try {
-      const user = await api.me(active.token);
-      if (!user) throw new Error('Account status is unavailable.');
-      if (generation !== epoch.current) return false;
-      const updated = { ...active, user }; updateSession(updated); return true;
-    } catch (e) {
-      if (generation !== epoch.current) return false;
-      if (e.status === 401) signOut('Your login has expired. Please sign in again.');
-      else if (e.status === 403) signOut('This account is disabled or no longer permitted to vote.');
-      else setNotice({ type: 'error', text: 'Account status could not be refreshed. Participation information may be out of date.' });
-      return false;
-    }
-  }
-  useEffect(() => {
-    if (sessionRef.current?.token) verifyAccount();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  useEffect(() => {
-    if (!session) return;
-    const onFocus = () => { verifyAccount(); };
-    window.addEventListener('focus', onFocus);
-    return () => window.removeEventListener('focus', onFocus);
-    // Token determines which account is being checked; user flag updates do not rebind.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session?.token]);
-
-  async function login(email, password) {
-    const generation = ++epoch.current;
-    const data = await api.login(email, password);
-    if (generation !== epoch.current) return;
-    if (!data?.token || !data?.user) throw new Error('The login response is incomplete.');
-    lockChoices(); const next = { token: data.token, user: data.user };
-    updateSession(next); setNotice({ type: 'success', text: 'Welcome back. Enter your voting key to unlock your choices.' });
-    await verifyAccount(generation);
-  }
-  async function register(email, password) {
-    if (statusRef.current.registration !== 'open') throw new Error('Registration is not available right now. Please refresh the schedule.');
-    const data = await api.register(email, password);
-    if (!validKey(data?.votingKey)) throw new Error('Registration responded without a usable key. Do not register again; contact the event organisers.');
-    return data;
-  }
-
-  async function readChoices(key, generation) {
-    const active = sessionRef.current;
-    if (!active || !openNow()) throw new Error('Saved choices can only be viewed while voting is open.');
-    const votes = await api.myVotes(active.token, key);
-    if (generation !== epoch.current || !openNow()) return false;
-    setChoices(savedChoices(votes)); markChoices('ready');
-    // Flags remain useful after the period closes, without revealing identities.
-    const flags = { hasVotedKing: votes.some(v => v.contest === 'king'), hasVotedQueen: votes.some(v => v.contest === 'queen') };
-    const updated = { ...active, user: { ...active.user, ...flags } };
-    updateSession(updated);
-    return true;
-  }
-
-  async function handleKeyError(error, generation) {
-    if (generation !== epoch.current) return;
-    // A key-related 401 does NOT itself invalidate the login. /auth/me decides that.
-    if (error.status === 401 || error.status === 403) {
-      lockChoices(); await verifyAccount(generation);
-    }
-  }
-  async function unlock(key) {
-    if (lock.current) return;
-    if (!validKey(key)) throw new Error('Enter the complete 64-character lowercase voting key.');
-    lock.current = true; setBusy(true); markChoices('loading');
-    const generation = epoch.current;
-    try {
-      if (!await readChoices(key, generation)) throw new Error('The session or voting period changed. Please try again.');
-      keyRef.current = key; setNotice(null);
-    } catch (e) { if (generation === epoch.current) { markChoices('locked'); await handleKeyError(e, generation); } throw e; }
-    finally { lock.current = false; setBusy(false); }
-  }
-  async function refreshChoices() {
-    if (lock.current) return;
-    if (!keyRef.current) { markChoices('locked'); return; }
-    lock.current = true; setBusy(true); markChoices('loading');
-    const generation = epoch.current;
-    try {
-      if (await readChoices(keyRef.current, generation)) setNotice({ type: 'info', text: 'Saved choices refreshed. Review them before making another change.' });
-    } catch (e) {
-      if (generation === epoch.current) { markChoices('uncertain'); setNotice({ type: 'error', text: e.message }); await handleKeyError(e, generation); }
-    } finally { lock.current = false; setBusy(false); }
-  }
-  async function mutate({ contest, candidate, action }) {
-    if (lock.current) return false;
-    if (!sessionRef.current || !keyRef.current || choiceStateRef.current !== 'ready' || !openNow()) {
-      setNotice({ type: 'error', text: 'Unlock and refresh your choices during voting before continuing.' }); return false;
-    }
-    // Decide endpoint from verified choices, never from participation flags alone.
-    const expected = action === 'remove' ? 'remove' : choices[contest] ? 'change' : 'submit';
-    if (action !== expected || (action === 'remove' && !choices[contest])) {
-      setNotice({ type: 'info', text: 'Your choices changed. Please review them and confirm again.' }); return false;
-    }
-    lock.current = true; setBusy(true);
-    const generation = epoch.current; const token = sessionRef.current.token; const key = keyRef.current;
-    try {
-      if (action === 'remove') await api.remove(token, key, contest);
-      else await api[action](token, key, candidate._id, contest);
-      if (generation !== epoch.current) return false;
-      markChoices('loading');
-      const refreshed = await readChoices(key, generation);
-      if (!refreshed) { lockChoices(); setNotice({ type: 'info', text: 'The server accepted the vote request. Voting has since closed; only account participation is now available.' }); await verifyAccount(generation); return true; }
-      setNotice({ type: 'success', text: action === 'remove' ? `Your ${contest} choice has been removed.` : `Your ${contest} choice has been saved.` });
-      if (action !== 'remove') setCelebration(Date.now());
+      const [user, data] = await Promise.all([api.me(active.token), api.myVotes(active.token)]);
+      if (!mounted.current || generation !== epoch.current || sequence !== accountSequence.current) return false;
+      if (!user || !data || !Number.isSafeInteger(data.round) || user.round !== data.round) throw new Error('Account state changed. Refresh your choices.');
+      const controlsNow = current.current.controls;
+      if (controlsNow && data.round !== controlsNow.round) throw new Error('Votes were reset. Refresh your choices.');
+      const selected = savedChoices(data.votes);
+      current.current.choices = selected; setChoices(selected); markChoices('ready');
+      updateSession({ ...active, user: { ...user, hasVotedKing: Boolean(selected.king), hasVotedQueen: Boolean(selected.queen) } });
       return true;
-    } catch (e) {
-      if (generation !== epoch.current) return false;
-      // Never replay a mutation automatically. First obtain authoritative choices.
-      markChoices('uncertain');
-      setNotice({ type: 'error', text: `${e.message} Checking your saved choices before another attempt…` });
-      try {
-        if (await readChoices(key, generation)) {
-          setNotice({ type: 'info', text: 'The request did not finish cleanly. Saved choices have been refreshed; review them before voting again.' });
-        }
-      } catch (readError) {
-        if (generation === epoch.current) {
-          markChoices('uncertain'); setNotice({ type: 'error', text: 'We could not verify your saved choices. Refresh them before making another change.' });
-          await handleKeyError(readError, generation);
-        }
-      }
-      await loadSchedule(); await verifyAccount(generation);
+    } catch (error) {
+      if (!mounted.current || generation !== epoch.current || sequence !== accountSequence.current) return false;
+      if ([401, 403].includes(error.status)) signOut('Your account session ended. Please sign in again.');
+      else { markChoices('uncertain'); setNotice({ type: 'error', text: error.message }); }
       return false;
-    } finally { lock.current = false; setBusy(false); }
+    }
+  }, [api, signOut, updateSession]);
+  const loadResults = useCallback(async () => {
+    const snapshot = current.current.controls;
+    const sequence = ++resultSequence.current;
+    if (announcementState(snapshot) !== 'announced') { current.current.results = null; setResults(null); setResultsLoad('idle'); return; }
+    setResultsLoad('loading'); setResultsError('');
+    try {
+      const value = await api.results();
+      if (!mounted.current || sequence !== resultSequence.current) return;
+      const latest = current.current.controls;
+      if (announcementState(latest) !== 'announced' || value.round !== latest.round || value.revision !== latest.revision) return;
+      current.current.results = value; setResults(value); setResultsLoad('ready');
+    } catch (error) {
+      if (!mounted.current || sequence !== resultSequence.current) return;
+      current.current.results = null; setResults(null); setResultsLoad(error.status === 403 ? 'pending' : 'error'); setResultsError(error.message);
+    }
+  }, [api]);
+  const loadControls = useCallback(async () => {
+    const sequence = ++statusSequence.current;
+    try {
+      const value = await api.settings();
+      if (!value || eventState(value).voting === 'unknown' || !Number.isSafeInteger(value.round) || !Number.isSafeInteger(value.window)) throw new Error('Event status is unavailable.');
+      if (!mounted.current || sequence !== statusSequence.current) return null;
+      const before = current.current.controls;
+      current.current.controls = value; current.current.checkedAt = Date.now();
+      setControls(value); setCheckedAt(current.current.checkedAt); setControlsError(''); setNow(Date.now());
+      if (before && before.round !== value.round) { clearChoices(); await refreshChoices(); }
+      else if (before && (before.window !== value.window || before.votingStatus !== value.votingStatus)) await refreshChoices();
+      if (before && before.candidateManagementLocked && !value.candidateManagementLocked || before && before.window !== value.window) loadCandidates();
+      if (announcementState(value) !== 'announced') {
+        resultSequence.current++; current.current.results = null; setResults(null); setResultsLoad('idle');
+      } else if (!current.current.results || current.current.results.revision !== value.revision) loadResults();
+      return value;
+    } catch (error) {
+      if (mounted.current && sequence === statusSequence.current) {
+        current.current.checkedAt = 0; setCheckedAt(0); setControlsError(error.message);
+        resultSequence.current++; current.current.results = null; setResults(null); setResultsLoad('idle');
+      }
+      return null;
+    }
+  }, [api, refreshChoices, loadCandidates, loadResults]);
+  useEffect(() => {
+    mounted.current = true;
+    loadCandidates(); loadLanterns(); loadControls();
+    restoreSession();
+    let timer, stopped = false;
+    const poll = async () => {
+      await loadControls();
+      if (!stopped) timer = setTimeout(poll, document.hidden ? 30000 : 4500 + Math.random() * 1000);
+    };
+    timer = setTimeout(poll, 5000);
+    const focus = () => { loadControls(); restoreSession(); };
+    const external = event => { if(event.key==='festival-account-change') restoreSession(); };
+    const sync = () => {
+      const next = readStoredSession();
+      if (next?.token !== current.current.session?.token) {
+        epoch.current++; accountSequence.current++; current.current.session = next; setSession(next); clearChoices();
+        if (next) refreshChoices();
+      }
+    };
+    const clock = setInterval(() => setNow(Date.now()), 1000);
+    window.addEventListener('focus', focus); window.addEventListener('storage', external); window.addEventListener('festival-session-change', sync);
+    return () => { stopped = true; mounted.current = false; statusSequence.current++; resultSequence.current++; accountSequence.current++; clearTimeout(timer); clearInterval(clock); window.removeEventListener('focus', focus); window.removeEventListener('storage', external); window.removeEventListener('festival-session-change', sync); };
+  }, [loadCandidates, loadLanterns, loadControls, refreshChoices]);
+  async function restoreSession() {
+    const generation=epoch.current;
+    try {
+      const data=api.session?await api.session():null;
+      if(!mounted.current||generation!==epoch.current)return;
+      if(data?.sessionKey&&data.user){
+        if(current.current.session?.token!==data.sessionKey){epoch.current++;clearChoices();}
+        updateSession({token:data.sessionKey,user:data.user}); await refreshChoices();
+      }
+    } catch(error) { if([401,403].includes(error.status)&&generation===epoch.current){epoch.current++;updateSession(null);clearChoices();} }
   }
-
+  async function acceptLogin(data) {
+    if(!data?.user||!(data.sessionKey||data.token))throw new Error('The sign-in response is incomplete.');
+    epoch.current++;clearChoices();updateSession({token:data.sessionKey||data.token,user:data.user});announceAccountChange();
+    setNotice({type:'success',text:'Welcome to the celebration.'});await refreshChoices();
+  }
+  async function login(email,password){await acceptLogin(await api.login(email,password));}
+  async function register(email, password, operationId) {
+    if (!current.current.controls?.registrationOpen) throw new Error('Registration is closed.');
+    return api.register(email, password, operationId);
+  }
+  async function mutate({ contest, candidate }) {
+    if (locked.current) return false;
+    const snapshot = current.current.controls, active = current.current.session;
+    if (!active || current.current.choiceState !== 'ready' || !snapshot || eventState(snapshot).voting !== 'open'
+      || Date.now() - current.current.checkedAt > 15000 || current.current.choices[contest]) {
+      setNotice({ type: 'info', text: 'Refresh your account and voting status before voting. Each category allows one vote.' }); return false;
+    }
+    locked.current = true; setBusy(true);
+    const generation = epoch.current;
+    try {
+      await api.submit(active.token, candidate._id, contest, snapshot);
+      if (!mounted.current || generation !== epoch.current) return false;
+      const confirmed = await refreshChoices();
+      if (confirmed) { setNotice({ type: 'success', text: `Your ${contest} vote is recorded.` }); setCelebration(Date.now()); }
+      else setNotice({ type: 'info', text: 'The server accepted your vote. Refresh your choices to check its status.' });
+      return true;
+    } catch (error) {
+      if (!mounted.current || generation !== epoch.current) return false;
+      markChoices('uncertain'); setNotice({ type: 'info', text: `${error.message} Checking whether your vote was recorded…` });
+      await loadControls();
+      const checked = await refreshChoices();
+      if (generation !== epoch.current || !mounted.current) return false;
+      const recorded = checked && current.current.choices[contest]?._id === candidate._id;
+      setNotice({ type: recorded ? 'success' : 'error', text: recorded ? 'Your vote is recorded.' : checked ? `${error.message} Your saved choices are up to date.` : 'We could not confirm the outcome. Refresh your choices before trying again.' });
+      return Boolean(recorded);
+    } finally { locked.current = false; if (mounted.current) setBusy(false); }
+  }
+  const fresh = checkedAt > 0 && now - checkedAt < 15000;
   return { candidates, candidateState, candidateError, reloadCandidates: loadCandidates,
-    lanterns, lanternState, lanternError, reloadLanterns: loadLanterns, schedule, scheduleError,
-    now, finalistStage, finalists, finalistLoad, finalistError, reloadFinalists: loadFinalists,
-    status, reloadSchedule: loadSchedule, session, choices: status.voting === 'open' ? choices : EMPTY,
-    choiceState, busy, notice, dismissNotice: () => setNotice(null), celebration,
-    login, register, signOut, unlock, refreshChoices, mutate, lockChoices, verifyAccount };
+    lanterns, lanternState, lanternError, reloadLanterns: loadLanterns, controls, controlsError,
+    status: fresh ? eventState(controls) : { registration: 'unknown', voting: 'unknown' }, reloadControls: loadControls,
+    resultsStage: fresh ? announcementState(controls) : 'unknown', results: fresh ? results : null, resultsLoad, resultsError, reloadResults: loadResults,
+    session, choices, choiceState, busy, notice, celebration, dismissNotice: () => setNotice(null),
+    login, register, acceptLogin, signOut, refreshChoices, mutate };
 }

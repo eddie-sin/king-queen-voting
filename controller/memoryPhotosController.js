@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const Election = require("../model/electionModel");
+const Controls = require("../model/eventControlsModel");
 const MemoryPhoto = require("../model/memoryPhotosModel");
 const MemoryPhotoQuota = require("../model/memoryPhotoQuotasModel");
 const quota = require("../utils/memoryPhotoQuota");
@@ -9,7 +9,7 @@ const AppError = require("../utils/appError");
 const catchAsync = require("../utils/catchAsync");
 
 const requireEnabled = async () => {
-  const election = await Election.findById("election").select("memoryPhotosEnabled").lean();
+  const election = await Controls.findById("event").select("memoryPhotosEnabled").lean();
   if (election?.memoryPhotosEnabled !== true) throw new AppError("Memory Photo submissions are disabled.", 403);
 };
 
@@ -20,7 +20,7 @@ exports.requireEnabled = catchAsync(async (req, res, next) => {
 
 exports.listMine = catchAsync(async (req, res) => {
   res.set("Cache-Control", "private, no-store");
-  res.vary("Authorization");
+  res.vary("Cookie");
   if (Object.keys(req.query).length || Object.keys(req.body || {}).length) {
     throw new AppError("My Memories does not accept body or query fields.", 400);
   }

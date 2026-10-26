@@ -2,11 +2,18 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { WishFeed } from './WishFeed.js';
 import { normalizeAllowance } from './wishApi.js';
 export function useWishSky(api,session,capacity){
+  const [total,setTotal]=useState(null);
   const [slots,setSlots]=useState([]),[state,setState]=useState('loading'),[error,setError]=useState('');
   const [quota,setQuota]=useState(null),[quotaError,setQuotaError]=useState(''),[busy,setBusy]=useState(false),[uncertain,setUncertain]=useState(false);
   const [release,setRelease]=useState(null),[reload,setReload]=useState(0);
   const feed=useRef(null),current=useRef([]),epoch=useRef(0),mutex=useRef(false),requests=useRef(new Set()),releaseWishId=useRef(null);
   const token=session?.token;
+  useEffect(()=>{
+    const controller=new AbortController();
+    const update=async()=>{try{const value=await api.list({limit:1,signal:controller.signal});if(!controller.signal.aborted&&Number.isSafeInteger(value.total))setTotal(value.total);}catch{}};
+    const timer=setInterval(update,30000);window.addEventListener('focus',update);
+    return()=>{controller.abort();clearInterval(timer);window.removeEventListener('focus',update);};
+  },[api]);
   const quotaVersion=useRef(0);
   const loadQuota=useCallback(async()=>{
     const version=++quotaVersion.current;if(!token){setQuota(null);return null;}
@@ -19,7 +26,7 @@ export function useWishSky(api,session,capacity){
     const controller=new AbortController();let live=true;const source=new WishFeed(api,controller.signal);feed.current=source;
     setState('loading');setError('');setSlots([]);current.current=[];
     (async()=>{try{
-      const count=await source.init();const initial=[];
+      const count=await source.init();if(live)setTotal(source.total);const initial=[];
       for(let i=0;i<Math.min(count,capacity);i++){const wish=await source.take(new Set(initial.map(w=>w.id)));if(wish)initial.push(wish);}
       if(!live)return;current.current=initial;setSlots(initial);setState(initial.length?'ready':'empty');
     }catch(e){if(live){setError(e.message);setState('error');}}})();
@@ -48,6 +55,7 @@ export function useWishSky(api,session,capacity){
         current.current=[release.wish,...current.current].slice(0,capacity);
         setSlots([...current.current]);
       }
+      setTotal(value=>value===null?null:value+1);
       releaseWishId.current=result.wish.id;
       setRelease({wish:result.wish,id:Date.now()});setState('ready');
       // Keep the new wish as an extra slow release lantern until its first journey ends.
@@ -59,5 +67,5 @@ export function useWishSky(api,session,capacity){
     }throw e;}
     finally{mutex.current=false;setBusy(false);}
   }
-  return {slots,state,error,quota,quotaError,busy,uncertain,release,rotate,submit,loadQuota,retry:()=>setReload(x=>x+1),acknowledgeUncertain:async()=>{if(await loadQuota())setUncertain(false);},finishRelease:()=>{if(release&&!current.current.some(w=>w.id===release.wish.id)){current.current=[release.wish,...current.current].slice(0,capacity);setSlots([...current.current]);}releaseWishId.current=null;setRelease(null);}};
+  return {total,slots,state,error,quota,quotaError,busy,uncertain,release,rotate,submit,loadQuota,retry:()=>setReload(x=>x+1),acknowledgeUncertain:async()=>{if(await loadQuota())setUncertain(false);},finishRelease:()=>{if(release&&!current.current.some(w=>w.id===release.wish.id)){current.current=[release.wish,...current.current].slice(0,capacity);setSlots([...current.current]);}releaseWishId.current=null;setRelease(null);}};
 }

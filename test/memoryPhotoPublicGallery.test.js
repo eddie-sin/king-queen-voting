@@ -19,7 +19,8 @@ process.env.MEMORY_PHOTO_UPLOAD_DIR = path.join(directory, "private");
 const app = require("../app");
 const User = require("../model/usersModel");
 const Admin = require("../model/adminsModel");
-const Election = require("../model/electionModel");
+const Controls = require("../model/eventControlsModel");
+const { createUser, studentToken, headers: authHeaders } = require("./helpers/accounts.cjs");
 const MemoryPhoto = require("../model/memoryPhotosModel");
 const storage = require("../utils/memoryPhotoStorage");
 const publicStorage = require("../utils/imageStorage");
@@ -45,7 +46,7 @@ before(async () => {
   const databasePath = path.join(directory, "mongo");
   await fs.mkdir(databasePath);
   mongo = spawn(process.env.MONGOD_BINARY || "mongod", [
-    "--bind_ip", "127.0.0.1", "--port", String(port), "--dbpath", databasePath,
+    "--replSet", "isolatedTests", "--bind_ip", "127.0.0.1", "--port", String(port), "--dbpath", databasePath,
     "--logpath", path.join(databasePath, "mongod.log"),
   ], { stdio: "ignore" });
   let spawnError;
@@ -63,9 +64,10 @@ before(async () => {
         await new Promise((resolve) => setTimeout(resolve, 100));
       }
     }
+    await require("./helpers/replica.cjs").initialize(client, port);
   } finally { await client.close(); }
   await mongoose.connect(`mongodb://127.0.0.1:${port}/memory_photo_public_gallery_test`);
-  await Promise.all([User.init(), Admin.init(), Election.init(), MemoryPhoto.init(), Image.init()]);
+  await Promise.all([...Object.values(mongoose.models).map(model => model.init()), Admin.init(), Controls.init(), MemoryPhoto.init(), Image.init()]);
   png = await sharp({ create: { width: 4, height: 4, channels: 3, background: "green" } }).png().toBuffer();
   server = app.listen(0, "127.0.0.1");
   await new Promise((resolve) => server.once("listening", resolve));
@@ -73,14 +75,13 @@ before(async () => {
 }, { timeout: 30000 });
 
 beforeEach(async () => {
-  await Promise.all([User.deleteMany({}), Admin.deleteMany({}), Election.deleteMany({}), MemoryPhoto.deleteMany({}), Image.deleteMany({})]);
+  await Promise.all([User.deleteMany({}), Admin.deleteMany({}), Controls.deleteMany({}), MemoryPhoto.deleteMany({}), Image.deleteMany({})]);
   await fs.rm(process.env.MEMORY_PHOTO_UPLOAD_DIR, { recursive: true, force: true });
-  owner = await User.create({ email: "student@example.com", passwordHash: "test-only-hash" });
-  admin = await Admin.create({ username: "reviewer", passwordHash: "test-only-hash" });
-  adminToken = jwt.sign({ adminId: String(admin._id), role: "admin" }, process.env.JWT_SECRET);
-  userToken = jwt.sign({ userId: String(owner._id), role: "user" }, process.env.JWT_SECRET);
-  await Election.create({ registrationClosesAt: new Date("2026-11-06"), votingOpensAt: new Date("2026-10-28"),
-    votingClosesAt: new Date("2026-11-02"), resultsPublishedAt: new Date("2026-11-03"), memoryPhotosEnabled: true });
+  owner = await createUser({ email: "student@gmail.com", passwordHash: "test-only-hash" });
+  admin = await Admin.create({ username: "reviewer", role: "admin", passwordHash: "test-only-hash" });
+  adminToken = jwt.sign({ adminId: String(admin._id), role: "admin", v: 0 }, process.env.JWT_SECRET);
+  userToken = await studentToken(owner);
+  await Controls.create({ _id: "event", memoryPhotosEnabled: true });
 });
 
 after(async () => {
@@ -123,10 +124,10 @@ test("false, missing and absent feature settings deny both public endpoints with
   storage.getImage = async () => { throw new Error("Disabled requests must not read storage"); };
   try {
     for (const change of [
-      () => Election.updateOne({}, { memoryPhotosEnabled: false }),
-      () => Election.collection.updateOne({}, { $set: { memoryPhotosEnabled: "true" } }),
-      () => Election.collection.updateOne({}, { $unset: { memoryPhotosEnabled: "" } }),
-      () => Election.deleteMany({}),
+      () => Controls.updateOne({}, { memoryPhotosEnabled: false }),
+      () => Controls.collection.updateOne({}, { $set: { memoryPhotosEnabled: "true" } }),
+      () => Controls.collection.updateOne({}, { $unset: { memoryPhotosEnabled: "" } }),
+      () => Controls.deleteMany({}),
     ]) {
       await change();
       assert.equal((await list()).status, 403);
@@ -166,7 +167,7 @@ test("pending and rejected images stay private for anonymous and ordinary authen
       const saved = await photo({ status });
       for (const token of [null, userToken, adminToken]) {
         const response = await fetch(url(`/${saved._id}/image`), {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          headers: authHeaders(token),
         });
         assert.equal(response.status, 404);
         assert(!JSON.stringify(await response.json()).includes(saved.imageKey));
@@ -223,9 +224,9 @@ test("disabling blocks conditional and range requests for previously delivered i
   const enabled = await fetch(path, { headers });
   assert.equal(enabled.status, 200);
   assert.deepEqual(Buffer.from(await enabled.arrayBuffer()), png);
-  const changed = await fetch(`${base}/api/v1/admin/settings`, {
-    method: "PATCH", headers: { Authorization: `Bearer ${adminToken}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ memoryPhotosEnabled: false }),
+  const changed = await fetch(`${base}/api/v1/admin/controls/memory.close`, {
+    method: "POST", headers: { Authorization: `Bearer ${adminToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ revision: (await Controls.findById("event")).revision, operationId: crypto.randomUUID() }),
   });
   assert.equal(changed.status, 200);
   const disabled = await fetch(path, { headers });
@@ -240,10 +241,10 @@ test("feature or approval changes during private storage retrieval prevent byte 
   let stream;
   try {
     for (const change of [
-      () => Election.updateOne({}, { memoryPhotosEnabled: false }),
+      () => Controls.updateOne({}, { memoryPhotosEnabled: false }),
       () => MemoryPhoto.updateOne({ _id: saved._id }, { status: "REJECTED" }),
     ]) {
-      await Election.updateOne({}, { memoryPhotosEnabled: true });
+      await Controls.updateOne({}, { memoryPhotosEnabled: true });
       await MemoryPhoto.updateOne({ _id: saved._id }, { status: "APPROVED" });
       storage.getImage = async () => {
         await change();
@@ -283,7 +284,7 @@ test("admin moderation stays available while disabled and the old public gallery
   const pending = await photo({ status: "PENDING" });
   const publicUrl = await publicStorage.uploadImage({ buffer: png, mimetype: "image/png" }, "gallery/memory");
   await Image.create({ section: "memory", url: publicUrl });
-  await Election.updateOne({}, { memoryPhotosEnabled: false });
+  await Controls.updateOne({}, { memoryPhotosEnabled: false });
   const headers = { Authorization: `Bearer ${adminToken}` };
   const queue = await fetch(`${base}/api/v1/admin/memory-photos`, { headers });
   assert.equal(queue.status, 200);
@@ -300,6 +301,6 @@ test("admin moderation stays available while disabled and the old public gallery
   assert.equal(oldGallery.status, 200);
   assert.equal((await oldGallery.json()).results, 1);
   assert.deepEqual(Buffer.from(await (await fetch(`${base}${publicUrl}`)).arrayBuffer()), png);
-  await Election.updateOne({}, { memoryPhotosEnabled: true });
+  await Controls.updateOne({}, { memoryPhotosEnabled: true });
   assert.equal((await list()).body.results, 1);
 });

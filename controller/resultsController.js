@@ -1,12 +1,12 @@
-const Results = require("../model/resultsModel");
-const catchAsync = require("../utils/catchAsync");
-const { withElectionOperation } = require("../utils/election");
-const { getOrCreateResults } = require("../utils/results");
-
+const voteTotals = require('../utils/voteTotals');
+const AppError = require('../utils/appError');
+const catchAsync = require('../utils/catchAsync');
+const { getControls } = require('../utils/eventControls');
 exports.getResults = catchAsync(async (req, res) => {
-  const results = await withElectionOperation("publish", async (context) => {
-    await getOrCreateResults(context);
-    return Results.findById("election").populate("kings.candidate queens.candidate");
-  });
-  res.status(200).json({ status: "success", data: { results } });
+  const before = await getControls();
+  if (!before.announcementOpen || before.votingStatus !== 'closed') throw new AppError('Results announcement is not open.', 403);
+  const awards = voteTotals.awards(await voteTotals.candidates(before));
+  const after = await getControls();
+  if (!after.announcementOpen || after.votingStatus !== 'closed' || after.round !== before.round || after.revision !== before.revision) throw new AppError('Announcement changed. Please refresh.', 403);
+  res.json({status:'success',data:{results:{...awards,round:before.round,revision:before.revision}}});
 });
