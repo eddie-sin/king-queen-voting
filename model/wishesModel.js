@@ -3,7 +3,7 @@ const mongoose = require("mongoose");
 const wishSchema = new mongoose.Schema({
   user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, select: false },
   slot: { type: Number, required: true, enum: [1, 2, 3], select: false },
-  message: { type: String, required: true, trim: true, maxlength: 500 },
+  message: { type: String, required: true, trim: true },
   createdAt: { type: Date, default: Date.now },
 });
 

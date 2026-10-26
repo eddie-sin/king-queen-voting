@@ -1,0 +1,83 @@
+/* Local UI checks only: no requests may reach an event backend. */
+import { chromium } from 'playwright';
+import { createServer } from 'vite';
+import assert from 'node:assert/strict';
+import { readFile, mkdir } from 'node:fs/promises';
+
+// Bypass Vite's optional config.env read even when this script runs directly.
+process.env.VOTING_API_TARGET = 'http://127.0.0.1:1';
+const server = await createServer({ configFile: 'vite.config.js', server: { host: '127.0.0.1', port: 0 } });
+await server.listen();
+let browser;
+try {
+  browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } : {}), args: ['--no-sandbox'] });
+  const base = `http://127.0.0.1:${server.httpServer.address().port}`;
+  await mkdir('test-artifacts/memory', { recursive: true });
+  for (const viewport of [{ width: 1440, height: 1000 }, { width: 1024, height: 1000 }, { width: 768, height: 1000 }, { width: 390, height: 844 }, { width: 320, height: 700 }]) {
+    const context = await browser.newContext({ viewport, reducedMotion: 'reduce' });
+    const page = await context.newPage();
+    const errors = [], apiRequests = [], missing = [];
+    page.on('pageerror', error => errors.push(error.message));
+    page.on('response', response => { if (response.status() >= 400 && response.url().includes('/memory-photo/')) missing.push(response.url()); });
+    await page.route('**/api/**', route => { apiRequests.push(route.request().url()); return route.abort(); });
+    await page.goto(`${base}/#memory-gallery-demo`);
+    await page.getByRole('heading', { name: 'Through our eyes.' }).waitFor();
+    assert.equal(await page.locator('.mp-festival-motion').getAttribute('aria-hidden'), 'true');
+    assert.equal(await page.locator('.mp-festive-lantern').count(), 4);
+    assert.equal(await page.locator('.mp-festive-lamp').count(), 2);
+    assert.equal(await page.locator('.mp-festive-lantern').first().evaluate(element => getComputedStyle(element).animationName), 'none');
+    assert.equal(await page.locator('.mp-oil-flame').first().evaluate(element => getComputedStyle(element).animationName), 'none');
+    assert.equal(await page.locator('.mp-festival-motion').evaluate(element => getComputedStyle(element).pointerEvents), 'none');
+    await page.evaluate(() => document.fonts.ready);
+    await page.evaluate(() => Promise.all([...document.images].map(image => { image.loading = 'eager'; return image.decode().catch(() => {}); })));
+    await page.screenshot({ path: `test-artifacts/memory/all-${viewport.width}.png`, fullPage: true });
+    assert.equal(await page.locator('.mp-print').count(), 3);
+    const firstPhoto = page.getByRole('button', { name: 'Enlarge demo photo 1' });
+    await firstPhoto.focus(); await page.keyboard.press('Enter');
+    await page.getByRole('dialog').waitFor();
+    assert(await page.locator('.mp-viewer img').evaluate(image => image.complete && image.naturalWidth > 0));
+    await page.keyboard.press('Escape');
+    assert.equal(await page.getByRole('dialog').count(), 0);
+    assert(await firstPhoto.evaluate(element => element === document.activeElement));
+    const heart = page.getByRole('button', { name: 'Like demo photo 1', exact: true });
+    await heart.click(); assert.equal(await page.getByRole('button', { name: 'Unlike demo photo 1', exact: true }).getAttribute('aria-pressed'), 'true');
+    await page.getByRole('button', { name: 'Unlike demo photo 1', exact: true }).click();
+    await page.goto(`${base}/#my-memories-demo`);
+    await page.getByText('Pending review', { exact: true }).waitFor();
+    assert.equal(await page.locator('.mp-envelope').count(), 2);
+    assert.equal(await page.locator('.mp-envelope img').count(), 0);
+    assert.equal(await page.locator('.mp-pending').evaluate(element => getComputedStyle(element.closest('.mp-review').querySelector('.mp-envelope')).animationName), 'none');
+    await page.getByText('Rejected', { exact: true }).waitFor();
+    await page.screenshot({ path: `test-artifacts/memory/mine-${viewport.width}.png`, fullPage: true });
+    await page.getByRole('link', { name: 'Upload', exact: true }).click();
+    assert.equal(await page.locator('.mp-slot').count(), 3);
+    assert.equal(await page.locator('input[type=file][multiple]').isVisible(), false);
+    assert(await page.getByRole('button', { name: 'Preview submission', exact: true }).isDisabled());
+    await page.screenshot({ path: `test-artifacts/memory/upload-${viewport.width}.png`, fullPage: true });
+    const png = await readFile('../postman/fixtures/memory-photo.png');
+    await page.locator('input[type=file][multiple]').setInputFiles([0, 1, 2, 3].map(index => ({ name: `sample-${index}.png`, mimeType: 'image/png', buffer: png })));
+    assert.equal(await page.locator('.mp-slot.is-filled').count(), 3);
+    await page.getByRole('alert').getByText('Choose up to three photos for this preview.').waitFor();
+    await page.getByRole('button', { name: 'Remove selected photo 2' }).click();
+    assert.equal(await page.locator('.mp-slot.is-filled').count(), 2);
+    await page.getByRole('button', { name: 'Preview submission', exact: true }).click();
+    await page.getByRole('status').getByText(/Nothing was sent/).waitFor();
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    assert.deepEqual(errors, []); assert.deepEqual(missing, []); assert.deepEqual(apiRequests, []);
+    await context.close();
+  }
+  const animated = await browser.newContext({ reducedMotion: 'no-preference' });
+  const motionPage = await animated.newPage();
+  const unexpected = [];
+  await motionPage.route('**/api/**', route => { unexpected.push(route.request().url()); return route.abort(); });
+  await motionPage.goto(`${base}/#my-memories-demo`);
+  await motionPage.getByText('Pending review', { exact: true }).waitFor();
+  assert.equal(await motionPage.locator('.mp-festive-lantern').first().evaluate(element => getComputedStyle(element).animationName), 'mp-festive-drift');
+  assert.equal(await motionPage.locator('.mp-festive-lantern').first().evaluate(element => getComputedStyle(element).animationIterationCount), '1');
+  assert.equal(await motionPage.locator('.mp-oil-flame').first().evaluate(element => getComputedStyle(element).animationName), 'mp-festive-flicker');
+  assert.equal(await motionPage.locator('.mp-review:not(.mp-review-rejected) .mp-envelope').evaluate(element => getComputedStyle(element).animationName), 'mp-envelope-float');
+  assert.equal(await motionPage.locator('.mp-review:not(.mp-review-rejected) .mp-envelope').evaluate(element => getComputedStyle(element).animationIterationCount), '1');
+  assert.deepEqual(unexpected, []);
+  await animated.close();
+  console.log('Memory browser checks passed: desktop, mobile, 320px; keyboard viewer, reactions, review states, selection, reduced motion, no API traffic.');
+} finally { await browser?.close(); await server.close(); }

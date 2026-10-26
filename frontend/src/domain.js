@@ -1,6 +1,5 @@
 export const CONTESTS = ['king', 'queen'];
 export const titleCase = value => value === 'queen' ? 'Queen' : 'King';
-export const validKey = value => /^[a-f0-9]{64}$/.test(value);
 const safeImageUrl = value => typeof value === 'string' && (/^\/(?!\/)/.test(value) || /^https?:\/\//i.test(value));
 
 // Render only the public fields. Contact numbers never enter presentation data.
@@ -39,18 +38,25 @@ export function savedChoices(votes) {
   return result;
 }
 
-export function scheduleState(schedule, now = Date.now()) {
-  const parse = v => typeof v === 'string' && v ? Date.parse(v) : NaN;
-  const registration = parse(schedule?.registrationClosesAt);
-  const opens = parse(schedule?.votingOpensAt);
-  const closes = parse(schedule?.votingClosesAt);
+export function eventState(controls) {
   return {
-    registration: Number.isFinite(registration) ? (now <= registration ? 'open' : 'closed') : 'unknown',
-    voting: !Number.isFinite(opens) || !Number.isFinite(closes) || closes <= opens ? 'unknown' : now < opens ? 'upcoming' : now > closes ? 'closed' : 'open',
+    registration: typeof controls?.registrationOpen === 'boolean' ? controls.registrationOpen ? 'open' : 'closed' : 'unknown',
+    voting: ['open', 'closed', 'closing'].includes(controls?.votingStatus) ? controls.votingStatus : 'unknown',
   };
 }
-
-export function myanmarTime(date) {
-  if (!date || !Number.isFinite(Date.parse(date))) return 'Awaiting schedule';
-  return new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Yangon', day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }).format(new Date(date)) + ' MMT';
+export function announcementState(controls) {
+  if (typeof controls?.announcementOpen !== 'boolean') return 'unknown';
+  return controls.announcementOpen && controls.votingStatus === 'closed' ? 'announced' : 'waiting';
+}
+export function publicResults(results) {
+  if (!results || !Number.isSafeInteger(results.round) || !Number.isSafeInteger(results.revision)) throw new Error('Results are unavailable.');
+  const pick = list => {
+    if (!Array.isArray(list)) throw new Error('Results are incomplete.');
+    return list.map(entry => {
+      const candidate = publicCandidate(entry?.candidate);
+      if (!candidate?._id || !Number.isSafeInteger(entry.votes) || entry.votes < 0) throw new Error('Results are incomplete.');
+      return { ...candidate, votes: entry.votes, title: typeof entry.title==='string'?entry.title:'' };
+    }).sort((a, b) => b.votes - a.votes || a.fullName.localeCompare(b.fullName) || a._id.localeCompare(b._id));
+  };
+  return { king: pick(results.kings), queen: pick(results.queens), round: results.round, revision: results.revision };
 }

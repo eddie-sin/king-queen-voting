@@ -11,7 +11,7 @@ dotenv.config({ path: "./config.env" });
 
 const app = require("./app");
 const { seed } = require("./utils/seed");
-const { finalizeResultsIfDue } = require("./utils/results");
+const admission = require("./utils/voteAdmission");
 
 let databaseConnection;
 
@@ -48,34 +48,19 @@ if (process.env.NODE_ENV === "development") {
 let server;
 
 mongoose
-  .connect(databaseConnection)
+  .connect(databaseConnection, { autoIndex: false, autoCreate: false, serverSelectionTimeoutMS: 5000 })
   .then(async () => {
     console.log("Database connection successful");
 
     await seed();
-    await finalizeResultsIfDue();
-
-    let maintaining = false;
-    const maintenance = setInterval(async () => {
-      if (maintaining) return;
-      maintaining = true;
-      try {
-        await finalizeResultsIfDue();
-      } catch (error) {
-        console.error("Election maintenance failed:", error.message);
-      } finally {
-        maintaining = false;
-      }
-    }, 15000);
-    maintenance.unref();
-
+    require('./utils/accounts/mail').start();
     const port = process.env.PORT || 5000;
-    server = app.listen(port, () => {
+    server = app.listen(port, process.env.HOST || '127.0.0.1', () => {
       console.log(
         `Server running on port ${port} in ${process.env.NODE_ENV} mode`,
       );
     });
-    server.on("close", () => clearInterval(maintenance));
+
   })
   .catch((err) => {
     console.error("Server startup failed:", err.message);
@@ -92,3 +77,19 @@ process.on("unhandledRejection", (err) => {
     process.exit(1);
   }
 });
+
+let stopping = false;
+async function shutdown() {
+  if (stopping) return;
+  stopping = true;
+  admission.close();
+  require('./utils/accounts/mail').stop();
+  const deadline = setTimeout(() => process.exit(1), 20000);
+  deadline.unref();
+  if (server) await new Promise(resolve => server.close(resolve));
+  await admission.drain();
+  await mongoose.disconnect();
+  process.exit(0);
+}
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);

@@ -1,70 +1,395 @@
-import { useEffect, useState } from 'react';
-import { Dialog } from './Dialog.jsx';
-import { Crown } from './Artwork.jsx';
-import { myanmarTime, validKey } from '../domain.js';
-
-export function AccountDialog({ initialMode = 'login', onClose, onLogin, onRegister, registrationStatus, schedule, onRefreshSchedule }) {
-  const [mode, setMode] = useState(initialMode);
-  const [email, setEmail] = useState(''); const [password, setPassword] = useState('');
-  const [error, setError] = useState(''); const [busy, setBusy] = useState(false);
-  const [newKey, setNewKey] = useState(''); const [acknowledged, setAcknowledged] = useState(false);
-  const [copied, setCopied] = useState(false); const [registrationUnknown, setRegistrationUnknown] = useState(false);
-  const [registrationBlocked, setRegistrationBlocked] = useState(false);
-  const register = mode === 'register';
-  const switchMode = next => { setMode(next); setError(''); setPassword(''); };
-  async function submit(e) {
-    e.preventDefault(); if (busy) return;
-    if (register && (registrationStatus !== 'open' || registrationBlocked)) return;
-    setBusy(true); setError('');
-    try {
-      if (register) {
-        const result = await onRegister(email.trim(), password);
-        setNewKey(result.votingKey); setPassword('');
-      } else { await onLogin(email.trim(), password); setPassword(''); onClose('authenticated'); }
-    } catch (e) {
-      setError(e.message);
-      // A registration may have committed before a connection loss; never automatically replay it.
-      if (register && (e.interrupted || e.message.includes('without a usable key'))) { setRegistrationUnknown(true); setRegistrationBlocked(true); }
-    } finally { setBusy(false); }
+import { useEffect, useRef, useState } from "react";
+import { Dialog } from "./Dialog.jsx";
+import { Crown } from "./Artwork.jsx";
+import GoogleSignIn from "./GoogleSignIn.jsx";
+export function AccountDialog({
+  api,
+  initialMode = "login",
+  onClose,
+  onLogin,
+  onRegister,
+  onAuthenticated,
+  registrationStatus,
+  onRefreshControls,
+}) {
+  const [mode, setMode] = useState(initialMode),
+    [email, setEmail] = useState(""),
+    [password, setPassword] = useState(""),
+    [code, setCode] = useState("");
+  const [flow, setFlow] = useState(null),
+    [resetId, setResetId] = useState(null),
+    [error, setError] = useState(""),
+    [notice, setNotice] = useState(""),
+    [busy, setBusy] = useState(false),
+    [show, setShow] = useState(false),
+    [now, setNow] = useState(Date.now());
+  const locked = useRef(false),
+    live = useRef(true),
+    op = useRef(null);
+  const register = mode === "register",
+    recovery = mode === "recovery";
+  useEffect(() => {
+    live.current = true;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    api
+      ?.pendingAuth?.()
+      .then((data) => {
+        if (live.current && data?.flowId) setFlow(data);
+      })
+      .catch(() => {});
+    return () => {
+      live.current = false;
+      clearInterval(timer);
+    };
+  }, [api]);
+  useEffect(() => {
+    if (!flow?.flowId || !api?.pendingAuth) return;
+    let active = true;
+    const timer = setInterval(async () => {
+      try {
+        const update = await api.pendingAuth();
+        if (active && update?.flowId === flow.flowId)
+          setFlow((current) =>
+            current?.flowId === update.flowId
+              ? { ...current, ...update }
+              : current,
+          );
+      } catch {
+        /* Keep the code usable through a temporary connection failure. */
+      }
+    }, 5000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [api, flow?.flowId]);
+  function switchMode(next) {
+    setMode(next);
+    setFlow(null);
+    setResetId(null);
+    setPassword("");
+    setCode("");
+    setError("");
+    op.current = null;
   }
-  if (newKey) return <Dialog title="Keep your little key safe." className="account-dialog key-display" locked onClose={() => {}}>
-    <div className="dialog-ornament"><Crown/></div><p>Your account has been created. This voting key is shown <strong>once</strong> and cannot be recovered. You are not logged in yet.</p>
-    <label htmlFor="issued-key">Your private voting key</label><textarea id="issued-key" className="issued-key" readOnly value={newKey} spellCheck="false" aria-describedby="key-warning"/>
-    <button className="btn secondary" onClick={async () => { try { await navigator.clipboard.writeText(newKey); setCopied(true); } catch { setCopied(false); setError('Copy is unavailable. Select the key above and save it manually.'); } }}>{copied ? 'Copied — save it somewhere safe' : 'Copy voting key'}</button>
-    <p id="key-warning" className="security-note">Save it in a password manager or another private place. Refreshing this page will lose this display. Never share your key.</p>
-    {error && <p className="inline-error" role="alert">{error}</p>}
-    <label className="checkbox-label"><input type="checkbox" checked={acknowledged} onChange={e => setAcknowledged(e.target.checked)}/>I have saved my voting key and understand it cannot be recovered.</label>
-    <button className="btn primary full-width" disabled={!acknowledged} onClick={() => { setNewKey(''); setAcknowledged(false); setCopied(false); switchMode('login'); }}>Continue to login</button>
-  </Dialog>;
-  return <Dialog title={register ? 'Join the celebration.' : 'Welcome back.'} onClose={onClose} locked={busy} className="account-dialog">
-    <div className="dialog-ornament"><Crown/></div><p className="dialog-intro">{register ? 'One account. Two choices. A moment to remember.' : 'Sign in, then unlock your choices with your voting key.'}</p>
-    <div className="auth-tabs"><button aria-pressed={!register} onClick={() => switchMode('login')} disabled={busy}>Login</button><button aria-pressed={register} onClick={() => switchMode('register')} disabled={busy}>Register</button></div>
-    {register && <p className="schedule-note">{registrationStatus === 'closed' ? 'Registration is closed.' : registrationStatus === 'unknown' ? 'Registration availability is not confirmed.' : `Registration closes ${myanmarTime(schedule?.registrationClosesAt)}.`}</p>}
-    {register && registrationStatus === 'unknown' && <button className="btn secondary" onClick={onRefreshSchedule}>Refresh schedule</button>}
-    <form onSubmit={submit}>
-      <label htmlFor="account-email">Email address</label><input id="account-email" type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} required disabled={busy}/>
-      <label htmlFor="account-password">Password</label><input id="account-password" type="password" autoComplete={register ? 'new-password' : 'current-password'} minLength={register ? 8 : undefined} value={password} onChange={e => setPassword(e.target.value)} required disabled={busy} aria-describedby={register ? 'password-help' : undefined}/>
-      {register && <p id="password-help" className="fine-print">Use at least 8 characters.</p>}
-      {error && <p className="inline-error" role="alert">{error}</p>}
-      {registrationUnknown && <p className="inline-error">Registration may have completed. Please contact the organisers before trying to register again; this site cannot recover an issued key.</p>}
-      <button className="btn primary full-width" disabled={busy || (register && (registrationStatus !== 'open' || registrationBlocked))}>{busy ? 'Please wait…' : register ? 'Create account' : 'Login'}</button>
-    </form>
-    {register && <details className="privacy-notice"><summary>We care about your security</summary><p>Your voting key and login token stay in memory on this page. Refreshing or signing out clears them. Keep your one-time key safe. Contact the event organisers for their account-data retention policy.</p></details>}
-    <p className="fine-print">Your login and voting key are cleared when you refresh or sign out.</p>
-  </Dialog>;
-}
-
-export function UnlockDialog({ onClose, onUnlock, busy, sessionPresent }) {
-  const [key, setKey] = useState(''); const [error, setError] = useState('');
-  useEffect(() => { if (!sessionPresent) setKey(''); }, [sessionPresent]);
-  return <Dialog title="Unlock your choices." onClose={onClose} locked={busy} className="account-dialog">
-    <div className="dialog-ornament"><Crown/></div><p>Use the private voting key you saved when you registered. Your King and Queen choices are independent.</p>
-    <form onSubmit={async e => { e.preventDefault(); if (!validKey(key.trim())) { setError('Enter the complete 64-character lowercase hexadecimal key.'); return; } setError(''); try { await onUnlock(key.trim()); setKey(''); onClose('unlocked'); } catch (error) { setError(error.message); } }}>
-      <label htmlFor="voting-key">Voting key</label><input id="voting-key" type="password" value={key} onChange={e => setKey(e.target.value)} autoComplete="off" autoCapitalize="none" spellCheck="false" required disabled={busy || !sessionPresent} aria-describedby="key-help"/>
-      <p id="key-help" className="fine-print">64 lowercase hexadecimal characters. Your key is never added to the page address or browser storage.</p>
-      {error && <p role="alert" className="inline-error">{error}</p>}
-      {!sessionPresent && <p role="alert">Your session has ended. Close this dialog and log in again.</p>}
-      <button className="btn primary full-width" disabled={busy || !sessionPresent}>{busy ? 'Verifying…' : 'Unlock my choices'}</button>
-    </form>
-  </Dialog>;
+  async function run(action) {
+    if (locked.current) return;
+    locked.current = true;
+    setBusy(true);
+    setError("");
+    try {
+      await action();
+    } catch (e) {
+      if (live.current) setError(e.message);
+    } finally {
+      locked.current = false;
+      if (live.current) setBusy(false);
+    }
+  }
+  async function authenticated(data) {
+    await onAuthenticated(data);
+    onClose("authenticated");
+  }
+  async function submit(event) {
+    event.preventDefault();
+    await run(async () => {
+      if (resetId) {
+        await api.authAction("/password/recovery/complete", {
+          resetId,
+          password,
+        });
+        setNotice("Password saved. Sign in with your new password.");
+        switchMode("login");
+        return;
+      }
+      if (flow) {
+        const path =
+          flow.purpose === "register"
+            ? "/register/verify"
+            : flow.purpose === "link"
+              ? "/google/link/verify"
+              : "/password/recovery/verify";
+        const data = await api.authAction(path, { flowId: flow.flowId, code });
+        if (flow.purpose === "recovery") {
+          setResetId(data.resetId);
+          setFlow(null);
+          setPassword("");
+          setCode("");
+        } else await authenticated(data);
+        return;
+      }
+      if (recovery) {
+        op.current ||= crypto.randomUUID();
+        setFlow(
+          await api.authAction("/password/recovery/start", {
+            email,
+            password: undefined,
+            operationId: op.current,
+          }),
+        );
+        op.current = null;
+      } else if (register) {
+        if (registrationStatus !== "open")
+          throw new Error("Registration is closed.");
+        op.current ||= crypto.randomUUID();
+        const data = await onRegister(email, password, op.current);
+        if (data?.flowId) {
+          setFlow(data);
+          setPassword("");
+          op.current = null;
+        } else {
+          setNotice("Account created. Sign in below.");
+          switchMode("login");
+        }
+      } else {
+        await onLogin(email, password);
+        onClose("authenticated");
+      }
+    });
+  }
+  const wait = flow
+    ? Math.max(0, Math.ceil((new Date(flow.resendAt).getTime() - now) / 1000))
+    : 0;
+  return (
+    <Dialog
+      title={
+        resetId
+          ? "Choose a new password."
+          : flow
+            ? "Check your Gmail."
+            : recovery
+              ? "Recover your account."
+              : register
+                ? "Join the celebration."
+                : "Welcome back."
+      }
+      onClose={onClose}
+      locked={busy}
+      className="account-dialog"
+    >
+      <div className="dialog-ornament">
+        <Crown />
+      </div>
+      <p className="dialog-intro">
+        One Gmail inbox. One account. Your votes stay with you.
+      </p>
+      {!flow && !resetId && !recovery && (
+        <>
+          <GoogleSignIn
+            api={api}
+            disabled={busy}
+            onSignIn={(perform) =>
+              run(async () => {
+                const data = await perform();
+                if (data.flowId) {
+                  setFlow(data);
+                  setPassword("");
+                  op.current = null;
+                } else await authenticated(data);
+              })
+            }
+          />
+          <p className="fine-print">
+            Or use your Gmail address and website password.
+          </p>
+        </>
+      )}
+      {!flow && !resetId && (
+        <div className="auth-tabs">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => switchMode("login")}
+          >
+            Sign in
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => switchMode("register")}
+          >
+            Register
+          </button>
+        </div>
+      )}
+      {register && !flow && (
+        <p className="schedule-note">
+          {registrationStatus === "open"
+            ? "Registration is open."
+            : "Registration is closed or being checked."}
+        </p>
+      )}
+      {registrationStatus === "unknown" && register && (
+        <button type="button" onClick={onRefreshControls}>
+          Refresh status
+        </button>
+      )}
+      {notice && <p role="status">{notice}</p>}
+      <form onSubmit={submit}>
+        {flow ? (
+          <>
+            <p>
+              {flow.purpose === "link"
+                ? "Confirm this code to connect Google to your existing account."
+                : "Enter the code sent for this request."}{" "}
+              Destination: <strong>{flow.email}</strong>
+            </p>
+            <p className="fine-print">
+              If eligible, an email will arrive shortly. Use the latest code.
+              Check Spam too. An existing account should use sign-in or
+              recovery.
+            </p>
+            {flow.delivery === "sent" && (
+              <p role="status" className="fine-print">
+                Email sent. Check Gmail and Spam.
+              </p>
+            )}
+            {flow.delivery === "failed" && (
+              <p role="alert" className="inline-error">
+                {flow.deliveryMessage}
+              </p>
+            )}
+            <label htmlFor="account-code">6-digit email code</label>
+            <input
+              id="account-code"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              pattern="[0-9]{6}"
+              maxLength={6}
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+              required
+              disabled={busy}
+            />
+            <p className="fine-print">
+              Expires {new Date(flow.expiresAt).toLocaleTimeString()}.
+            </p>
+          </>
+        ) : (
+          <>
+            {!resetId && (
+              <>
+                <label htmlFor="account-email">Gmail address</label>
+                <input
+                  id="account-email"
+                  type="email"
+                  autoComplete="email"
+                  maxLength={254}
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    op.current = null;
+                  }}
+                  required
+                  disabled={busy}
+                />
+              </>
+            )}
+            {(!recovery || resetId) && (
+              <>
+                <label htmlFor="account-password">
+                  {register || resetId ? "Create password" : "Password"}
+                </label>
+                <input
+                  id="account-password"
+                  type={show ? "text" : "password"}
+                  autoComplete={
+                    register || resetId ? "new-password" : "current-password"
+                  }
+                  minLength={register || resetId ? 8 : undefined}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  disabled={busy}
+                />
+                <label className="show-password">
+                  <input
+                    type="checkbox"
+                    checked={show}
+                    onChange={(e) => setShow(e.target.checked)}
+                  />{" "}
+                  Show password
+                </label>
+                {(register || resetId) && (
+                  <p className="fine-print">Use at least 8 characters.</p>
+                )}
+              </>
+            )}
+          </>
+        )}
+        {error && (
+          <p className="inline-error" role="alert">
+            {error}
+          </p>
+        )}
+        <button
+          className="btn primary full-width"
+          disabled={
+            busy ||
+            (register && !flow && !resetId && registrationStatus !== "open")
+          }
+        >
+          {busy
+            ? "Please wait…"
+            : resetId
+              ? "Save password"
+              : flow
+                ? "Verify code"
+                : recovery
+                  ? "Send recovery code"
+                  : register
+                    ? "Send verification code"
+                    : "Sign in"}
+        </button>
+      </form>
+      {flow && (
+        <button
+          type="button"
+          className="btn secondary"
+          disabled={busy || wait > 0}
+          onClick={() =>
+            run(async () => {
+              op.current ||= crypto.randomUUID();
+              const data = await api.authAction("/otp/resend", {
+                flowId: flow.flowId,
+                operationId: op.current,
+              });
+              setFlow(data);
+              setCode("");
+              op.current = null;
+            })
+          }
+        >
+          {wait ? `Resend in ${wait}s` : "Resend code"}
+        </button>
+      )}
+      {!flow && !resetId && mode === "login" && (
+        <button
+          type="button"
+          className="btn secondary"
+          disabled={busy}
+          onClick={() => switchMode("recovery")}
+        >
+          Forgot password / add a password
+        </button>
+      )}
+      {(flow || resetId || recovery) && (
+        <button
+          type="button"
+          className="btn secondary"
+          disabled={busy}
+          onClick={() => switchMode("login")}
+        >
+          Back to sign in
+        </button>
+      )}
+      <p className="fine-print">
+        Email sends are limited. Google registration usually needs no email
+        code.{" "}
+        <a href="#privacy" onClick={() => onClose()}>
+          Privacy
+        </a>
+      </p>
+    </Dialog>
+  );
 }

@@ -1,3 +1,5 @@
+> Historical reference for the previous implementation. Role, voting-key, scheduling and finalist details are superseded by the root README and docs/manual-voting-controls.md.
+
 # Component and callback reference
 
 All presentation is React JSX, with ordinary elements and event handlers. There are no iframes, injected legacy HTML, or `dangerouslySetInnerHTML` calls. API calls belong in `api.js` and state orchestration in `useFestival.js`.

@@ -14,7 +14,10 @@ if (process.env.NODE_ENV === "development") {
   app.use(morgan("dev"));
 }
 
-app.use(express.json());
+// Only the local Nginx reverse proxy may supply forwarded client addresses.
+app.set("trust proxy", "loopback");
+app.disable("x-powered-by");
+app.use(express.json({ limit: "32kb" }));
 app.use((req, res, next) => {
   // Authenticated selections and unreleased results must not be cached.
   res.set("Cache-Control", "no-store");
@@ -29,6 +32,11 @@ if (process.env.NODE_ENV !== "production") {
   }));
 }
 
+const lanternVoting = require('./controller/lanternVotingController');
+const userAuth = require('./middleware/authMiddleware');
+app.get('/api/v1/lantern-voting', lanternVoting.status);
+app.get('/api/v1/lantern-voting/mine', userAuth, lanternVoting.mine);
+app.post('/api/v1/lantern-voting', userAuth, lanternVoting.submit);
 app.use("/api/v1/voting", votingRouter);
 app.use("/api/v1/auth", authRouter);
 

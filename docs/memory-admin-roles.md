@@ -1,3 +1,5 @@
+> Historical reference for the previous implementation. Role, voting-key, scheduling and finalist details are superseded by the root README and docs/manual-voting-controls.md.
+
 # Memory Admin provisioning and permissions
 
 Admin accounts have a database role: `ADMIN` (full administrator) or

@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 const { pipeline } = require("node:stream/promises");
-const Election = require("../model/electionModel");
+const Controls = require("../model/eventControlsModel");
 const MemoryPhoto = require("../model/memoryPhotosModel");
 const Like = require("../model/memoryPhotoLikesModel");
 const storage = require("../utils/memoryPhotoStorage");
@@ -8,7 +8,7 @@ const AppError = require("../utils/appError");
 const catchAsync = require("../utils/catchAsync");
 
 const requireEnabled = async () => {
-  const election = await Election.findById("election").select("memoryPhotosEnabled").lean();
+  const election = await Controls.findById("event").select("memoryPhotosEnabled").lean();
   if (election?.memoryPhotosEnabled !== true) throw new AppError("Memory Photo is disabled.", 403);
 };
 

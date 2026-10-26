@@ -1,20 +1,20 @@
-const express = require("express");
-const { admin, memoryAdmin } = require("../middleware/authMiddleware");
-const candidates = require("../controller/candidatesController");
-const settings = require("../controller/settingsController");
-const memoryPhotos = require("../controller/adminMemoryPhotosController");
-const accounts = require("../controller/adminAccountsController");
-
-const router = express.Router();
-// Only these explicitly declared routes allow the limited moderator role.
-router.get("/memory-photos", memoryAdmin, memoryPhotos.listPending);
-router.get("/memory-photos/:id/image", memoryAdmin, memoryPhotos.getImage);
-router.patch("/memory-photos/:id/review", memoryAdmin, memoryPhotos.reviewPhoto);
-
-router.use(admin);
-router.post("/memory-admins", accounts.createMemoryAdmin);
-router.get("/candidates", candidates.getAdminCandidates);
-router.get("/candidates/:id", candidates.getAdminCandidate);
-router.route("/settings").get(settings.getSettings).patch(settings.updateSettings);
-
+const router = require('express').Router();
+const { admin, staff, permission } = require('../middleware/authMiddleware');
+const candidates = require('../controller/candidatesController');
+const settings = require('../controller/settingsController');
+const memory = require('../controller/adminMemoryPhotosController');
+const accounts = require('../controller/adminAccountsController');
+router.get('/memory-photos', permission('memory.read'), memory.listPending);
+router.get('/memory-photos/:id/image', permission('memory.read'), memory.getImage);
+router.patch('/memory-photos/:id/review', staff, memory.reviewPhoto);
+router.route('/voting-admins').get(admin, accounts.list).post(admin, accounts.create);
+router.route('/voting-admins/:id').patch(admin, accounts.update).delete(admin, accounts.remove);
+router.route('/staff').get(admin, accounts.list).post(admin, accounts.create);
+router.route('/staff/:id').patch(admin, accounts.update).delete(admin, accounts.remove);
+router.get('/candidates', permission('candidates.read'), candidates.getAdminCandidates);
+router.get('/candidates/:id', permission('candidates.read'), candidates.getAdminCandidate);
+router.get('/vote-totals',permission('votes.read'),require('../controller/voteTotalsController').candidates);
+router.get('/lantern-vote-totals',permission('lantern.votes.read'),require('../controller/voteTotalsController').lanterns);
+router.get('/settings', staff, settings.getSettings);
+router.post('/controls/:action', staff, settings.command);
 module.exports = router;

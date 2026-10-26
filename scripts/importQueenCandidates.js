@@ -1,15 +1,7 @@
-const fs = require("fs/promises");
-const path = require("path");
-const mongoose = require("mongoose");
-const dotenv = require("dotenv");
-
-dotenv.config({ path: path.resolve(__dirname, "..", "config.env") });
-
-const Candidate = require("../model/candidatesModel");
-
-const root = path.resolve(__dirname, "..", "Candidates", "Queen Candidates");
-const uploadDirectory = path.resolve(process.env.LOCAL_UPLOAD_DIR || path.join(__dirname, "..", "uploads"), "candidates");
-
+const fs = require('node:fs/promises');
+const path = require('node:path');
+require('dotenv').config({ path: path.resolve(__dirname, '..', 'config.env') });
+const root = path.resolve(__dirname, '..', 'Candidates', 'Queen Candidates');
 const candidates = [
   {
     folder: "Candidate1",
@@ -45,37 +37,36 @@ const candidates = [
 ];
 
 async function main() {
-  if (!process.env.DATABASE_LOCAL) throw new Error("DATABASE_LOCAL is required in config.env.");
-  await fs.mkdir(uploadDirectory, { recursive: true });
-  await mongoose.connect(process.env.DATABASE_LOCAL);
-
-  for (const [candidateIndex, candidate] of candidates.entries()) {
-    const images = [];
-    for (const [imageIndex, filename] of candidate.photos.entries()) {
-      const extension = path.extname(filename).toLowerCase();
-      const storedName = `queen-candidate-${candidateIndex + 1}-${imageIndex + 1}${extension}`;
-      await fs.copyFile(path.join(root, candidate.folder, filename), path.join(uploadDirectory, storedName));
-      images.push(`/uploads/candidates/${storedName}`);
+  const base = new URL(process.env.IMPORT_API_URL || `http://127.0.0.1:${process.env.PORT || 5000}`);
+  if (!['127.0.0.1', 'localhost', '[::1]'].includes(base.hostname) || base.protocol !== 'http:') throw new Error('Candidate import is local-only. IMPORT_API_URL must point to the local API.');
+  const call = async (endpoint, { token, method = 'GET', body } = {}) => {
+    const multipart = body instanceof FormData;
+    const response = await fetch(new URL(`/api/v1${endpoint}`, base), { method, headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(body && !multipart ? { 'Content-Type': 'application/json' } : {}),
+    }, ...(body ? { body: multipart ? body : JSON.stringify(body) } : {}) });
+    const json = await response.json();
+    if (!response.ok) throw new Error(`Candidate import rejected: ${json.message || response.status}`);
+    return json.data;
+  };
+  const login = await call('/auth/admin/login', { method: 'POST', body: { username: process.env.ADMIN_USERNAME, password: process.env.ADMIN_PASSWORD } });
+  const token = login.token;
+  const existing = (await call('/admin/candidates', { token })).candidates;
+  for (const candidate of candidates) {
+    const { folder, photos, ...profile } = candidate;
+    const previous = existing.find(c => c.fullName === profile.fullName && c.category === 'queen');
+    const body = new FormData();
+    body.append('data', JSON.stringify({ ...profile, category: 'queen', isActive: true,
+      ...(previous ? { photoLayout: photos.map((_, index) => ({ upload: index })) } : {}) }));
+    for (const filename of photos) {
+      const bytes = await fs.readFile(path.join(root, folder, filename));
+      body.append('images', new Blob([bytes], { type: 'image/jpeg' }), filename);
     }
-
-    const record = { ...candidate, category: "queen", isActive: true, images };
-    delete record.folder;
-    delete record.photos;
-    await Candidate.findOneAndUpdate(
-      { fullName: record.fullName, category: "queen" },
-      { $set: record },
-      { upsert: true, returnDocument: "after", runValidators: true },
-    );
+    await call(`/candidates${previous ? `/${previous._id}` : ''}`, { token, method: previous ? 'PATCH' : 'POST', body });
   }
-
-  console.log(`Imported ${candidates.length} Queen candidates.`);
+  console.log(`Imported ${candidates.length} Queen candidates through guarded API routes.`);
 }
-
-main()
-  .catch((error) => {
-    console.error(error.message);
-    process.exitCode = 1;
-  })
-  .finally(async () => {
-    await mongoose.disconnect();
-  });
+main().catch(() => {
+  console.error('Candidate import could not finish. Confirm the local API is running, credentials are valid, voting is closed and announcement is hidden. Refresh candidates before retrying a partial import.');
+  process.exitCode = 1;
+});

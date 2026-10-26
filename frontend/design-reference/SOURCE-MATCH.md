@@ -1,3 +1,5 @@
+> Historical reference for the previous implementation. Role, voting-key, scheduling and finalist details are superseded by the root README and docs/manual-voting-controls.md.
+
 # Integration notes for this revision
 
 Files changed: App.jsx, components/Candidates.jsx, components/AccountDialogs.jsx, main.jsx. Added source-match.css and public/art/source-{king,queen,navy-sky}.svg. API, domain and useFestival logic remain unchanged.

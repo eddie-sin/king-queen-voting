@@ -11,10 +11,18 @@ export async function request(path, { token, method = 'GET', body, signal } = {}
   if (body !== undefined && !(body instanceof FormData)) headers['Content-Type'] = 'application/json';
   let res;
   try {
-    res = await fetch(`${base}/api/v1${path}`, { method, headers, body: body instanceof FormData ? body : body === undefined ? undefined : JSON.stringify(body), cache: 'no-store', signal });
+    res = await fetch(`${base}/api/v1${path}`, { method, headers, body: body instanceof FormData ? body : body === undefined ? undefined : JSON.stringify(body), cache: 'no-store', signal, credentials: 'omit' });
   } catch (error) { throw new Error(error?.name === 'AbortError' ? 'Request canceled.' : 'Unable to reach the voting API. Check that the backend is running and your API URL is correct.'); }
   if (res.status === 204) return null;
   const json = await res.json().catch(() => ({}));
   if (!res.ok) throw Object.assign(new Error(json.message || `Request failed (HTTP ${res.status}).`), { status: res.status });
   return json.data ?? json;
+}
+
+export async function privateImage(path, { token, signal }) {
+  const response = await fetch(`${base}/api/v1${path}`, { headers: { Authorization: `Bearer ${token}` }, signal, cache: 'no-store', credentials: 'omit' });
+  if (!response.ok) throw new Error('Private photo is unavailable. Refresh or sign in again.');
+  const blob = await response.blob();
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(blob.type)) throw new Error('Invalid photo response.');
+  return blob;
 }
