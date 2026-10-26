@@ -71,7 +71,7 @@ try {
     await page.getByText('Limit: 3 · Accepted: 0 · Remaining: 1').waitFor();
     await page.locator('input[type=file][multiple]').setInputFiles([file('one.png'), file('two.png')]);
     assert.equal(await page.locator('.mp-slot.is-filled').count(), 1);
-    await page.getByRole('alert').filter({ hasText: 'remaining lifetime slots' }).waitFor();
+  await page.getByRole('alert').filter({ hasText: 'remaining active slots' }).waitFor();
     await page.getByRole('button', { name: 'Remove selected photo 1' }).click();
     assert.deepEqual(await page.evaluate(() => [previewCreated.length, previewRevoked.length]), [1, 1]);
     await page.locator('input[type=file][multiple]').setInputFiles({ name: 'bad.gif', mimeType: 'image/gif', buffer: png });

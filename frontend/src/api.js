@@ -1,4 +1,4 @@
-import { authConfig, csrfHeaders } from './authSession.js';
+import { authConfig, csrfHeaders, clearAuthConfig } from './authSession.js';
 import { parseLikeStates, parseLikeMutation } from './memory/likes.js';
 import { uploadSelectionError, parseUploadedMemory } from './memory/upload.js';
 import { parseMemoryGallery } from './memory/gallery.js';
@@ -29,6 +29,7 @@ export function createApi({ baseUrl = '/api/v1', fetchImpl = (...args) => fetch(
       try { payload = await response.json(); } catch {
         throw new ApiError('The server returned an unreadable response. Please try refreshing.', { status: response.status, interrupted: method !== 'GET' });
       }
+      if (response.status === 403) clearAuthConfig();
       if (!response.ok || payload.status !== 'success') {
         // Keep accidental long secret-like strings out of error messages.
         const message = typeof payload.message === 'string' ? payload.message.replace(/[a-f0-9]{64}/gi, '[redacted]') : 'The request could not be completed.';
@@ -82,9 +83,36 @@ export function createApi({ baseUrl = '/api/v1', fetchImpl = (...args) => fetch(
       try { return parseMyMemories(data); }
       catch { throw new ApiError('Your memories returned incomplete information. Please try again.'); }
     },
+    async archiveMemoryPhoto(token, id) {
+      if (!token || !/^[a-f0-9]{24}$/i.test(id)) throw new ApiError('Invalid archive request.', { status: 400 });
+      const { data } = await request(`/memory-photos/${id}/archive`, { method: 'PATCH', token, body: {} });
+      return data.photo;
+    },
+    async unarchiveMemoryPhoto(token, id) {
+      if (!token || !/^[a-f0-9]{24}$/i.test(id)) throw new ApiError('Invalid restore request.', { status: 400 });
+      const { data } = await request(`/memory-photos/${id}/unarchive`, { method: 'PATCH', token, body: {} });
+      return data.photo;
+    },
+    async deleteMemoryPhoto(token, id) {
+      if (!token || !/^[a-f0-9]{24}$/i.test(id)) throw new ApiError('Invalid delete request.', { status: 400 });
+      const { data } = await request(`/memory-photos/${id}`, { method: 'DELETE', token, body: {} });
+      return data;
+    },
     memoryPhotoImageUrl(id) {
       if (!/^[a-f0-9]{24}$/i.test(id)) throw new ApiError('Invalid Memory Photo ID.');
       return `${baseUrl}/memory-photos/${id}/image`;
+    },
+    memoryPhotoOwnerImageUrl(id) {
+      if (!/^[a-f0-9]{24}$/i.test(id)) throw new ApiError('Invalid Memory Photo ID.');
+      return `${baseUrl}/memory-photos/mine/${id}/image`;
+    },
+    async memoryPhotoOwnerImage(token, id, options = {}) {
+      if (!token || !/^[a-f0-9]{24}$/i.test(id)) throw new ApiError('Invalid private image request.', { status: 400 });
+      const response = await fetch(this.memoryPhotoOwnerImageUrl(id), { credentials: 'same-origin', cache: 'no-store', signal: options.signal, headers: { Accept: 'image/jpeg,image/png,image/webp' } });
+      if (!response.ok) throw new ApiError('Archived photo is unavailable.', { status: response.status });
+      const blob = await response.blob();
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(blob.type)) throw new ApiError('Invalid private image response.', { status: 503 });
+      return blob;
     },
     async candidates(options) {
       const { data } = await request('/candidates', options);

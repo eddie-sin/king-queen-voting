@@ -37,6 +37,11 @@ const userAuth = require('./middleware/authMiddleware');
 app.get('/api/v1/lantern-voting', lanternVoting.status);
 app.get('/api/v1/lantern-voting/mine', userAuth, lanternVoting.mine);
 app.post('/api/v1/lantern-voting', userAuth, lanternVoting.submit);
+// Nginx denies this path publicly; deploy checks reach it on loopback only.
+app.get('/api/v1/health/ready', async (req, res) => {
+  try { res.json({status:'success',data:await require('./utils/accounts/health').readiness()}); }
+  catch { res.status(503).json({status:'error',message:'Service is not ready.'}); }
+});
 app.use("/api/v1/voting", votingRouter);
 app.use("/api/v1/auth", authRouter);
 

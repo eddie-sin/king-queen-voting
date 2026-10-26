@@ -201,7 +201,7 @@ try {
   report.requests.push({ source: 'privacy check', method: 'GET', path: '/uploads/[test-image]', status: staticAttempt.status });
   equal(staticAttempt.status, 404);
   equal(await readFile(path.join(process.env.MEMORY_PHOTO_UPLOAD_DIR, stored.imageKey)), png);
-  step('Rejected envelope retains lifetime quota; rejected image stays private');
+  step('Rejected envelope releases active quota after private cleanup; rejected image stays private');
 
   for (const width of [390, 320, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 950 });

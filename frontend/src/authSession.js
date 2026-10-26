@@ -19,14 +19,18 @@ export function announceAccountChange() {
   } catch {}
 }
 let configPromise;
+let refreshAt = 0;
 export function clearAuthConfig() {
   configPromise = null;
+  refreshAt = 0;
 }
 export async function authConfig(
   fetchImpl = (...args) => fetch(...args),
   base = "/api/v1",
 ) {
-  if (!configPromise)
+  if (configPromise && Date.now() >= refreshAt) clearAuthConfig();
+  if (!configPromise) {
+    refreshAt = Infinity;
     configPromise = fetchImpl(base + "/auth/config", {
       credentials: "same-origin",
       cache: "no-store",
@@ -39,12 +43,14 @@ export async function authConfig(
           throw new Error(
             "Account service is unavailable. Refresh and try again.",
           );
+        refreshAt = Date.now() + Math.min(60000, Math.max(1000, Number(body.data.refreshAfter) || 60000));
         return body.data;
       })
       .catch((e) => {
         configPromise = null;
         throw e;
       });
+  }
   return configPromise;
 }
 export async function csrfHeaders(fetchImpl, base) {
