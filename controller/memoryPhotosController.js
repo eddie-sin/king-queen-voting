@@ -20,7 +20,7 @@ exports.requireEnabled = catchAsync(async (req, res, next) => {
 
 exports.listMine = catchAsync(async (req, res) => {
   res.set("Cache-Control", "private, no-store");
-  res.vary("Authorization");
+  res.vary("Cookie");
   if (Object.keys(req.query).length || Object.keys(req.body || {}).length) {
     throw new AppError("My Memories does not accept body or query fields.", 400);
   }

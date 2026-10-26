@@ -15,7 +15,6 @@ function pump() {
 }
 function createSlot() {
   const slot = { worker: new Worker(path.join(__dirname, 'passwordWorker.js')), job: null };
-  slot.worker.unref();
   slot.worker.on('message', message => {
     const job = slot.job; if (!job || job.id !== message.id) return;
     slot.job = null; slot.worker.unref();
@@ -29,6 +28,8 @@ function createSlot() {
     slots.splice(slots.indexOf(slot), 1);
     if (waiting.length) { slots.push(createSlot()); pump(); }
   });
+  // Adding a message listener can re-reference a worker; unref only after wiring it.
+  slot.worker.unref();
   return slot;
 }
 function run(operation, password, hash) {

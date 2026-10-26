@@ -19,7 +19,7 @@ const database='kqv_role_check_'+require('node:crypto').randomBytes(8).toString(
 let server,checks=0;
 const token=(account,role)=>jwt.sign({role,v:0,[role==='admin'?'adminId':'userId']:String(account._id)},process.env.JWT_SECRET,{algorithm:'HS256'});
 (async()=>{
- await mongoose.connect(`mongodb://127.0.0.1:27018/${database}?replicaSet=kqvLocal`,{autoCreate:false,autoIndex:false,serverSelectionTimeoutMS:3000});
+ await mongoose.connect(process.env.AUTH_TEST_MONGO_URI.replace("/?", `/${database}?`),{autoCreate:false,autoIndex:false,serverSelectionTimeoutMS:3000});
  try{
   for(const model of Object.values(mongoose.models)){await model.createCollection();await model.createIndexes();}
   await Controls.create({_id:'event'});

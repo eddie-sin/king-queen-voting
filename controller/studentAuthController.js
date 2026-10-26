@@ -79,6 +79,8 @@ exports.config = catchAsync(async (req, res) => {
     status: "success",
     data: {
       csrfToken: security.csrf(browser),
+      // A short cache lifetime also recovers from another tab replacing the browser cookie.
+      refreshAfter: 60000,
       googleClientId: settings().clientId || null,
     },
   });
@@ -111,6 +113,9 @@ exports.register = catchAsync(async (req, res) => {
 exports.login = catchAsync(async (req, res) => {
   only(req, ["email", "password"]);
   const { emailKey } = gmail(req.body.email);
+  const attemptKey = `password-attempt:${security.digest(emailKey)}`;
+  // Inbox-scoped and durable across restarts; shared Wi-Fi is not a single account.
+  await withControls(async ({session}) => challenges.hit(attemptKey, 20, new Date(Date.now()+15*60000), session));
   const user = await User.findOne({ emailKey }).select("+passwordHash");
   dummyHash ||= passwords.hash("unused-login-placeholder").catch((error) => {
     dummyHash = null;
@@ -132,6 +137,7 @@ exports.login = catchAsync(async (req, res) => {
       tokenVersion: user.tokenVersion,
     }).session(session);
     active(current);
+    await require("../model/studentAuthModels").Limit.deleteOne({_id:attemptKey}, {session});
     return { user: current, raw: await security.issue(current, session) };
   });
   await signed(res, result.user, result.raw);

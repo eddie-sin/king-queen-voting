@@ -150,6 +150,7 @@ export function AccountDialog({
   const wait = flow
     ? Math.max(0, Math.ceil((new Date(flow.resendAt).getTime() - now) / 1000))
     : 0;
+  const expired = flow && new Date(flow.expiresAt).getTime() <= now;
   return (
     <Dialog
       title={
@@ -261,6 +262,7 @@ export function AccountDialog({
               required
               disabled={busy}
             />
+            {expired && <p role="alert" className="inline-error">This code has expired. Go back to sign in to start again.</p>}
             <p className="fine-print">
               Expires {new Date(flow.expiresAt).toLocaleTimeString()}.
             </p>
@@ -298,7 +300,7 @@ export function AccountDialog({
                   }
                   minLength={register || resetId ? 8 : undefined}
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => { setPassword(e.target.value); op.current = null; }}
                   required
                   disabled={busy}
                 />
@@ -325,7 +327,7 @@ export function AccountDialog({
         <button
           className="btn primary full-width"
           disabled={
-            busy ||
+            busy || expired ||
             (register && !flow && !resetId && registrationStatus !== "open")
           }
         >
@@ -346,7 +348,7 @@ export function AccountDialog({
         <button
           type="button"
           className="btn secondary"
-          disabled={busy || wait > 0}
+          disabled={busy || expired || wait > 0}
           onClick={() =>
             run(async () => {
               op.current ||= crypto.randomUUID();

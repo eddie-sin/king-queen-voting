@@ -1,6 +1,6 @@
 process.on("uncaughtException", (err) => {
   console.error("UNCAUGHT EXCEPTION! Shutting down...");
-  console.error(err.stack);
+  console.error(err.name);
   process.exit(1);
 });
 
@@ -63,13 +63,13 @@ mongoose
 
   })
   .catch((err) => {
-    console.error("Server startup failed:", err.message);
+    console.error("Server startup failed:", err.name, err.isOperational ? err.message : "Check the protected configuration and database readiness.");
     process.exit(1);
   });
 
 process.on("unhandledRejection", (err) => {
   console.error("UNHANDLED REJECTION! Shutting down...");
-  console.error(err.name,err.message);
+  console.error(err.name);
 
   if (server) {
     server.close(() => process.exit(1));
@@ -83,11 +83,14 @@ async function shutdown() {
   if (stopping) return;
   stopping = true;
   admission.close();
-  require('./utils/accounts/mail').stop();
+  const mailDrain = require('./utils/accounts/mail').stop().catch(() => {
+    console.warn('Authentication mail drain interrupted; its lease will recover on restart.');
+  });
   const deadline = setTimeout(() => process.exit(1), 20000);
   deadline.unref();
   if (server) await new Promise(resolve => server.close(resolve));
   await admission.drain();
+  await mailDrain;
   await mongoose.disconnect();
   process.exit(0);
 }

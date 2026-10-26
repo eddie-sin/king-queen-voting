@@ -1,4 +1,4 @@
-import { authConfig, csrfHeaders } from './authSession.js';
+import { authConfig, csrfHeaders, clearAuthConfig } from './authSession.js';
 import { parseLikeStates, parseLikeMutation } from './memory/likes.js';
 import { uploadSelectionError, parseUploadedMemory } from './memory/upload.js';
 import { parseMemoryGallery } from './memory/gallery.js';
@@ -29,6 +29,7 @@ export function createApi({ baseUrl = '/api/v1', fetchImpl = (...args) => fetch(
       try { payload = await response.json(); } catch {
         throw new ApiError('The server returned an unreadable response. Please try refreshing.', { status: response.status, interrupted: method !== 'GET' });
       }
+      if (response.status === 403) clearAuthConfig();
       if (!response.ok || payload.status !== 'success') {
         // Keep accidental long secret-like strings out of error messages.
         const message = typeof payload.message === 'string' ? payload.message.replace(/[a-f0-9]{64}/gi, '[redacted]') : 'The request could not be completed.';

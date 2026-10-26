@@ -8,7 +8,7 @@ const likes = require("../controller/memoryPhotoLikesController");
 const router = express.Router();
 router.get("/like-status", (req, res, next) => {
   res.set("Cache-Control", "private, no-store");
-  res.vary("Authorization");
+  res.vary("Cookie");
   next();
 }, authenticate, controller.requireEnabled, likes.getLikeStatus);
 router.get("/mine", authenticate, controller.requireEnabled, controller.listMine);

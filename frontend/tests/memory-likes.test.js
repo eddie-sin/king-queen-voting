@@ -35,7 +35,7 @@ test('like requests validate auth/IDs and preserve failure/uncertainty without r
   await assert.rejects(api.setMemoryPhotoLike('student', 'bad', true)); assert.equal(calls, 0);
   await assert.rejects(api.setMemoryPhotoLike('student', id, true), error => error.interrupted); assert.equal(calls, 1);
   for (const status of [401, 403, 404, 500]) {
-    const failed = createApi({ fetchImpl: async () => new Response(JSON.stringify({ status: 'fail' }), { status }) });
+    const failed = createApi({ fetchImpl: async url => url.endsWith('/auth/config') ? new Response(JSON.stringify({status:'success',data:{csrfToken:'fixture-csrf'}})) : new Response(JSON.stringify({ status: 'fail' }), { status }) });
     await assert.rejects(failed.setMemoryPhotoLike('student', id, true), error => error.status === status);
   }
 });

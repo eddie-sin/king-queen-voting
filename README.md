@@ -6,7 +6,7 @@ Current role/workspace and Lantern extensions are documented in [role workspaces
 
 Express/Mongoose API with React student and admin websites. This branch replaces the scheduled/key-based voting system with manual event controls.
 
-**Implementation phase:** the application changes are on `eddie/manual-voting-controls`. Focused authentication, role, Lantern, frontend and browser checks are implemented; full voting-event capacity testing, the remaining legacy backend test rewrite, deployment preparation and rollback rehearsal remain separate. Nothing in this branch is deployed automatically.
+**Authentication release preparation:** changes remain on `eddie/manual-voting-controls`. See [the launch runbook](deploy/LAUNCH.md) for isolated tests, production configuration, exact-commit packaging and rollback rehearsal. Public deployment, real-domain provider checks and whole-event capacity certification remain separate. This branch is not deployed automatically.
 
 ## Setup for this version
 
