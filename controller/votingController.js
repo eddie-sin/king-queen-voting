@@ -18,7 +18,7 @@ exports.submitVote = catchAsync(async (req, res) => {
   let saved;
   try {
     saved = await admission.admit(() => withControls(async ({ session, controls }) => {
-      const user = await User.findOne({ _id: req.userId, status: 'active', tokenVersion: req.user.tokenVersion }).session(session);
+      const user = await User.findOne({ _id: req.userId, status: 'active', emailVerifiedAt: { $exists: true }, tokenVersion: req.user.tokenVersion }).session(session);
       if (!user) throw new AppError('Your account is no longer permitted to vote.', 403);
       if (controls.round !== round || controls.window !== window) throw new AppError('Voting has changed. Refresh before submitting again.', 409);
       const existing = await Ballot.findOne({ user: user._id, round, contest }).session(session);

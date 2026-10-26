@@ -22,15 +22,10 @@ async function lanternAdmin(permissions = [], username = `lantern-${crypto.rando
   return fixture.staff('lantern_admin', permissions, username);
 }
 async function students(count) {
-  assert.equal((await command('registration.open')).status, 200);
   const accounts = [];
   for (let index = 0; index < count; index++) {
-    const email = `lantern-student-${index}-${crypto.randomBytes(4).toString('hex')}@example.test`;
-    assert.equal((await fixture.request('POST', '/auth/register', { body: { email, password: fixture.password } })).status, 201);
-    const login = await fixture.request('POST', '/auth/login', { body: { email, password: fixture.password } });
-    assert.equal(login.status, 200); accounts.push(login.body.data);
+    accounts.push(await fixture.student(`lantern-student-${index}-${crypto.randomBytes(4).toString('hex')}@gmail.com`));
   }
-  assert.equal((await command('registration.close')).status, 200);
   return accounts;
 }
 function lanternForm(title = 'Golden Lantern', description = 'Festival lantern') {

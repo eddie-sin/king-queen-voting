@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { createServer } from 'vite';
 
-const server = await createServer({ configFile: 'vite.config.js', mode: 'fixtures', server: { host: '127.0.0.1', port: 0 } });
+const server = await createServer({ configFile: 'vite.config.js', mode: 'development', server: { host: '127.0.0.1', port: 0 } });
 await server.listen();
 const browser = await chromium.launch({ headless: true,
   ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } : {}), args: ['--no-sandbox'] });
@@ -20,6 +20,27 @@ try {
     const page = await context.newPage();
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
+    let signedIn = false, used = 0;
+    await page.route('**/api/v1/**', route => {
+      const path = new URL(route.request().url()).pathname;
+      const ok = data => route.fulfill({ json: { status: 'success', data } });
+      if (path.endsWith('/config')) return ok({ csrfToken: 'wish-browser-csrf', googleClientId: null });
+      if (path.endsWith('/pending')) return ok({ flow: null });
+      if (path.endsWith('/login')) { signedIn = true; return ok({ sessionKey: 'wish-browser-session', user: { id: 'wish-user', email: 'demo@gmail.com' } }); }
+      if (path.endsWith('/me')) return signedIn ? ok({ sessionKey: 'wish-browser-session', user: { id: 'wish-user', email: 'demo@gmail.com' } }) : route.fulfill({ status: 401, json: { status: 'fail', message: 'Sign in to continue.' } });
+      if (path.endsWith('/wishes/mine')) return ok({ used, remaining: Math.max(0, 3 - used) });
+      if (path.endsWith('/wishes') && route.request().method() === 'POST') {
+        if (used >= 3) return route.fulfill({ status: 409, json: { status: 'fail', message: 'Wish limit reached.' } });
+        used++; return ok({ wish: { id: `created-${used}`, message: route.request().postDataJSON().message } });
+      }
+      if (path.endsWith('/wishes')) return ok({ wishes: Array.from({ length: 24 }, (_, index) => ({ id: `wish-${index + 1}`, message: `Festival wish ${index + 1}` })), nextCursor: null, total: 24 });
+      if (path.endsWith('/voting/my-votes')) return ok({ votes: [], round: 1, window: 1 });
+      if (path.endsWith('/settings')) return ok({ controls: { registrationOpen: true, votingStatus: 'closed', announcementOpen: false, memoryPhotosEnabled: false, round: 1, window: 1, revision: 0, candidateManagementLocked: false } });
+      if (path.endsWith('/lantern-voting')) return ok({ open: false, announced: false, window: 0, winner: null });
+      if (path.endsWith('/candidates')) return ok({ candidates: [] });
+      if (path.endsWith('/images')) return ok({ images: [] });
+      throw Error(`Unexpected API request: ${path}`);
+    });
     await page.goto(`${base}/#wishes`);
     await page.locator('.floating-wish').first().waitFor();
     assert.equal(await page.locator('.floating-wish').count(), viewport.width < 580 ? 12 : 24);
@@ -58,10 +79,14 @@ try {
     await page.keyboard.press('Escape');
     assert.equal(await firstWish.evaluate(element => document.activeElement === element), true);
     await page.getByRole('button', { name: 'Release a wish' }).click();
-    const login = page.getByRole('dialog');
-    await login.getByLabel('Email address').fill('demo@example.test');
+    const login = page.locator('dialog.account-dialog');
+    await login.getByLabel('Gmail address').fill('demo@gmail.com');
     await login.getByLabel('Password', { exact: true }).fill('festival123');
     await login.locator('form').getByRole('button', { name: 'Sign in', exact: true }).click();
+    await page.waitForTimeout(200);
+    if (await login.getByRole('alert').count()) throw Error(`Wish fixture login failed: ${await login.getByRole('alert').innerText()}`);
+    await login.waitFor({ state: 'detached' });
+    if (!await page.getByRole('heading', { name: 'Send a little hope.' }).count()) await page.getByRole('button', { name: 'Release a wish' }).click();
     await page.getByRole('heading', { name: 'Send a little hope.' }).waitFor();
     for (let index = 1; index <= 3; index++) {
       await page.getByLabel('Your wish', { exact: true }).fill(index === 1 ? 'a'.repeat(600) : `Wish ${index}`);

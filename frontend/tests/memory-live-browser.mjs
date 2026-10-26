@@ -21,13 +21,16 @@ const report = { branch: 'eddie/manual-voting-controls', mode: 'real-local-v2', 
 let mongo, mongoExit, backend, vite, browser, adminToken, base;
 const password = crypto.randomBytes(20).toString('hex');
 const adminName = `live-admin-${crypto.randomUUID()}`, moderatorName = `live-reviewer-${crypto.randomUUID()}`;
-const email = `memory-${crypto.randomUUID()}@example.test`;
+const email = `memory${crypto.randomBytes(8).toString('hex')}@gmail.com`;
 const check = (value, message) => { assert(value, message); report.assertions++; };
 const equal = (actual, expected, message) => { assert.deepEqual(actual, expected, message); report.assertions++; };
 const step = text => { report.steps.push({ step: text, status: 'PASS' }); console.log(`PASS: ${text}`); };
 async function api(method, endpoint, token, body, expected = 200) {
+  const studentSession = token && typeof token === 'object';
   const response = await fetch(base + '/api/v1' + endpoint, { method,
-    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(body ? { 'Content-Type': 'application/json' } : {}) },
+    headers: { ...(typeof token === 'string' ? { Authorization: `Bearer ${token}` } : {}),
+      ...(studentSession ? { Cookie: token.cookie, Origin: process.env.AUTH_ORIGIN, 'X-CSRF-Token': token.csrf } : {}),
+      ...(body ? { 'Content-Type': 'application/json' } : {}) },
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
   report.requests.push({ source: 'setup/moderation/check', method, path: endpoint, status: response.status });
@@ -45,6 +48,11 @@ try {
   process.env.NODE_ENV = 'test';
   process.env.JWT_SECRET = crypto.randomBytes(32).toString('hex');
   process.env.JWT_EXPIRES_IN = '1h';
+  process.env.AUTH_ORIGIN = 'http://localhost:5173';
+  process.env.AUTH_OTP_SECRET = crypto.randomBytes(32).toString('hex');
+  process.env.AUTH_MAIL_SECRET = crypto.randomBytes(32).toString('hex');
+  process.env.GOOGLE_CLIENT_ID_DEVELOPMENT = 'memory-live.apps.googleusercontent.com';
+  process.env.RESEND_API_KEY = 'fixture-not-used';
   process.env.ADMIN_USERNAME = adminName; process.env.ADMIN_PASSWORD = password;
   process.env.MEMORY_PHOTO_STORAGE = 'local';
   process.env.MEMORY_PHOTO_UPLOAD_DIR = path.join(temp, 'private');
@@ -77,15 +85,19 @@ try {
     s3[name] = () => { report.awsCalls++; throw Error('AWS forbidden in this test'); };
   }
   const { seed } = require('../../utils/seed'); await seed();
+  process.env.GOOGLE_CLIENT_ID_DEVELOPMENT = ''; // Keep this isolated browser run offline after startup validation.
   const Photo = require('../../model/memoryPhotosModel');
   const Quota = require('../../model/memoryPhotoQuotasModel');
   const Like = require('../../model/memoryPhotoLikesModel');
+  const { Mail } = require('../../model/studentAuthModels');
+  const authSecurity = require('../../utils/accounts/security');
   await Promise.all([Photo.init(), Quota.init(), Like.init()]);
   const app = require('../../app'); backend = app.listen(0, '127.0.0.1'); await once(backend, 'listening');
   base = `http://127.0.0.1:${backend.address().port}`;
   process.env.VOTING_API_TARGET = base; // Vite must not consult config.env.
   vite = await createServer({ configFile: 'vite.config.js', server: { host: '127.0.0.1', port: 0 } }); await vite.listen();
   const front = `http://127.0.0.1:${vite.httpServer.address().port}`;
+  process.env.AUTH_ORIGIN = front;
   const adminLogin = await api('POST', '/auth/admin/login', null, { username: adminName, password }); adminToken = adminLogin.data.data.token;
   await api('POST', '/admin/staff', adminToken, { username: moderatorName, password, role: 'memory_admin', permissions: ['memory.approve', 'memory.reject'] }, 201);
   const moderatorLogin = await api('POST', '/auth/admin/login', null, { username: moderatorName, password }); const moderator = moderatorLogin.data.data.token;
@@ -114,15 +126,21 @@ try {
   await page.goto(front + '/#account');
   await page.getByRole('button', { name: 'Sign in', exact: true }).first().click();
   const dialog = page.getByRole('dialog'); await dialog.getByRole('button', { name: 'Register', exact: true }).click();
-  await dialog.getByLabel('Email address', { exact: true }).fill(email); await dialog.getByLabel('Password', { exact: true }).fill(password);
+  await dialog.getByLabel('Gmail address', { exact: true }).fill(email); await dialog.getByLabel('Create password', { exact: true }).fill(password);
   const registration = page.waitForResponse(response => new URL(response.url()).pathname === '/api/v1/auth/register');
-  await dialog.locator('form').getByRole('button', { name: 'Create account', exact: true }).click(); equal((await registration).status(), 201);
-  await dialog.getByText('Your account is ready. Sign in below.').waitFor();
-  await dialog.getByLabel('Email address', { exact: true }).fill(email); await dialog.getByLabel('Password', { exact: true }).fill(password);
-  await dialog.locator('form').getByRole('button', { name: 'Sign in', exact: true }).click(); await dialog.waitFor({ state: 'detached' });
-  const student = await page.evaluate(() => JSON.parse(localStorage.getItem('thadingyut_voter_session')).token);
-  check(typeof student === 'string', 'Student login did not persist session');
-  step('Real React student registration and login');
+  await dialog.locator('form').getByRole('button', { name: 'Send verification code', exact: true }).click();
+  const registrationResponse = await registration; equal(registrationResponse.status(), 200);
+  const registrationData = (await registrationResponse.json()).data;
+  const mail = await Mail.findById(registrationData.flowId).select('+payload').lean();
+  const code = authSecurity.unseal(mail.payload).text.match(/code is (\d{6})/)[1];
+  await dialog.getByLabel('6-digit email code').fill(code);
+  await dialog.locator('form').getByRole('button', { name: 'Verify code', exact: true }).click(); await dialog.waitFor({ state: 'detached' });
+  const authConfig = await page.evaluate(() => fetch('/api/v1/auth/config', { credentials: 'same-origin' }).then(response => response.json()));
+  const cookies = await context.cookies(base);
+  const student = { cookie: cookies.map(item => `${item.name}=${item.value}`).join('; '), csrf: authConfig.data.csrfToken };
+  check(cookies.some(item => item.name.endsWith('kq_session')), 'Student login did not issue an HttpOnly session cookie');
+  equal(await page.evaluate(() => localStorage.getItem('thadingyut_voter_session')), null);
+  step('Real React verified-Gmail registration and cookie-session login');
 
   const png = await readFile('../postman/fixtures/memory-photo.png');
   async function upload(name, expectedCount) {

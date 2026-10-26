@@ -1,10 +1,14 @@
 // Focused integration check. Uses only a generated, disposable localhost database.
 process.env.NODE_ENV='development';
+process.env.AUTH_ORIGIN='http://localhost:5173';
+process.env.AUTH_OTP_SECRET=require('node:crypto').randomBytes(32).toString('hex');
 process.env.JWT_SECRET=require('node:crypto').randomBytes(40).toString('hex');
 const assert=require('node:assert/strict');
 const mongoose=require('mongoose');
 const jwt=require('jsonwebtoken');
 const app=require('../app');
+const security=require('../utils/accounts/security'),{Session}=require('../model/studentAuthModels');
+const studentHeaders=new Map();
 const Admin=require('../model/adminsModel');
 const User=require('../model/usersModel');
 const Controls=require('../model/eventControlsModel');
@@ -23,7 +27,7 @@ const token=(account,role)=>jwt.sign({role,v:0,[role==='admin'?'adminId':'userId
   const rootToken=token(admin,'admin');
   server=await new Promise(resolve=>{const instance=app.listen(0,'127.0.0.1',()=>resolve(instance));});
   const base=`http://127.0.0.1:${server.address().port}/api/v1`;
-  async function call(path,auth,method='GET',body,expected=200){const res=await fetch(base+path,{method,headers:{...(auth?{Authorization:`Bearer ${auth}`} : {}),'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});const json=await res.json();assert.equal(res.status,expected,`${method} ${path}: ${json.message||''}`);checks++;return json.data;}
+  async function call(path,auth,method='GET',body,expected=200){const res=await fetch(base+path,{method,headers:{...(studentHeaders.get(auth)||(auth?{Authorization:`Bearer ${auth}`} : {})),'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});const json=await res.json();assert.equal(res.status,expected,`${method} ${path}: ${json.message||''}`);checks++;return json.data;}
   async function create(role,permissions=[]){const data=await call('/admin/staff',rootToken,'POST',{username:role,password:'temporary-check-password',role,permissions},201);return {id:data.admin.id,token:token({_id:data.admin.id},'admin')};}
   const memory=await create('memory_admin'),lantern=await create('lantern_admin',['lantern.open','lantern.close','lantern.announce','lantern.hide']);
   const voting=await create('voting_admin');
@@ -43,7 +47,7 @@ const token=(account,role)=>jwt.sign({role,v:0,[role==='admin'?'adminId':'userId
   await call('/admin/staff/'+memory.id,rootToken,'PATCH',{permissions:['memory.close']});
   await command('memory.open',memory.token,403);
   const images=await Image.create([{section:'lantern',url:'https://example.test/a.png',title:'A'},{section:'lantern',url:'https://example.test/b.png',title:'B'}]);
-  const users=await User.create([1,2,3].map(n=>({email:`check${n}@example.test`,passwordHash:'unused'})));
+  const users=await User.create([1,2,3].map(n=>({email:`check${n}@gmail.com`,emailKey:`check${n}@gmail.com`,emailVerifiedAt:new Date(),passwordHash:'unused'})));
   const Photo=require('../model/memoryPhotosModel');
   const photos=await Photo.create([{owner:users[0]._id,imageKey:'check/a.png'},{owner:users[0]._id,imageKey:'check/b.png'},{owner:users[0]._id,imageKey:'check/c.png',status:'REJECTED'}]);
   await call('/admin/memory-photos/'+photos[0]._id+'/review',memory.token,'PATCH',{status:'APPROVED'},403);
@@ -54,7 +58,8 @@ const token=(account,role)=>jwt.sign({role,v:0,[role==='admin'?'adminId':'userId
   await call('/admin/staff/'+memory.id,rootToken,'PATCH',{permissions:['memory.reject']});
   await call('/admin/memory-photos/'+photos[1]._id+'/review',memory.token,'PATCH',{status:'REJECTED'});
   const allPhotos=await call('/admin/memory-photos',memory.token);assert.equal(allPhotos.photos.length,3);
-  const usersTokens=users.map(u=>token(u,'user'));
+  const usersTokens=[];
+  for(const user of users){const raw=security.random(),browser=security.random(),expiry=Date.now()+86400000;await Session.create({_id:security.digest(raw),user:user._id,version:0,expiresAt:new Date(expiry)});const id=String(user._id);studentHeaders.set(id,{Cookie:`kq_session=${raw}; kq_browser=${browser}.${expiry}.${security.mac(`browser:${browser}:${expiry}`)}`,Origin:process.env.AUTH_ORIGIN,'X-CSRF-Token':security.csrf(browser)});usersTokens.push(id);}
   await command('lantern.open',lantern.token);
   const state=await call('/lantern-voting');
   const vote=(n,id,expected=200)=>call('/lantern-voting',usersTokens[n],'POST',{lanternId:String(id),window:state.window},expected);

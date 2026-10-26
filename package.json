@@ -11,7 +11,8 @@
     "mongo:start": "node scripts/localMongo.cjs start",
     "mongo:stop": "node scripts/localMongo.cjs stop",
     "mongo:restart": "node scripts/localMongo.cjs restart",
-    "mongo:status": "node scripts/localMongo.cjs status"
+    "mongo:status": "node scripts/localMongo.cjs status",
+    "test:auth": "node scripts/checkGoogleVerification.cjs && node scripts/checkStudentAuth.cjs && node scripts/checkStaffLantern.cjs && node scripts/checkStudentAuthBrowser.cjs"
   },
   "type": "commonjs",
   "license": "ISC",
@@ -20,6 +21,7 @@
     "bcryptjs": "^3.0.3",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "google-auth-library": "^11.3.1",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.8.0",
     "morgan": "^1.11.0",

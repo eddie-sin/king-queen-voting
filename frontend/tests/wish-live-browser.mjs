@@ -11,10 +11,10 @@ const fixture = await createV2Fixture();
 let vite, browser;
 try {
   await fixture.reset();
-  const email = 'wish-browser@example.test';
-  await fixture.student(email);
+  const student = await fixture.student('wishbrowser@gmail.com');
+  const email = student.user.email;
   process.env.VOTING_API_TARGET = fixture.baseUrl;
-  vite = await createServer({ configFile: 'vite.config.js', mode: 'development', server: { host: '127.0.0.1', port: 0 } });
+  vite = await createServer({ configFile: 'vite.config.js', mode: 'development', server: { host: 'localhost', port: 5173 } });
   await vite.listen();
   browser = await chromium.launch({ headless: true,
     ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } : {}), args: ['--no-sandbox'] });
@@ -23,14 +23,21 @@ try {
   page.on('pageerror', error => errors.push(error.message));
   page.on('console', event => { if (event.type() === 'error') consoleErrors.push(event.text()); });
   page.on('response', response => { if (response.url().includes('/api/v1/') && response.status() >= 500) serverErrors.push([response.status(), response.url()]); });
-  const base = `http://127.0.0.1:${vite.httpServer.address().port}`;
+  const base = 'http://localhost:5173';
   await page.goto(`${base}/#wishes`);
   await page.getByText('The sky is waiting for its first wish.').waitFor();
   await page.getByRole('button', { name: 'Release a wish' }).click();
-  const login = page.getByRole('dialog');
-  await login.getByLabel('Email address').fill(email);
+  const login = page.locator('dialog.account-dialog');
+  await login.getByLabel('Gmail address').fill(email);
   await login.getByLabel('Password', { exact: true }).fill(fixture.password);
+  const loginResponse = page.waitForResponse(response => new URL(response.url()).pathname === '/api/v1/auth/login');
   await login.locator('form').getByRole('button', { name: 'Sign in', exact: true }).click();
+  const signedIn = await loginResponse;
+  assert.equal(signedIn.status(), 200, `Wish live login returned ${signedIn.status()}`);
+  await page.waitForTimeout(100);
+  if (await login.getByRole('alert').count()) throw Error(`Wish live login failed: ${await login.getByRole('alert').innerText()}`);
+  await login.waitFor({ state: 'detached' });
+  if (!await page.getByRole('heading', { name: 'Send a little hope.' }).count()) await page.getByRole('button', { name: 'Release a wish' }).click();
   await page.getByRole('heading', { name: 'Send a little hope.' }).waitFor();
   await page.getByLabel('Your wish', { exact: true }).fill('A wish saved through the real v2 API');
   await page.getByRole('button', { name: 'Release my lantern' }).click();
@@ -46,7 +53,7 @@ try {
   assert.equal(await lantern.evaluate(element => document.activeElement === element), true);
   assert.deepEqual(errors, []);
   assert.deepEqual(serverErrors, []);
-  assert.equal(consoleErrors.every(message => /^Failed to load resource:/.test(message)), true);
+  assert.equal(consoleErrors.every(message => /^Failed to load resource:/.test(message)), true, `Unexpected console errors: ${consoleErrors.join(' | ')}`);
   console.log('Wish Sky v2 live flow passed: browser -> API -> replica set -> browser.');
 } finally {
   if (browser) await browser.close();

@@ -14,6 +14,11 @@ process.env.NODE_ENV = 'test';
 process.env.JWT_SECRET = crypto.randomBytes(48).toString('hex');
 process.env.ADMIN_USERNAME = 'privacy-root';
 process.env.ADMIN_PASSWORD = crypto.randomBytes(24).toString('base64url');
+process.env.AUTH_ORIGIN = 'http://localhost:5173';
+process.env.AUTH_OTP_SECRET = crypto.randomBytes(32).toString('hex');
+process.env.AUTH_MAIL_SECRET = crypto.randomBytes(32).toString('hex');
+process.env.GOOGLE_CLIENT_ID_DEVELOPMENT = 'privacy-fixture.apps.googleusercontent.com';
+process.env.RESEND_API_KEY = 'fixture-not-used';
 process.env.MEMORY_PHOTO_STORAGE = 'local';
 process.env.LOCAL_UPLOAD_DIR = path.join(directory, 'public');
 process.env.MEMORY_PHOTO_UPLOAD_DIR = path.join(directory, 'private');
@@ -28,8 +33,11 @@ const freePort = () => new Promise((resolve, reject) => {
   socket.listen(0, '127.0.0.1', () => { const port = socket.address().port; socket.close(() => resolve(port)); });
 });
 async function request(method, endpoint, token, body, expected = 200) {
+  const student = token && typeof token === 'object';
   const response = await fetch(base + '/api/v1' + endpoint, { method,
-    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(body ? { 'Content-Type': 'application/json' } : {}) },
+    headers: { ...(typeof token === 'string' ? { Authorization: `Bearer ${token}` } : {}),
+      ...(student ? { Cookie: token.cookie, Origin: process.env.AUTH_ORIGIN, 'X-CSRF-Token': token.csrf } : {}),
+      ...(body ? { 'Content-Type': 'application/json' } : {}) },
     ...(body ? { body: JSON.stringify(body) } : {}) });
   assert.equal(response.status, expected, `${method} ${endpoint}`);
   return response.json();
@@ -109,10 +117,12 @@ before(async () => {
     ids[name] = (await request('POST', '/admin/staff', tokens.admin, { username: name, password, role, permissions }, 201)).data.admin.id;
     tokens[name] = (await request('POST', '/auth/admin/login', null, { username: name, password })).data.token;
   }
-  await command('registration.open', tokens.admin);
-  await request('POST', '/auth/register', null, { email: 'privacy-student@example.test', password }, 201);
-  tokens.student = (await request('POST', '/auth/login', null, { email: 'privacy-student@example.test', password })).data.token;
-  await command('registration.close', tokens.admin);
+  const studentId = new mongoose.Types.ObjectId();
+  const raw = crypto.randomBytes(32).toString('hex'); const browser = crypto.randomBytes(32).toString('hex'); const expiry = Date.now() + 86400000;
+  const mac = value => crypto.createHmac('sha256', process.env.AUTH_OTP_SECRET).update(value).digest('hex');
+  await mongoose.connection.collection('users').insertOne({ _id: studentId, email: 'privacystudent@gmail.com', emailKey: 'privacystudent@gmail.com', emailVerifiedAt: new Date(), status: 'active', tokenVersion: 0, createdAt: new Date(), updatedAt: new Date() });
+  await mongoose.connection.collection('studentsessions').insertOne({ _id: crypto.createHash('sha256').update(raw).digest('hex'), user: studentId, version: 0, expiresAt: new Date(Date.now() + 3600000) });
+  tokens.student = { cookie: `kq_session=${raw}; kq_browser=${browser}.${expiry}.${mac(`browser:${browser}:${expiry}`)}`, csrf: mac(`csrf:${browser}`) };
   for (const category of ['king', 'queen']) candidates.push((await request('POST', '/candidates', tokens.admin,
     { fullName: `Privacy ${category}`, category, images: [`/test-fixtures/${category}.png`] }, 201)).data.candidate);
   await castBothCategories();

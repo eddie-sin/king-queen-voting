@@ -59,13 +59,19 @@ together.
 
 ## Verification completed
 
-- Backend: **123 passed, 0 failed, 0 skipped** (`npm test`).
+- Backend after integrating the verified-Gmail/cookie-session update:
+  **113 passed, 0 failed, 0 skipped** (`npm test`). The lower count reflects
+  replacement of retired student-JWT cases with current cookie/CSRF tests, not
+  removed feature coverage; the dedicated authentication checks remain in
+  `scripts/checkStudentAuth.cjs` and `scripts/checkStudentAuthBrowser.cjs`.
 - Student frontend: **43 passed, 0 failed**; production build passed.
 - Admin frontend: **2 passed, 0 failed**; production build passed.
-- Student v2 voting browser: passed registration, final King/Queen voting,
+- Student v2 voting browser: passed verified-Gmail registration, final
+  King/Queen voting,
   duplicate/stale/closed behavior, 320px and keyboard checks.
-- Memory live browser: **10 steps, 116 assertions, 94 requests**, with 11
-  expected negative responses; all disposable resources removed.
+- Memory live browser after cookie-session integration: **10 steps, 117
+  assertions, 106 requests**, with 14 expected negative responses; all
+  disposable resources removed.
 - Memory likes browser: passed authentication, batch state, pagination,
   mutations, stale-response, account-switch and reduced-motion checks.
 - Wish Sky browser: passed twice across desktop, tablet, mobile, 320px and
@@ -76,6 +82,11 @@ together.
 - Native Windows MongoDB lifecycle: start, repeat start, status, restart and
   verified stop passed; occupied-port and missing-binary failures were safe;
   the test data directory remained present.
+- Verified-Gmail authentication checks passed real Google token verification,
+  **126 HTTP assertions** for OTP/session/mail limits, **69 HTTP assertions**
+  for staff/Lantern integration, and the real signup/OTP/cookie/logout/recovery/
+  Google/privacy mobile browser journey. No browser-readable student JWT is
+  retained.
 
 All integration tests used generated accounts, disposable local replica sets
 and private local storage. No AWS objects or production records were changed.

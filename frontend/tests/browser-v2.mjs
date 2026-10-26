@@ -14,7 +14,7 @@ const candidates = ['king', 'queen'].flatMap(contest => [1, 2].map(index => ({
 })));
 const initial = () => ({ controls: { registrationOpen: true, votingStatus: 'open', announcementOpen: false,
   memoryPhotosEnabled: false, round: 1, window: 1, revision: 1, candidateManagementLocked: true },
-votes: {}, registered: 0, submissions: [], settingsFailure: false, candidateFailure: false });
+votes: {}, registered: 0, loggedIn: false, submissions: [], settingsFailure: false, candidateFailure: false });
 
 async function setup(state, viewport = { width: 1440, height: 950 }) {
   const context = await browser.newContext({ viewport, reducedMotion: 'reduce' });
@@ -26,6 +26,8 @@ async function setup(state, viewport = { width: 1440, height: 950 }) {
     const body = request.postData() ? request.postDataJSON() : null;
     const ok = data => route.fulfill({ json: { status: 'success', data } });
     const fail = (status, message) => route.fulfill({ status, json: { status: 'fail', message } });
+    if (path === '/auth/config') return ok({ csrfToken: 'browser-fixture-csrf', googleClientId: null });
+    if (path === '/auth/pending') return ok({ flow: null });
     if (path === '/candidates') return state.candidateFailure ? fail(503, 'Candidate service unavailable.') : ok({ candidates });
     if (path === '/images') return ok({ images: [] });
     if (path === '/lantern-voting') return ok({ open: false, announced: false, window: 0, winner: null });
@@ -33,15 +35,23 @@ async function setup(state, viewport = { width: 1440, height: 950 }) {
     if (path === '/results') {
       if (!state.controls.announcementOpen || state.controls.votingStatus !== 'closed') return fail(403, 'Results announcement is not open.');
       return ok({ results: { round: state.controls.round, revision: state.controls.revision,
-        kings: [{ candidate: candidates[0], votes: 2, title: 'King' }],
-        queens: [{ candidate: candidates[2], votes: 1, title: 'Queen' }] } });
+        kings: [{ candidate: candidates[0], votes: 2, title: 'Mrs Thadingyut' }],
+        queens: [{ candidate: candidates[2], votes: 1, title: 'Miss Thadingyut' }] } });
     }
-    if (path === '/auth/register') { assert.equal(request.method(), 'POST'); state.registered++; return ok({ user: { id: 'u1', email: body.email } }); }
-    if (path === '/auth/login') return ok({ token: 'student-jwt', user: { id: 'u1', email: body.email, round: state.controls.round } });
-    assert.equal(request.headers().authorization, 'Bearer student-jwt');
+    if (path === '/auth/register/start' || path === '/auth/register') {
+      assert.equal(request.method(), 'POST'); state.registered++;
+      return ok({ flowId: 'a'.repeat(64), purpose: 'register', email: body.email, delivery: 'sent',
+        expiresAt: new Date(Date.now() + 600000).toISOString(), resendAt: new Date(Date.now() + 60000).toISOString() });
+    }
+    if (path === '/auth/register/verify') {
+      assert.equal(body.code, '123456'); state.loggedIn = true;
+      return ok({ sessionKey: 'opaque-session-key', user: { id: 'u1', email: 'newstudent@gmail.com', round: state.controls.round } });
+    }
+    if (path === '/auth/login') { state.loggedIn = true; return ok({ sessionKey: 'opaque-session-key', user: { id: 'u1', email: body.email, round: state.controls.round } }); }
+    if (path === '/auth/logout') { state.loggedIn = false; return ok({}); }
     const user = { id: 'u1', email: 'student@example.test', round: state.controls.round,
       hasVotedKing: Boolean(state.votes.king), hasVotedQueen: Boolean(state.votes.queen) };
-    if (path === '/auth/me') return ok({ user });
+    if (path === '/auth/me') return state.loggedIn ? ok({ sessionKey: 'opaque-session-key', user }) : fail(401, 'Sign in to continue.');
     if (path === '/voting/my-votes') {
       assert.equal(request.method(), 'GET');
       return ok({ votes: Object.entries(state.votes).map(([contest, candidate]) => ({ contest, candidate })),
@@ -69,7 +79,7 @@ async function setup(state, viewport = { width: 1440, height: 950 }) {
 async function login(page) {
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   const dialog = page.getByRole('dialog');
-  await dialog.getByLabel('Email address').fill('student@example.test');
+  await dialog.getByLabel('Gmail address').fill('student@gmail.com');
   await dialog.getByLabel('Password', { exact: true }).fill('fixture-password');
   await dialog.locator('form').getByRole('button', { name: 'Sign in', exact: true }).click();
   await dialog.waitFor({ state: 'detached' });
@@ -87,13 +97,17 @@ try {
     const state = initial(); const { page, context, errors, consoleErrors } = await setup(state);
     await page.getByRole('button', { name: 'Sign in', exact: true }).click();
     const dialog = page.getByRole('dialog'); await dialog.getByRole('button', { name: 'Register', exact: true }).click();
-    await dialog.getByLabel('Email address').fill('new@example.test'); await dialog.getByLabel('Password', { exact: true }).fill('password123');
-    await dialog.locator('form').getByRole('button', { name: 'Create account', exact: true }).click();
-    await dialog.getByText('Your account is ready. Sign in below.').waitFor();
+    await dialog.getByLabel('Gmail address').fill('newstudent@gmail.com'); await dialog.getByLabel('Create password', { exact: true }).fill('password123');
+    await dialog.locator('form').getByRole('button', { name: 'Send verification code', exact: true }).click();
+    await dialog.getByLabel('6-digit email code').fill('123456');
+    await dialog.locator('form').getByRole('button', { name: 'Verify code', exact: true }).click();
+    await dialog.waitFor({ state: 'detached' });
     assert.equal(state.registered, 1); assert.equal(await page.locator('#issued-key').count(), 0);
     assert.equal(JSON.parse(await page.evaluate(() => localStorage.getItem('thadingyut_voter_session')) || 'null'), null);
-    assert.deepEqual(errors, []); assert.deepEqual(consoleErrors, []); await context.close();
-    report.push('registration uses manual registration control and creates no voting key or session');
+    assert.deepEqual(errors, []);
+    assert(consoleErrors.every(message => message.includes('401 (Unauthorized)')), `Unexpected console errors: ${consoleErrors.join(' | ')}`);
+    await context.close();
+    report.push('Gmail registration uses verification, creates no voting key and persists no browser-readable credential');
   }
   {
     const state = initial(); const { page, context, errors, consoleErrors } = await setup(state); await login(page);
@@ -101,15 +115,14 @@ try {
     await vote(page, 'Aung'); await page.getByText('Vote recorded', { exact: true }).first().waitFor();
     assert.equal(state.votes.king._id, 'king-1');
     const outcomes = await page.evaluate(async ({ same, changed }) => {
-      const session = JSON.parse(localStorage.getItem('thadingyut_voter_session'));
-      const send = candidateId => fetch('/api/v1/voting/submit', { method: 'POST', headers: { Authorization: `Bearer ${session.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ candidateId, contest: 'king', round: 1, window: 1 }) });
+      const send = candidateId => fetch('/api/v1/voting/submit', { method: 'POST', credentials: 'same-origin', headers: { 'X-CSRF-Token': 'browser-fixture-csrf', 'Content-Type': 'application/json' }, body: JSON.stringify({ candidateId, contest: 'king', round: 1, window: 1 }) });
       return [(await send(same)).status, (await send(changed)).status];
     }, { same: 'king-1', changed: 'king-2' });
     assert.deepEqual(outcomes, [200, 409]); assert.equal(state.votes.king._id, 'king-1');
     await page.goto(`${base}/#queen`); await vote(page, 'May');
     assert.equal(state.votes.queen._id, 'queen-1'); assert.equal(state.votes.king._id, 'king-1');
     await page.reload(); await page.getByText('Vote recorded', { exact: true }).first().waitFor();
-    assert(await page.evaluate(() => Boolean(localStorage.getItem('thadingyut_voter_session'))));
+    assert.equal(await page.evaluate(() => localStorage.getItem('thadingyut_voter_session')), null);
     state.controls.votingStatus = 'closed'; state.controls.window++; state.controls.revision++;
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
     await page.goto(`${base}/#king`); await page.getByText('Voting is closed', { exact: true }).waitFor();
@@ -117,9 +130,10 @@ try {
     assert(await page.getByRole('dialog').getByRole('button', { name: 'Voting closed' }).isDisabled()); await page.keyboard.press('Escape');
     state.controls.announcementOpen = true; state.controls.revision++;
     await page.goto(`${base}/#results`); await page.evaluate(() => window.dispatchEvent(new Event('focus')));
-    await page.getByText('King', { exact: true }).waitFor(); await page.getByText('2 votes', { exact: true }).waitFor();
+    await page.getByText('Mrs Thadingyut', { exact: true }).waitFor(); await page.getByText('2 votes', { exact: true }).waitFor();
     assert.deepEqual(errors, []);
-    assert.deepEqual(consoleErrors, ['Failed to load resource: the server responded with a status of 409 (Conflict)']);
+    assert(consoleErrors.some(message => message.includes('409 (Conflict)')));
+    assert(consoleErrors.every(message => message.includes('401 (Unauthorized)') || message.includes('409 (Conflict)')), `Unexpected console errors: ${consoleErrors.join(' | ')}`);
     await context.close();
     report.push('final King/Queen votes persist; exact duplicate is idempotent, changed vote denied, closure and announcement enforced');
   }

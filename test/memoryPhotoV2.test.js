@@ -14,15 +14,10 @@ after(async () => { await fixture?.close(); }, { timeout: 30000 });
 
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
 async function students(count) {
-  assert.equal((await fixture.command('registration.open')).status, 200);
   const accounts = [];
   for (let index = 0; index < count; index++) {
-    const email = `memory-${index}-${crypto.randomBytes(4).toString('hex')}@example.test`;
-    assert.equal((await fixture.request('POST', '/auth/register', { body: { email, password: fixture.password } })).status, 201);
-    const login = await fixture.request('POST', '/auth/login', { body: { email, password: fixture.password } });
-    assert.equal(login.status, 200); accounts.push(login.body.data);
+    accounts.push(await fixture.student(`memory-${index}-${crypto.randomBytes(4).toString('hex')}@gmail.com`));
   }
-  assert.equal((await fixture.command('registration.close')).status, 200);
   return accounts;
 }
 async function enable(token = fixture.token) { assert.equal((await fixture.command('memory.open', token)).status, 200); }
@@ -55,7 +50,8 @@ test('My Memories authenticates active students, isolates owners, hides sensitiv
   assert.equal((await fixture.request('GET', '/memory-photos/mine')).status, 401);
   assert.equal((await fixture.request('GET', '/memory-photos/mine', { token: fixture.token })).status, 401);
   const forged = jwt.sign({ userId: second.user.id, role: 'user', v: 0 }, fixture.secret, { expiresIn: '1h' });
-  assert.deepEqual((await fixture.request('GET', '/memory-photos/mine', { token: forged })).body.data.photos.map(photo => photo.id), [(await fixture.request('GET', '/memory-photos/mine', { token: second.token })).body.data.photos[0].id]);
+  assert.equal((await fixture.request('GET', '/memory-photos/mine', { token: forged })).status, 401, 'retired student JWTs cannot impersonate cookie sessions');
+  assert.equal((await fixture.request('GET', '/memory-photos/mine', { token: second.token })).body.data.photos.length, 1);
 });
 
 test('feature disable blocks history, uploads, gallery, likes and like-status without deleting submissions', async () => {
@@ -227,7 +223,7 @@ test('like mutations require active students, approved photos and server-owned i
   assert.equal((await fixture.request('POST', `/memory-photos/${pending.id}/like`, { token: student.token, body: { userId: other.user.id } })).status, 400);
   assert.equal(await fixture.db.collection('memoryphotolikes').countDocuments({}), 0);
   await fixture.db.collection('users').updateOne({ _id: new ObjectId(student.user.id) }, { $set: { status: 'disabled' } });
-  assert.equal((await fixture.request('POST', `/memory-photos/${pending.id}/like`, { token: student.token })).status, 403);
+  assert.equal((await fixture.request('POST', `/memory-photos/${pending.id}/like`, { token: student.token })).status, 401, 'disabled users no longer have a valid student session');
 });
 
 test('like-status preserves request order, isolates students and omits every non-approved identity uniformly', async () => {

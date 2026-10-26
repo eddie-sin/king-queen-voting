@@ -1,15 +1,17 @@
 # King and Queen Voting
 
+The latest [Google/Gmail authentication guide](docs/google-gmail-authentication.md) supersedes the student registration/session setup and contracts below. Student sessions now use HttpOnly cookies; old student bearer tokens are rejected. Staff bearer sessions remain separate.
+
 Current role/workspace and Lantern extensions are documented in [role workspaces and Lantern voting](docs/role-workspaces-and-lantern-voting.md). That document supersedes the earlier two-role descriptions below. The latest [imported pages, title awards and manual vote totals](docs/imported-pages-and-vote-snapshots.md) document supersedes the earlier all-candidate public results description and adds the optional vote-total permissions.
 
 Express/Mongoose API with React student and admin websites. This branch replaces the scheduled/key-based voting system with manual event controls.
 
-**Implementation phase:** the application changes are on `eddie/manual-voting-controls`. Correctness/concurrency/capacity testing, the corresponding test-suite rewrite, deployment preparation, and rollback rehearsal are intentionally deferred. The existing tests and older documentation describe the previous contract and must not be treated as validation of this version. Nothing in this branch is deployed automatically.
+**Implementation phase:** the application changes are on `eddie/manual-voting-controls`. Focused authentication, role, Lantern, frontend and browser checks are implemented; full voting-event capacity testing, the remaining legacy backend test rewrite, deployment preparation and rollback rehearsal remain separate. Nothing in this branch is deployed automatically.
 
 ## Setup for this version
 
 1. Install the existing locked dependencies with `npm ci`, `npm --prefix frontend ci`, and `npm --prefix admin ci` if needed.
-2. Copy `config.example.env` to ignored `config.env` for a **separate local setup**, supplying a random JWT secret of at least 32 bytes, initial admin username/password and appropriate image-storage configuration. Never commit real configuration.
+2. Copy `config.example.env` to ignored `config.env` for a **separate local setup**, supplying a random JWT secret of at least 32 bytes, initial admin username/password, image-storage settings, Google client IDs, Resend sender/key, exact AUTH_ORIGIN, and two separate 32-byte hex authentication secrets. Never commit real configuration.
 3. Select a **separate, empty v2 database on a MongoDB replica set**. A compatible Atlas database can also support the required transactions. A standalone MongoDB server is no longer supported. Do not reuse the current live or legacy test database.
 4. Start the API with `npm run dev` (uses `DATABASE_LOCAL`, local public candidate/gallery images), or `npm run prod` (uses `DATABASE`, configured S3 storage).
 5. Start the student website with `npm --prefix frontend run dev` and the admin website with `npm --prefix admin run dev`.
@@ -32,7 +34,7 @@ Production should use EC2's existing IAM role for AWS access. Do not place datab
 
 ## Accounts and initial state
 
-Students register with email/password while registration is open. Email is trimmed/lowercased and unique; one account per email is the agreed event policy. Registration returns no voting key. The student then signs in with the same details.
+Students use Continue with Google, or register a Gmail address and website password and verify an email code while registration is open. One canonical Gmail inbox, including dotted/+tag aliases, has one account. Google-only accounts have no website password until they add one through email recovery. First-time linking to an existing password account requires an OTP and preserves its user ID. Existing accounts may sign in after registration closes. See the authentication guide above for recovery, session and email-quota behavior.
 
 The first higher `admin` is seeded from `ADMIN_USERNAME` and `ADMIN_PASSWORD`. Passwords require at least eight characters and at most 72 UTF-8 bytes. Staff usernames use letters, digits, dots, underscores and hyphens, are normalized to lowercase, and must be unique. Later startups preserve existing passwords and permissions.
 
@@ -68,14 +70,14 @@ Results are calculated from actual ballots whenever announcement is open. All ca
 
 ## API contracts
 
-All paths below start with `/api/v1`. Protected requests use `Authorization: Bearer TOKEN`. Tokens contain an account kind and token version; permissions come from the database. Legacy tokens are rejected. No tokens or keys belong in URLs.
+All paths below start with `/api/v1`. Student requests use same-origin HttpOnly cookies; student mutations also require the CSRF token from `/auth/config` and the exact allowed Origin. Staff requests use `Authorization: Bearer TOKEN` with an account kind and token version; permissions come from the database. Legacy student tokens are rejected. No credentials belong in URLs.
 
 ### Students and public reads
 
 | Method | Path | Body / response |
 | --- | --- | --- |
-| POST | `/auth/register` | `{email,password}` → account created; sign in next |
-| POST | `/auth/login` | `{email,password}` → `data.token`, `data.user` |
+| POST | `/auth/register` | `{email,password,operationId}` → pending OTP; `/auth/register/verify` creates the account/session |
+| POST | `/auth/login` | `{email,password}` → HttpOnly session cookie, `data.sessionKey` (UI marker), `data.user` |
 | GET | `/auth/me` | Profile and ballot-derived participation flags/round |
 | GET | `/settings` | `data.controls` with registration/voting/announcement/Memory flags, round, window and revision |
 | GET | `/candidates`, `/candidates/:id` | Active public profiles; excludes contact numbers |
@@ -116,6 +118,6 @@ Wish Sky, music, Lantern browsing, student Memory Photo upload/history/gallery/l
 
 ## Checks and next phase
 
-Compilation checks for this implementation: backend JavaScript syntax checks and production builds of both websites. These do not establish functional correctness or event capacity.
+Run `npm run test:auth` for isolated Google verification, student-account/session/mail checks, focused staff/Memory/Lantern/title checks and browser auth coverage. Run `npm --prefix frontend test` for frontend adapter/domain tests. Production builds of both websites and the backend dependency audit are checked as well. The legacy root `npm test` still includes retired election-model tests; see the authentication guide for exact results and limits.
 
-The next phase must update the old test contracts and verify permissions, resets, races, crash recovery, 100 simultaneous votes and 30 registrations. Deployment-helper changes, compatible configuration/database cutover, and rollback rehearsal also remain separate. Do not merge/deploy this branch based on compilation alone. The existing main-only deployment workflow has not been changed in this implementation phase.
+Thirty concurrent registration starts are covered. A separate event-capacity pass must still cover 100 simultaneous votes, voting crash recovery and the remaining old backend test contracts. Deployment-helper changes, compatible configuration/database cutover, and rollback rehearsal also remain separate. Do not merge/deploy this branch based on compilation alone. The existing main-only deployment workflow has not been changed in this implementation phase.

@@ -13,10 +13,14 @@ module.exports = kind => (req, res, next) => {
   try {
     // Generous shared-network ceiling: students may all use the event Wi-Fi.
     if (attempts.size > 20000) throw new AppError('Sign-in is busy. Please retry shortly.', 503);
-    hit(`${kind}:ip:${req.ip}`, kind === 'register' ? 120 : 300, 60000);
+    hit(`${kind}:ip:${req.ip}`, kind === 'config' ? 2000 : kind === 'register' ? 120 : 300, 60000);
     const identity = req.body?.[kind === 'staff' ? 'username' : 'email'];
     if (typeof identity === 'string' && identity.length <= 254) {
-      hit(`${kind}:account:${identity.trim().toLowerCase()}`, kind === 'register' ? 5 : 15, 60000);
+      let key = identity.trim().toLowerCase();
+      if(kind !== 'staff') {
+        try { key = require('../utils/accounts/config').gmail(identity).emailKey; } catch { /* Invalid input is rejected by the controller. */ }
+      }
+      hit(`${kind}:account:${key}`, kind === 'register' ? 5 : 15, 60000);
     }
     next();
   } catch (error) { res.set('Retry-After', '60'); next(error); }

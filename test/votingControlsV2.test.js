@@ -22,15 +22,10 @@ async function votingAdmin(permissions) {
   return fixture.staff('voting_admin', permissions, `voter-${crypto.randomBytes(4).toString('hex')}`);
 }
 async function students(count) {
-  assert.equal((await command('registration.open')).response.status, 200);
   const values = [];
   for (let index = 0; index < count; index++) {
-    const email = `v2-voter-${index}-${crypto.randomBytes(4).toString('hex')}@example.test`;
-    assert.equal((await fixture.request('POST', '/auth/register', { body: { email, password: fixture.password } })).status, 201);
-    const login = await fixture.request('POST', '/auth/login', { body: { email, password: fixture.password } });
-    assert.equal(login.status, 200); values.push(login.body.data);
+    values.push(await fixture.student(`v2-voter-${index}-${crypto.randomBytes(4).toString('hex')}@gmail.com`));
   }
-  assert.equal((await command('registration.close')).response.status, 200);
   return values;
 }
 async function candidates(specification = [['king', true], ['queen', true]]) {

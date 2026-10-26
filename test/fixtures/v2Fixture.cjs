@@ -23,6 +23,8 @@ exports.createV2Fixture = async () => {
   let mongo, mongoExit, api, apiExit, base, client, adminToken;
   const environment = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^(AWS_|DATABASE|JWT_|ADMIN_|NODE_OPTIONS|MEMORY_PHOTO_|LOCAL_UPLOAD_DIR|TEST_V2_)/.test(key)));
   Object.assign(environment, { NODE_ENV: 'test', TEST_V2_URI: uri, JWT_SECRET: secret, JWT_EXPIRES_IN: '1h', ADMIN_USERNAME: 'v2-root', ADMIN_PASSWORD: password,
+    AUTH_ORIGIN: 'http://localhost:5173', AUTH_OTP_SECRET: crypto.randomBytes(32).toString('hex'),
+    AUTH_MAIL_SECRET: crypto.randomBytes(32).toString('hex'), GOOGLE_CLIENT_ID_DEVELOPMENT: 'fixture.apps.googleusercontent.com', RESEND_API_KEY: 'fixture-not-used',
     MEMORY_PHOTO_STORAGE: 'local', MEMORY_PHOTO_ALLOW_SHARED_BUCKET: 'false', LOCAL_UPLOAD_DIR: path.join(directory, 'public'),
     MEMORY_PHOTO_UPLOAD_DIR: path.join(directory, 'private'), AWS_EC2_METADATA_DISABLED: 'true' });
   async function stopOwned(child, exited, label) {
@@ -74,8 +76,11 @@ exports.createV2Fixture = async () => {
     async request(method, endpoint, { token, body, headers = {} } = {}) {
       assert(base, 'API must be ready');
       const multipart = body instanceof FormData;
+      const student = token && typeof token === 'object';
       const response = await fetch(base + endpoint, { method, headers: {
-        ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(body !== undefined && !multipart ? { 'Content-Type': 'application/json' } : {}), ...headers,
+        ...(typeof token === 'string' ? { Authorization: `Bearer ${token}` } : {}),
+        ...(student ? { Cookie: token.cookie, Origin: environment.AUTH_ORIGIN, 'X-CSRF-Token': token.csrf } : {}),
+        ...(body !== undefined && !multipart ? { 'Content-Type': 'application/json' } : {}), ...headers,
       }, ...(body !== undefined ? { body: multipart ? body : JSON.stringify(body) } : {}) });
       const type = response.headers.get('content-type') || '';
       return { status: response.status, headers: response.headers,
@@ -101,12 +106,28 @@ exports.createV2Fixture = async () => {
       assert.equal(created.status, 201);
       return { ...created.body.data.admin, ...(await fixture.login(username)) };
     },
-    async student(email = 'student@example.test') {
-      assert.equal((await fixture.command('registration.open')).status, 200);
-      const created = await fixture.request('POST', '/auth/register', { body: { email, password } }); assert.equal(created.status, 201);
-      const login = await fixture.request('POST', '/auth/login', { body: { email, password } }); assert.equal(login.status, 200);
-      assert.equal((await fixture.command('registration.close')).status, 200);
-      return login.body.data;
+    browser() {
+      const browser = crypto.randomBytes(32).toString('hex');
+      const expiry = Date.now() + 86400000;
+      const mac = value => crypto.createHmac('sha256', environment.AUTH_OTP_SECRET).update(value).digest('hex');
+      return { cookie: `kq_browser=${browser}.${expiry}.${mac(`browser:${browser}:${expiry}`)}`, csrf: mac(`csrf:${browser}`) };
+    },
+    async student(email = 'student@gmail.com') {
+      const local = email.split('@')[0].replace(/[^a-z0-9]/gi, '').toLowerCase().slice(0, 40) || crypto.randomBytes(8).toString('hex');
+      const normalized = `${local}.${crypto.randomBytes(4).toString('hex')}@gmail.com`;
+      const emailKey = `${normalized.split('@')[0].replaceAll('.', '')}@gmail.com`;
+      const userId = new (require('mongoose').Types.ObjectId)();
+      const raw = crypto.randomBytes(32).toString('hex');
+      const browser = crypto.randomBytes(32).toString('hex');
+      const expiry = Date.now() + 86400000;
+      const mac = value => crypto.createHmac('sha256', environment.AUTH_OTP_SECRET).update(value).digest('hex');
+      const passwordHash = require('bcryptjs').hashSync(password, 4);
+      await client.db().collection('users').insertOne({ _id: userId, email: normalized, emailKey, emailVerifiedAt: new Date(), passwordHash, status: 'active', tokenVersion: 0, createdAt: new Date(), updatedAt: new Date() });
+      await client.db().collection('studentsessions').insertOne({ _id: crypto.createHash('sha256').update(raw).digest('hex'), user: userId, version: 0, expiresAt: new Date(Date.now() + 3600000) });
+      return { user: { id: String(userId), email: normalized }, token: {
+        cookie: `kq_session=${raw}; kq_browser=${browser}.${expiry}.${mac(`browser:${browser}:${expiry}`)}`,
+        csrf: mac(`csrf:${browser}`),
+      } };
     },
     async recoverMemoryQuota(owner) {
       assert(/^[a-f0-9]{24}$/i.test(owner));
@@ -152,5 +173,13 @@ exports.createV2Fixture = async () => {
     client = new MongoClient(uri, { serverSelectionTimeoutMS: 3000 }); await client.connect();
     assert.deepEqual(await client.db().listCollections({}, { nameOnly: true }).toArray(), []);
     return fixture;
-  } catch (error) { await close(); throw error; }
+  } catch (error) {
+    let diagnostic = '';
+    try {
+      const lines = (await fs.readFile(path.join(directory, 'mongod.log'), 'utf8')).trim().split(/\r?\n/);
+      diagnostic = [...lines.slice(0, 12), ...lines.filter(line => /\"s\":\"[FE]\"|exception|assertion/i.test(line)).slice(-12)].join(' | ');
+    } catch {}
+    await close();
+    throw new Error(diagnostic ? `${error.message}: ${diagnostic}` : error.message, { cause: error });
+  }
 };

@@ -11,21 +11,22 @@ globalThis.localStorage = {
 let changes = 0;
 globalThis.window = { dispatchEvent: event => { if (event.type === 'festival-session-change') changes++; } };
 
-test('festival session storage persists only complete token/user sessions and announces changes', () => {
+test('festival session marker stays in memory, clears legacy storage and announces changes', () => {
   values.clear(); changes = 0;
-  const session = { token: 'student-jwt', user: { id: 'u1', email: 'student@example.test' }, ignored: 'not persisted' };
+  values.set('thadingyut_voter_session', 'legacy-secret');
+  const session = { token: 'opaque-session-key', user: { id: 'u1', email: 'student@gmail.com' } };
   writeStoredSession(session);
-  assert.deepEqual(readStoredSession(), { token: session.token, user: session.user });
-  assert.equal(JSON.parse(values.get('thadingyut_voter_session')).ignored, undefined);
+  assert.equal(readStoredSession(), session);
+  assert.equal(values.has('thadingyut_voter_session'), false);
   assert.equal(changes, 1);
   writeStoredSession(null);
   assert.equal(readStoredSession(), null); assert.equal(values.has('thadingyut_voter_session'), false); assert.equal(changes, 2);
 });
 
-test('festival session storage fails closed for malformed, partial or unavailable values', () => {
-  for (const value of ['not json', '{}', JSON.stringify({ token: 'only-token' }), JSON.stringify({ user: { id: 'u' } })]) {
-    values.set('thadingyut_voter_session', value); assert.equal(readStoredSession(), null);
-  }
+test('legacy localStorage data is never restored and unavailable storage does not break logout', () => {
+  writeStoredSession(null);
+  for (const value of ['not json', '{}', JSON.stringify({ token: 'old-jwt', user: { id: 'u' } })]) values.set('thadingyut_voter_session', value);
+  assert.equal(readStoredSession(), null);
   const original = globalThis.localStorage;
   globalThis.localStorage = { getItem() { throw new Error('blocked'); }, setItem() { throw new Error('blocked'); }, removeItem() { throw new Error('blocked'); } };
   assert.equal(readStoredSession(), null); assert.doesNotThrow(() => writeStoredSession(null));

@@ -110,13 +110,14 @@ test('delegated administrators cannot manage accounts, change roles, or target r
 
 test('student registration and login cannot create staff or select privileges', async () => {
   assert.equal((await fixture.command('registration.open')).status, 200);
-  for (const body of [{ email: 'role@example.test', password: fixture.password, role: 'admin' }, { email: 'permission@example.test', password: fixture.password, permissions: ['memory.open'] }, { email: 'hash@example.test', password: fixture.password, passwordHash: 'chosen' }]) {
-    assert.equal((await fixture.request('POST', '/auth/register', { body })).status, 400);
+  for (const body of [{ email: 'rolecheck@gmail.com', password: fixture.password, operationId: crypto.randomUUID(), role: 'admin' },
+    { email: 'permissioncheck@gmail.com', password: fixture.password, operationId: crypto.randomUUID(), permissions: ['memory.open'] },
+    { email: 'hashcheck@gmail.com', password: fixture.password, operationId: crypto.randomUUID(), passwordHash: 'chosen' }]) {
+    assert.equal((await fixture.request('POST', '/auth/register/start', { token: fixture.browser(), body })).status, 400);
   }
-  assert.equal((await fixture.request('POST', '/auth/register', { body: { email: 'student@example.test', password: fixture.password } })).status, 201);
-  const login = await fixture.request('POST', '/auth/login', { body: { email: 'student@example.test', password: fixture.password } });
-  assert.equal(login.status, 200);
-  assert.equal((await fixture.request('POST', '/admin/staff', { token: login.body.data.token, body: { username: 'forbidden', password: fixture.password, role: 'memory_admin' } })).status, 401);
+  const student = await fixture.student('student@gmail.com');
+  assert.equal(student.user.role, undefined); assert.equal(student.user.permissions, undefined);
+  assert.equal((await fixture.request('POST', '/admin/staff', { token: student.token, body: { username: 'forbidden', password: fixture.password, role: 'memory_admin' } })).status, 401);
   assert.equal((await fixture.request('POST', '/auth/admin/login', { body: { username: 'v2-root', password: fixture.password, role: 'admin' } })).status, 400);
 });
 

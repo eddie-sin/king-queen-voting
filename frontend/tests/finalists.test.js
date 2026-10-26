@@ -1,35 +1,101 @@
-import test from 'node:test';
-import assert from 'node:assert/strict';
-import { createApi } from '../src/api.js';
-import { announcementState, publicResults } from '../src/domain.js';
+import test from "node:test";
+import assert from "node:assert/strict";
+import { createApi } from "../src/api.js";
+import { announcementState, publicResults } from "../src/domain.js";
 
-test('results remain hidden until administrators explicitly announce after voting closes', () => {
-  assert.equal(announcementState({ votingStatus: 'open', announcementOpen: false }), 'waiting');
-  assert.equal(announcementState({ votingStatus: 'closed', announcementOpen: false }), 'waiting');
-  assert.equal(announcementState({ votingStatus: 'open', announcementOpen: true }), 'waiting');
-  assert.equal(announcementState({ votingStatus: 'closed', announcementOpen: true }), 'announced');
-  assert.equal(announcementState(null), 'unknown');
+test("announcements require voting closed and the explicit announcement switch", () => {
+  assert.equal(
+    announcementState({ votingStatus: "open", announcementOpen: true }),
+    "waiting",
+  );
+  assert.equal(
+    announcementState({ votingStatus: "closing", announcementOpen: true }),
+    "waiting",
+  );
+  assert.equal(
+    announcementState({ votingStatus: "closed", announcementOpen: false }),
+    "waiting",
+  );
+  assert.equal(
+    announcementState({ votingStatus: "closed", announcementOpen: true }),
+    "announced",
+  );
+  assert.equal(announcementState(null), "unknown");
 });
 
-test('public announced results retain official totals and titles while stripping private candidate fields', () => {
-  const entry = (id, name, votes, title) => ({ candidate: { _id: id, fullName: name, category: 'king', images: ['/uploads/a.jpg'], isActive: true, contactNumber: 'PRIVATE' }, votes, title });
-  const result = publicResults({ round: 2, revision: 4, kings: [entry('z', 'Zaw', 2, '1st Runner-up'), entry('a', 'Aung', 5, 'King')], queens: [] });
-  assert.deepEqual(result.king.map(person => [person.fullName, person.votes, person.title]), [['Aung', 5, 'King'], ['Zaw', 2, '1st Runner-up']]);
-  const text = JSON.stringify(result);
-  assert.equal(text.includes('PRIVATE'), false);
-  assert.deepEqual(result.queen, []);
+test("announced results preserve vote totals and titles while stripping contacts", () => {
+  const entry = (name, votes, title) => ({
+    candidate: {
+      _id: name,
+      fullName: name,
+      category: "king",
+      images: [],
+      contactNumber: "PRIVATE",
+    },
+    votes,
+    title,
+  });
+  const result = publicResults({
+    round: 1,
+    revision: 4,
+    kings: [
+      entry("Prince", 80, "Prince"),
+      entry("Winner", 90, "Mrs Thadingyut"),
+    ],
+    queens: [
+      {
+        candidate: { _id: "q", fullName: "Queen", category: "queen" },
+        votes: 99,
+        title: "Miss Thadingyut",
+      },
+    ],
+  });
+  assert.deepEqual(
+    result.king.map((p) => p.votes),
+    [90, 80],
+  );
+  assert.equal(result.king[0].title, "Mrs Thadingyut");
+  assert.equal(result.queen[0].title, "Miss Thadingyut");
+  assert.equal(JSON.stringify(result).includes("PRIVATE"), false);
   assert.throws(() => publicResults(null));
+  assert.throws(() =>
+    publicResults({
+      round: 1,
+      revision: 1,
+      kings: [entry("Bad", -1, "")],
+      queens: [],
+    }),
+  );
 });
 
-test('results API reads /results and validates the current round/revision shape', async () => {
+test("results API reads the manual-voting public results contract", async () => {
   const seen = [];
-  const api = createApi({ fetchImpl: async url => { seen.push(url); return new Response(JSON.stringify({ status: 'success', data: { results: {
-    round: 3, revision: 7,
-    kings: [{ candidate: { _id: 'k1', fullName: 'Kyaw', category: 'king', isActive: true, images: [] }, votes: 3, title: 'King' }], queens: [],
-  } } })); } });
+  const api = createApi({
+    fetchImpl: async (url) => {
+      seen.push(url);
+      return new Response(
+        JSON.stringify({
+          status: "success",
+          data: {
+            results: {
+              round: 2,
+              revision: 3,
+              kings: [
+                {
+                  candidate: { _id: "k1", fullName: "Kyaw", category: "king" },
+                  votes: 3,
+                  title: "Mrs Thadingyut",
+                },
+              ],
+              queens: [],
+            },
+          },
+        }),
+      );
+    },
+  });
   const result = await api.results();
-  assert.equal(seen[0], '/api/v1/results');
-  assert.equal(result.king[0].fullName, 'Kyaw');
+  assert.deepEqual(seen, ["/api/v1/results"]);
+  assert.equal(result.king[0].fullName, "Kyaw");
   assert.equal(result.king[0].votes, 3);
-  assert.equal(result.round, 3); assert.equal(result.revision, 7);
 });

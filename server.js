@@ -53,8 +53,9 @@ mongoose
     console.log("Database connection successful");
 
     await seed();
+    require('./utils/accounts/mail').start();
     const port = process.env.PORT || 5000;
-    server = app.listen(port, () => {
+    server = app.listen(port, process.env.HOST || '127.0.0.1', () => {
       console.log(
         `Server running on port ${port} in ${process.env.NODE_ENV} mode`,
       );
@@ -82,6 +83,7 @@ async function shutdown() {
   if (stopping) return;
   stopping = true;
   admission.close();
+  require('./utils/accounts/mail').stop();
   const deadline = setTimeout(() => process.exit(1), 20000);
   deadline.unref();
   if (server) await new Promise(resolve => server.close(resolve));

@@ -1,3 +1,4 @@
+import { authConfig, csrfHeaders } from './authSession.js';
 import { parseLikeStates, parseLikeMutation } from './memory/likes.js';
 import { uploadSelectionError, parseUploadedMemory } from './memory/upload.js';
 import { parseMemoryGallery } from './memory/gallery.js';
@@ -20,8 +21,8 @@ export function createApi({ baseUrl = '/api/v1', fetchImpl = (...args) => fetch(
     const multipart = body instanceof FormData;
     try {
       const response = await fetchImpl(baseUrl + path, {
-        method, signal: controller.signal, cache: 'no-store', credentials: 'omit',
-        headers: { Accept: 'application/json', ...(body && !multipart ? { 'Content-Type': 'application/json' } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        method, signal: controller.signal, cache: 'no-store', credentials: 'same-origin',
+        headers: { Accept: 'application/json', ...(body && !multipart ? { 'Content-Type': 'application/json' } : {}), ...(!['GET','HEAD'].includes(method) ? await csrfHeaders(fetchImpl,baseUrl) : {}) },
         ...(body ? { body: multipart ? body : JSON.stringify(body) } : {}),
       });
       let payload;
@@ -42,6 +43,10 @@ export function createApi({ baseUrl = '/api/v1', fetchImpl = (...args) => fetch(
     }
   }
   return {
+    authConfig: () => authConfig(fetchImpl,baseUrl),
+    async authAction(path, body) { return (await request('/auth'+path,{method:'POST',body})).data; },
+    async pendingAuth() { return (await request('/auth/pending')).data; },
+    async logout() { return request('/auth/logout',{method:'POST',body:{}}); },
     async lanternStatus() { return (await request('/lantern-voting')).data; },
     async myLanternVote(token) { return (await request('/lantern-voting/mine', {token})).data; },
     async voteLantern(token, lanternId, window) { return request('/lantern-voting', {method:'POST',token,body:{lanternId,window}}); },
@@ -93,9 +98,10 @@ export function createApi({ baseUrl = '/api/v1', fetchImpl = (...args) => fetch(
     },
     async settings(options) { return (await request('/settings', options)).data?.controls ?? null; },
     async results(options) { return publicResults((await request('/results', options)).data?.results); },
-    async register(email, password) { return (await request('/auth/register', { method: 'POST', body: { email, password } })).data; },
+    async register(email, password, operationId = crypto.randomUUID()) { return (await request('/auth/register', { method: 'POST', body: { email, password, operationId } })).data; },
     async login(email, password) { return (await request('/auth/login', { method: 'POST', body: { email, password } })).data; },
     async me(token) { return (await request('/auth/me', { token })).data?.user; },
+    async session() { return (await request('/auth/me')).data; },
     async myVotes(token) { return (await request('/voting/my-votes', { token })).data; },
     async submit(token, candidateId, contest, controls) { return request('/voting/submit', { method: 'POST', token, body: { candidateId, contest, round: controls.round, window: controls.window } }); },
   };

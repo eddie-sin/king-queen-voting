@@ -6,6 +6,17 @@ const { can } = require('../utils/permissions');
 const AppError = require('../utils/appError');
 const catchAsync = require('../utils/catchAsync');
 const authenticate = (kind, permission) => catchAsync(async (req, res, next) => {
+  if (kind === 'user') {
+    const security = require('../utils/accounts/security');
+    const { Session } = require('../model/studentAuthModels');
+    const id = security.sessionId(req);
+    const session = id && await Session.findOne({ _id:id, expiresAt: { $gt:new Date() } });
+    const user = session && await User.findOne({ _id:session.user, tokenVersion:session.version, status:'active', emailVerifiedAt:{$exists:true} });
+    if (!user) throw new AppError('Sign in to continue.',401);
+    req.user=user; req.userId=String(user._id); req.studentSession=session;
+    if (!['GET','HEAD','OPTIONS'].includes(req.method)) return security.guard(req,res,next);
+    return next();
+  }
   const authorization = req.headers.authorization;
   if (typeof authorization !== 'string' || !/^Bearer \S+$/.test(authorization)) throw new AppError('Sign in to continue.', 401);
   let decoded;
