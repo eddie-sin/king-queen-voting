@@ -14,9 +14,19 @@ Express/Mongoose API with React student and admin websites. This branch replaces
 4. Start the API with `npm run dev` (uses `DATABASE_LOCAL`, local public candidate/gallery images), or `npm run prod` (uses `DATABASE`, configured S3 storage).
 5. Start the student website with `npm --prefix frontend run dev` and the admin website with `npm --prefix admin run dev`.
 
-A local connection example is `mongodb://127.0.0.1:27018/king_queen_voting_v2?replicaSet=kqvLocal`, **after** running `npm run mongo:start`. `DATABASE` must name the isolated target database explicitly. `<db_password>` is substituted from `DATABASE_PASSWORD` as before. The application refuses detected legacy voting data instead of migrating or deleting it. Startup disables automatic collection/index creation until that guard has run, then explicitly builds the required indexes.
+A local connection example is `mongodb://127.0.0.1:27018/king_queen_voting_v2?replicaSet=kqvLocal`, **after** running `npm run mongo:start`. Check it with `npm run mongo:status`, restart it with `npm run mongo:restart`, and stop only the verified project-owned instance with `npm run mongo:stop`. `DATABASE_LOCAL` must name the isolated target database explicitly. `<db_password>` is substituted from `DATABASE_PASSWORD` as before. The application refuses detected legacy voting data instead of migrating or deleting it. Startup disables automatic collection/index creation until that guard has run, then explicitly builds the required indexes.
 
-No local or Atlas database is reset by installing or building this branch. The local private `config.env` now points development and production to separate v2 databases; a private backup of the previous settings is kept outside Git. The isolated local database can be started with `npm run mongo:start`. It uses port 27018 and replica set `kqvLocal`, with data under `~/.local/share/king-queen-voting-v2`, leaving the shared MongoDB service alone. Run this command again after restarting your Mac. The revised automated preview/test harness remains follow-up work. The old `scripts/memoryPhotoPreview.cjs` launcher is retired and exits with an explanatory message.
+No local or Atlas database is reset by installing or building this branch. The launcher defaults to port `27018`, replica set `kqvLocal`, and data under `~/.local/share/king-queen-voting-v2` on Linux/macOS or `%LOCALAPPDATA%\king-queen-voting-v2` on Windows. Override these only for an isolated setup with `KQV_MONGO_PORT`, `KQV_MONGO_DBPATH`, `KQV_MONGO_REPLICA_SET`, and `MONGOD_BINARY`. Native Windows runs `mongod` as a hidden detached process without Unix `--fork`; Linux/macOS retain the existing forked behavior. An occupied or differently configured port is rejected rather than started or stopped. The launcher never deletes a database or data directory.
+
+Windows PowerShell example:
+
+```powershell
+$env:MONGOD_BINARY = 'C:\Program Files\MongoDB\Server\8.3\bin\mongod.exe'
+$env:KQV_MONGO_PORT = '27018'
+$env:KQV_MONGO_DBPATH = "$env:LOCALAPPDATA\king-queen-voting-v2"
+npm run mongo:start
+npm run mongo:status
+```
 
 Production should use EC2's existing IAM role for AWS access. Do not place database credentials, JWT secrets, passwords, or permanent AWS keys in CI, frontend variables, logs, or release archives. Memory originals retain their private storage and authenticated moderation flow.
 
@@ -87,7 +97,7 @@ A repeated vote for the same candidate in an open window returns its existing su
 | POST / PATCH / DELETE | `/candidates`, `/candidates/:id` | Relevant permission and event rules required |
 | GET / POST | `/admin/voting-admins` | Higher admin lists/creates voting administrators |
 | PATCH / DELETE | `/admin/voting-admins/:id` | Higher admin updates/deletes only voting-admin accounts |
-| GET | `/admin/memory-photos` | Higher admin lists pending submissions |
+| GET | `/admin/memory-photos` | Full or Memory admin lists all non-cancelled submissions, newest first |
 | GET | `/admin/memory-photos/:id/image` | Higher admin authenticated private image |
 | PATCH | `/admin/memory-photos/:id/review` | Higher admin: `{status:"APPROVED"}` or `REJECTED` |
 | POST / PATCH / DELETE | `/images`, `/images/:id` | Higher-admin Lantern/gallery management |

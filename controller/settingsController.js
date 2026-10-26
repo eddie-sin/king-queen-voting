@@ -4,12 +4,22 @@ const AppError = require('../utils/appError');
 const catchAsync = require('../utils/catchAsync');
 const { getControls, publicControls, staffMutation, withControls, audit, authorizeStaff } = require('../utils/eventControls');
 const admission = require('../utils/voteAdmission');
+const { can } = require('../utils/permissions');
 const ACTIONS = ['registration.open', 'registration.close', 'voting.open', 'voting.close', 'announcement.open', 'announcement.close', 'votes.clear', 'memory.open', 'memory.close', 'lantern.open', 'lantern.close', 'lantern.announce', 'lantern.hide'];
 let commandBusy = false;
+const settingsResponse = async (req, controls, result) => {
+  const data = { controls };
+  // Re-read live permissions, including after a command or receipt replay.
+  // A cleared-ballot count is also a private total; do not expose an alias.
+  if (req.admin && can(await authorizeStaff(req.admin), 'votes.read')) {
+    data.ballotCount = await Ballot.countDocuments({});
+    if (result && Object.hasOwn(result, 'clearedBallots')) data.clearedBallots = result.clearedBallots;
+  }
+  return data;
+};
 exports.getSettings = catchAsync(async (req, res) => {
   const controls = await getControls();
-  const data = { controls: publicControls(controls) };
-  if (req.admin) data.ballotCount = await Ballot.countDocuments({});
+  const data = await settingsResponse(req, publicControls(controls));
   res.json({ status: 'success', data });
 });
 exports.command = catchAsync(async (req, res) => {
@@ -32,7 +42,7 @@ exports.command = catchAsync(async (req, res) => {
       if (String(previous.actor) !== String(req.admin._id) || previous.action !== action) throw new AppError('This operation ID was already used.', 409);
       const current = await staffMutation(req, permission, async ({ controls }) => publicControls(controls));
       if (action === 'voting.open' && current.votingStatus === 'open' && current.window === previous.details?.window) admission.open();
-      return res.json({ status: 'success', data: { controls: current, ballotCount: await Ballot.countDocuments({}), clearedBallots: previous.details?.clearedBallots || 0 } });
+      return res.json({ status: 'success', data: await settingsResponse(req, current, { clearedBallots: previous.details?.clearedBallots || 0 }) });
     }
     if (action === 'voting.close') admission.close();
     const result = await staffMutation(req, permission, async ({ controls, session, actor }) => {
@@ -89,7 +99,7 @@ exports.command = catchAsync(async (req, res) => {
     const current = await getControls();
     if (current.votingStatus === 'open') admission.open();
     else admission.close();
-    res.json({ status: 'success', data: { controls: publicControls(current), ballotCount: await Ballot.countDocuments({}), ...result } });
+    res.json({ status: 'success', data: await settingsResponse(req, publicControls(current), result) });
   } catch (error) {
     // A rejected command has no committed transition. Restore admission only
     // for a confirmed validation/authorization failure, never an uncertain commit.

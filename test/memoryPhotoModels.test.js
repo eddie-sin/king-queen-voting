@@ -95,7 +95,7 @@ test("MemoryPhoto and likes reference the existing User, Admin, and MemoryPhoto 
   assert.equal(MemoryPhotoLike.schema.path("photoId").options.ref, "MemoryPhoto");
   assert.equal(MemoryPhotoLike.schema.path("userId").options.ref, "User");
   const owner = await User.create({ email: "model-owner@example.com", passwordHash: "test-only-hash" });
-  const admin = await Admin.create({ username: "model-reviewer", passwordHash: "test-only-hash" });
+  const admin = await Admin.create({ username: "model-reviewer", passwordHash: "test-only-hash", role: "admin" });
   const reviewedAt = new Date("2026-10-18T00:00:00Z");
   const photo = await MemoryPhoto.create({
     owner: owner._id, imageKey: "private/reviewed.png", status: "APPROVED",

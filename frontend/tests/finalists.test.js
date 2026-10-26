@@ -1,40 +1,35 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createApi } from '../src/api.js';
-import { finalistsState, publicFinalists } from '../src/domain.js';
+import { announcementState, publicResults } from '../src/domain.js';
 
-const schedule = {
-  votingOpensAt: '2026-10-28T02:30:00Z', votingClosesAt: '2026-11-01T17:29:59Z', resultsPublishedAt: '2026-11-03T02:30:00Z',
-};
-
-test('finalists stay hidden until voting has ended and the announcement time has passed', () => {
-  assert.equal(finalistsState(schedule, Date.parse('2026-10-30T00:00:00Z')), 'waiting');
-  assert.equal(finalistsState(schedule, Date.parse('2026-11-02T00:00:00Z')), 'waiting');
-  assert.equal(finalistsState(schedule, Date.parse(schedule.resultsPublishedAt) - 1), 'waiting');
-  assert.equal(finalistsState(schedule, Date.parse(schedule.resultsPublishedAt)), 'announced');
-  // Voting forced open keeps finalists hidden even after the date.
-  assert.equal(finalistsState({ ...schedule, votingOverride: 'open' }, Date.parse('2026-11-04T00:00:00Z')), 'waiting');
-  assert.equal(finalistsState(null), 'unknown');
-  assert.equal(finalistsState({ ...schedule, resultsPublishedAt: 'bad' }), 'unknown');
+test('results remain hidden until administrators explicitly announce after voting closes', () => {
+  assert.equal(announcementState({ votingStatus: 'open', announcementOpen: false }), 'waiting');
+  assert.equal(announcementState({ votingStatus: 'closed', announcementOpen: false }), 'waiting');
+  assert.equal(announcementState({ votingStatus: 'open', announcementOpen: true }), 'waiting');
+  assert.equal(announcementState({ votingStatus: 'closed', announcementOpen: true }), 'announced');
+  assert.equal(announcementState(null), 'unknown');
 });
 
-test('public finalists drop votes, ranks and tie flags and are sorted alphabetically', () => {
-  const entry = (name, votes, tie = false) => ({ candidate: { _id: name, fullName: name, category: 'king', images: ['/uploads/a.jpg'], contactNumber: 'PRIVATE' }, votes, selectedByTieBreak: tie });
-  const result = publicFinalists({ kings: [entry('Zaw', 90), entry('aung', 80), entry('Min', 10, true)], queens: [] });
-  assert.deepEqual(result.king.map(p => p.fullName), ['aung', 'Min', 'Zaw']);
+test('public announced results retain official totals and titles while stripping private candidate fields', () => {
+  const entry = (id, name, votes, title) => ({ candidate: { _id: id, fullName: name, category: 'king', images: ['/uploads/a.jpg'], isActive: true, contactNumber: 'PRIVATE' }, votes, title });
+  const result = publicResults({ round: 2, revision: 4, kings: [entry('z', 'Zaw', 2, '1st Runner-up'), entry('a', 'Aung', 5, 'King')], queens: [] });
+  assert.deepEqual(result.king.map(person => [person.fullName, person.votes, person.title]), [['Aung', 5, 'King'], ['Zaw', 2, '1st Runner-up']]);
   const text = JSON.stringify(result);
-  for (const hidden of ['votes', 'selectedByTieBreak', 'PRIVATE', 'rank']) assert.equal(text.includes(hidden), false);
+  assert.equal(text.includes('PRIVATE'), false);
   assert.deepEqual(result.queen, []);
-  assert.throws(() => publicFinalists(null));
+  assert.throws(() => publicResults(null));
 });
 
-test('finalists API reads /results and returns the safe public shape', async () => {
+test('results API reads /results and validates the current round/revision shape', async () => {
   const seen = [];
   const api = createApi({ fetchImpl: async url => { seen.push(url); return new Response(JSON.stringify({ status: 'success', data: { results: {
-    kings: [{ candidate: { _id: 'k1', fullName: 'Kyaw', images: [] }, votes: 3 }], queens: [],
+    round: 3, revision: 7,
+    kings: [{ candidate: { _id: 'k1', fullName: 'Kyaw', category: 'king', isActive: true, images: [] }, votes: 3, title: 'King' }], queens: [],
   } } })); } });
-  const result = await api.finalists();
+  const result = await api.results();
   assert.equal(seen[0], '/api/v1/results');
   assert.equal(result.king[0].fullName, 'Kyaw');
-  assert.equal('votes' in result.king[0], false);
+  assert.equal(result.king[0].votes, 3);
+  assert.equal(result.round, 3); assert.equal(result.revision, 7);
 });

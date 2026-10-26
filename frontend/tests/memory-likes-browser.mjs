@@ -48,8 +48,10 @@ try {
       }
       if (path.endsWith('/image')) return route.fulfill({ contentType: 'image/png', body: png });
       if (path.endsWith('/auth/login')) return ok({ token: 'student-a', user: { id: 'a', email: 'a@example.test' } });
-      if (path.endsWith('/auth/me')) return ok({ user: { id: 'a', email: 'a@example.test' } });
-      if (path.endsWith('/settings')) return ok({ schedule: { registrationClosesAt: '2099-01-01T00:00:00Z', votingOpensAt: '2099-01-02T00:00:00Z', votingClosesAt: '2099-01-03T00:00:00Z', resultsPublishedAt: '2099-01-04T00:00:00Z', timezone: 'Asia/Yangon' } });
+      if (path.endsWith('/auth/me')) return ok({ user: { id: 'a', email: 'a@example.test', round: 1 } });
+      if (path.endsWith('/voting/my-votes')) return ok({ votes: [], round: 1, window: 1 });
+      if (path.endsWith('/lantern-voting')) return ok({ open: false, announced: false, window: 0, winner: null });
+      if (path.endsWith('/settings')) return ok({ controls: { registrationOpen: true, votingStatus: 'closed', announcementOpen: false, memoryPhotosEnabled: true, round: 1, window: 1, revision: 0, candidateManagementLocked: false } });
       if (path.endsWith('/candidates')) return ok({ candidates: [] });
       if (path.endsWith('/images')) return ok({ images: [] });
       throw Error(`Unexpected API: ${path}`);
@@ -127,9 +129,9 @@ try {
     await heart(page).click(); await page.waitForURL('**/#account');
     await page.getByRole('button', { name: 'Sign in', exact: true }).first().click();
     const dialog = page.getByRole('dialog'); await dialog.waitFor();
-    await dialog.getByLabel('Email', { exact: false }).fill('a@example.test');
+    await dialog.getByLabel('Email address', { exact: true }).fill('a@example.test');
     await dialog.getByLabel('Password', { exact: true }).fill('generated-fixture-password');
-    await dialog.locator('form').getByRole('button', { name: 'Login', exact: true }).click();
+    await dialog.locator('form').getByRole('button', { name: 'Sign in', exact: true }).click();
     await page.waitForURL('**/#memory-gallery'); await page.getByRole('button', { name: 'Unlike memory · 5 likes', exact: true }).waitFor();
     await context.close();
   }

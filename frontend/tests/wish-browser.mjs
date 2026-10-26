@@ -4,12 +4,19 @@ import { createServer } from 'vite';
 
 const server = await createServer({ configFile: 'vite.config.js', mode: 'fixtures', server: { host: '127.0.0.1', port: 0 } });
 await server.listen();
-const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
+const browser = await chromium.launch({ headless: true,
+  ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } : {}), args: ['--no-sandbox'] });
 const base = `http://127.0.0.1:${server.httpServer.address().port}`;
 
 try {
-  for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
-    const context = await browser.newContext({ viewport, reducedMotion: 'reduce' });
+  for (const scenario of [
+    { viewport: { width: 1440, height: 900 }, reducedMotion: 'no-preference' },
+    { viewport: { width: 768, height: 900 }, reducedMotion: 'reduce' },
+    { viewport: { width: 390, height: 844 }, reducedMotion: 'no-preference' },
+    { viewport: { width: 320, height: 760 }, reducedMotion: 'reduce' },
+  ]) {
+    const { viewport, reducedMotion } = scenario;
+    const context = await browser.newContext({ viewport, reducedMotion });
     const page = await context.newPage();
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
@@ -23,15 +30,38 @@ try {
     assert.ok(Math.abs(noteBox.x - releaseButton.x) <= 1);
     assert.ok(noteBox.y >= releaseButton.y + releaseButton.height && noteBox.y - releaseButton.y - releaseButton.height <= 12);
     assert.equal(await quotaNote.evaluate(element => getComputedStyle(element).textAlign), 'left');
-    await page.getByRole('button', { name: 'Read wish 1', exact: true }).click();
-    await page.getByRole('dialog').getByText(/May our small acts of kindness/).waitFor();
+    const visibleTargets = await page.evaluate(() => [...document.querySelectorAll('.floating-wish')].flatMap(button => {
+      const rect = button.querySelector('.wish-lantern-shape').getBoundingClientRect();
+      if (rect.right <= 0 || rect.bottom <= 0 || rect.left >= innerWidth || rect.top >= innerHeight) return [];
+      const expected = button.getAttribute('aria-label'), points = [];
+      for (const fx of [.15,.3,.5,.7,.85]) for (const fy of [.12,.3,.5,.7,.88]) {
+        const x=rect.x+rect.width*fx,y=rect.y+rect.height*fy;
+        if(x<0||y<0||x>=innerWidth||y>=innerHeight)continue;
+        points.push({x,y,actual:document.elementFromPoint(x,y)?.closest('button')?.getAttribute('aria-label')});
+      }
+      if (!points.some(point => point.actual?.startsWith('Read wish'))) return [];
+      return [{ expected, point: points.find(point => point.actual === expected) || null }];
+    }));
+    assert.ok(visibleTargets.length, 'At least one wish lantern must be visible');
+    const target = visibleTargets.find(item => item.point);
+    assert.ok(target, 'At least one exposed visible wish lantern must be clickable');
+    const point = target.point;
+    const firstWish = page.getByRole('button', { name: target.expected, exact: true });
+    await page.mouse.click(point.x, point.y);
+    await page.getByRole('dialog').locator('.wish-message').waitFor();
     await page.getByRole('button', { name: 'Read another wish' }).click();
     await page.getByRole('button', { name: 'Close dialog' }).click();
+    assert.equal(await firstWish.evaluate(element => document.activeElement === element), true);
+    await firstWish.focus();
+    await page.keyboard.press('Enter');
+    await page.getByRole('dialog').locator('.wish-message').waitFor();
+    await page.keyboard.press('Escape');
+    assert.equal(await firstWish.evaluate(element => document.activeElement === element), true);
     await page.getByRole('button', { name: 'Release a wish' }).click();
     const login = page.getByRole('dialog');
     await login.getByLabel('Email address').fill('demo@example.test');
     await login.getByLabel('Password', { exact: true }).fill('festival123');
-    await login.getByRole('button', { name: 'Login', exact: true }).last().click();
+    await login.locator('form').getByRole('button', { name: 'Sign in', exact: true }).click();
     await page.getByRole('heading', { name: 'Send a little hope.' }).waitFor();
     for (let index = 1; index <= 3; index++) {
       await page.getByLabel('Your wish', { exact: true }).fill(index === 1 ? 'a'.repeat(600) : `Wish ${index}`);
@@ -46,7 +76,7 @@ try {
     assert.deepEqual(errors, []);
     await context.close();
   }
-  console.log('Wish Sky browser flow passed on desktop and mobile.');
+  console.log('Wish Sky browser flow passed on desktop, tablet, mobile, 320px and reduced motion.');
 } finally {
   await browser.close();
   await server.close();
