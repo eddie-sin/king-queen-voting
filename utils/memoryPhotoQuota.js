@@ -41,9 +41,9 @@ exports.reserve = async (owner, photoId) => {
   await exports.recoverCancelled(owner);
   await exports.reconcileReleased(owner);
   if (!(await Quota.exists({ _id: owner }))) {
-    // Bootstrap legacy submissions once, including every moderation status.
+    // Bootstrap pending/approved photos once, including private archived photos.
     // Concurrent initializers cannot overwrite the winner's reservations.
-    const previous = await MemoryPhoto.find({ owner, status: { $in: ['PENDING', 'APPROVED'] }, archived: { $ne: true }, deletedAt: { $exists: false } }).select("_id").lean();
+    const previous = await MemoryPhoto.find({ owner, status: { $in: ['PENDING', 'APPROVED'] }, deletedAt: { $exists: false } }).select("_id").lean();
     try {
       await new Quota({ _id: owner, slots: previous.map((photo) => photo._id) }).save(durable);
     } catch (error) {

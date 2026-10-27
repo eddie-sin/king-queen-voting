@@ -1,5 +1,10 @@
 // Focused integration check. Uses only a generated, disposable localhost database.
 process.env.NODE_ENV='development';
+const fs=require('node:fs/promises'),path=require('node:path');
+const directory=require('node:fs').mkdtempSync(path.join(require('node:os').tmpdir(),'kqv-role-storage-'));
+process.env.LOCAL_UPLOAD_DIR=path.join(directory,'public');
+process.env.MEMORY_PHOTO_UPLOAD_DIR=path.join(directory,'private');
+process.env.MEMORY_PHOTO_STORAGE='local';
 process.env.AUTH_ORIGIN='http://localhost:5173';
 process.env.AUTH_OTP_SECRET=require('node:crypto').randomBytes(32).toString('hex');
 process.env.JWT_SECRET=require('node:crypto').randomBytes(40).toString('hex');
@@ -49,7 +54,9 @@ const token=(account,role)=>jwt.sign({role,v:0,[role==='admin'?'adminId':'userId
   const images=await Image.create([{section:'lantern',url:'https://example.test/a.png',title:'A'},{section:'lantern',url:'https://example.test/b.png',title:'B'}]);
   const users=await User.create([1,2,3].map(n=>({email:`check${n}@gmail.com`,emailKey:`check${n}@gmail.com`,emailVerifiedAt:new Date(),passwordHash:'unused'})));
   const Photo=require('../model/memoryPhotosModel');
-  const photos=await Photo.create([{owner:users[0]._id,imageKey:'check/a.png'},{owner:users[0]._id,imageKey:'check/b.png'},{owner:users[0]._id,imageKey:'check/c.png',status:'REJECTED'}]);
+  const storage=require('../utils/memoryPhotoStorage');
+  const fixtureImage={buffer:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=','base64'),mimetype:'image/png'};
+  const photos=await Photo.create([{owner:users[0]._id,imageKey:await storage.uploadImage(fixtureImage)},{owner:users[0]._id,imageKey:await storage.uploadImage(fixtureImage)},{owner:users[0]._id,status:'REJECTED'}]);
   await call('/admin/memory-photos/'+photos[0]._id+'/review',memory.token,'PATCH',{status:'APPROVED'},403);
   await call('/admin/staff/'+memory.id,rootToken,'PATCH',{permissions:['memory.approve']});
   await call('/admin/memory-photos/'+photos[0]._id+'/review',memory.token,'PATCH',{status:'APPROVED'});
@@ -57,7 +64,9 @@ const token=(account,role)=>jwt.sign({role,v:0,[role==='admin'?'adminId':'userId
   await call('/admin/memory-photos/'+photos[0]._id+'/review',memory.token,'PATCH',{status:'APPROVED'},409);
   await call('/admin/staff/'+memory.id,rootToken,'PATCH',{permissions:['memory.reject']});
   await call('/admin/memory-photos/'+photos[1]._id+'/review',memory.token,'PATCH',{status:'REJECTED'});
-  const allPhotos=await call('/admin/memory-photos',memory.token);assert.equal(allPhotos.photos.length,3);
+  const allPhotos=await call('/admin/memory-photos',memory.token);assert.equal(allPhotos.photos.length,1);
+  assert.equal((await Photo.findById(photos[1]._id)).imageKey,undefined);
+  await assert.rejects(storage.getImage(photos[1].imageKey),error=>error.statusCode===404);
   const usersTokens=[];
   for(const user of users){const raw=security.random(),browser=security.random(),expiry=Date.now()+86400000;await Session.create({_id:security.digest(raw),user:user._id,version:0,expiresAt:new Date(expiry)});const id=String(user._id);studentHeaders.set(id,{Cookie:`kq_session=${raw}; kq_browser=${browser}.${expiry}.${security.mac(`browser:${browser}:${expiry}`)}`,Origin:process.env.AUTH_ORIGIN,'X-CSRF-Token':security.csrf(browser)});usersTokens.push(id);}
   await command('lantern.open',lantern.token);
@@ -109,5 +118,6 @@ const token=(account,role)=>jwt.sign({role,v:0,[role==='admin'?'adminId':'userId
   if(server)await new Promise(resolve=>server.close(resolve));
   if(mongoose.connection.name===database && database.startsWith('kqv_role_check_'))await mongoose.connection.dropDatabase();
   await mongoose.disconnect();
+  await fs.rm(directory,{recursive:true,force:true});
  }
 })().then(()=>process.exit(0)).catch(error=>{console.error(error.message);process.exit(1);});

@@ -115,7 +115,7 @@ test("MemoryPhoto and likes reference the existing User, Admin, and MemoryPhoto 
 test("MemoryPhoto indexes support owner history and moderation without expiring rejected submissions", async () => {
   const indexes = await MemoryPhoto.collection.indexes();
   assert(indexes.some((index) => JSON.stringify(index.key) === JSON.stringify({ owner: 1, createdAt: -1 })));
-  assert(indexes.some((index) => JSON.stringify(index.key) === JSON.stringify({ status: 1, createdAt: -1 })));
+  assert(indexes.some((index) => JSON.stringify(index.key) === JSON.stringify({ status: 1, archived: 1, createdAt: -1 })));
   assert(indexes.every((index) => index.expireAfterSeconds === undefined && index.partialFilterExpression === undefined));
   const owner = objectId();
   for (const status of ["PENDING", "APPROVED", "REJECTED"]) {

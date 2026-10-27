@@ -147,7 +147,7 @@ test("My Memories returns only the cookie session owner's safe metadata in deter
   assert.equal(response.body.results, 3);
   assert.deepEqual(new Set(response.body.data.photos.map(photo => photo.status)), new Set(["PENDING", "APPROVED", "REJECTED"]));
   for (const photo of response.body.data.photos) assert.deepEqual(Object.keys(photo).sort(), ["createdAt", "id", "status"]);
-  assert.deepEqual(response.body.data.quota, { limit: 3, acceptedCount: 3, remainingSlots: 0 });
+  assert.deepEqual(response.body.data.quota, { limit: 3, acceptedCount: 2, remainingSlots: 1 });
   for (const query of [`?userId=${other._id}`, `?owner=${other._id}`, "?status=APPROVED"]) assert.equal((await mine(token, query)).status, 400);
   const otherToken = await studentToken(other);
   const own = await mine(otherToken);
@@ -158,7 +158,7 @@ test("My Memories returns only the cookie session owner's safe metadata in deter
 test("My Memories uses legacy records without creating quota state and handles an empty history", async () => {
   assert.deepEqual((await mine()).body.data, { photos: [], quota: { limit: 3, acceptedCount: 0, remainingSlots: 3 } });
   await MemoryPhoto.create({ owner: user._id, imageKey: "legacy", status: "REJECTED" });
-  assert.deepEqual((await mine()).body.data.quota, { limit: 3, acceptedCount: 1, remainingSlots: 2 });
+  assert.deepEqual((await mine()).body.data.quota, { limit: 3, acceptedCount: 0, remainingSlots: 3 });
   assert.equal(await Quota.countDocuments(), 0);
 });
 
@@ -176,11 +176,11 @@ test("My Memories excludes cancellation markers while retaining unresolved reser
   await quota.reserve(user._id, unresolved);
   const response = await mine();
   assert.equal(response.body.results, 1);
-  assert.deepEqual(response.body.data.quota, { limit: 3, acceptedCount: 1, remainingSlots: 1 });
+  assert.deepEqual(response.body.data.quota, { limit: 3, acceptedCount: 2, remainingSlots: 1 });
   assert.equal((await Quota.findById(user._id)).slots.length, 2);
-  // Deleted records never make their retained lifetime slots available again.
+  // A missing record alone cannot prove completion or free an unresolved reservation.
   await MemoryPhoto.deleteOne({ _id: accepted.body.data.photo.id });
-  assert.deepEqual((await mine()).body.data.quota, { limit: 3, acceptedCount: 0, remainingSlots: 1 });
+  assert.deepEqual((await mine()).body.data.quota, { limit: 3, acceptedCount: 2, remainingSlots: 1 });
 });
 
 test("My Memories remains disabled for false, missing and absent feature settings", async () => {
@@ -281,22 +281,55 @@ test("real JPEG and WebP content is accepted and stored with the validated forma
   }
 });
 
-test("all three moderation statuses consume lifetime quota and deleting bytes does not restore it", async () => {
+test("rejected records free a slot, while deleting active image bytes alone does not release capacity", async () => {
   for (const status of ["PENDING", "APPROVED", "REJECTED"]) {
     const result = await submit();
     assert.equal(result.status, 201);
     await MemoryPhoto.updateOne({ _id: result.body.data.photo.id }, { status });
   }
   for (const photo of await MemoryPhoto.find()) await storage.deleteImage(photo.imageKey);
+  assert.equal((await submit()).status, 201);
   assert.equal((await submit()).status, 409);
-  assert.equal(await MemoryPhoto.countDocuments(), 3);
+  assert.equal(await MemoryPhoto.countDocuments(), 4);
   assert.equal((await Quota.findById(user._id)).slots.length, 3);
 });
 
-test("old submissions are included when the quota is first initialized", async () => {
+test("legacy quota initialization counts pending and approved photos but releases rejected history", async () => {
   await MemoryPhoto.create(["PENDING", "APPROVED", "REJECTED"].map((status) => ({ owner: user._id, imageKey: `old/${status}`, status })));
+  assert.equal((await submit()).status, 201);
   assert.equal((await submit()).status, 409);
   assert.equal((await Quota.findById(user._id)).slots.length, 3);
+});
+
+test("archived photos retain capacity before and after legacy quota initialization", async () => {
+  const photos = await MemoryPhoto.create(Array.from({ length: 3 }, (_, index) => ({
+    owner: user._id, imageKey: `legacy/archive-${index}`, status: "APPROVED", archived: true,
+  })));
+  const expected = { limit: 3, acceptedCount: 3, remainingSlots: 0 };
+  const history = await mine();
+  assert.deepEqual(history.body.data.quota, expected);
+  assert(history.body.data.photos.every(photo => photo.status === "ARCHIVED"));
+  assert.equal(await Quota.countDocuments(), 0);
+  assert.equal((await submit()).status, 409);
+  assert.deepEqual(new Set((await Quota.findById(user._id)).slots.map(String)), new Set(photos.map(photo => String(photo._id))));
+  assert.deepEqual((await mine()).body.data.quota, expected);
+});
+
+test("legacy rejected and deleted slots reconcile without freeing archived or unresolved slots", async () => {
+  const archived = await MemoryPhoto.create({ owner: user._id, imageKey: "legacy/archived", status: "APPROVED", archived: true });
+  const rejected = await MemoryPhoto.create({ owner: user._id, status: "REJECTED" });
+  const deleted = await MemoryPhoto.create({ owner: user._id, status: "APPROVED", deletedAt: new Date() });
+  const unresolved = new mongoose.Types.ObjectId();
+  await Quota.create({ _id: user._id, slots: [archived._id, rejected._id, deleted._id, unresolved] });
+  assert.deepEqual((await mine()).body.data.quota, { limit: 3, acceptedCount: 2, remainingSlots: 1 });
+  const responses = await Promise.all(Array.from({ length: 6 }, () => submit()));
+  assert.equal(responses.filter(response => response.status === 201).length, 1);
+  assert.equal(responses.filter(response => response.status === 409).length, 5);
+  const slots = (await Quota.findById(user._id)).slots.map(String);
+  assert.equal(slots.length, 3);
+  assert(slots.includes(String(archived._id)) && slots.includes(String(unresolved)));
+  assert(!slots.includes(String(rejected._id)) && !slots.includes(String(deleted._id)));
+  assert.deepEqual((await mine()).body.data.quota, { limit: 3, acceptedCount: 3, remainingSlots: 0 });
 });
 
 test("twelve concurrent requests atomically accept exactly three submissions", async () => {

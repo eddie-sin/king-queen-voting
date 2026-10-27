@@ -32,7 +32,7 @@ exports.listMine = catchAsync(async (req, res) => {
   // Include legacy photos before quota initialization, and never advertise a
   // free slot already occupied by an unresolved reservation or retained history.
   const released = usage?.slots?.length ? new Set((await MemoryPhoto.collection.find({ _id: { $in: usage.slots }, $or: [{ status: 'REJECTED' }, { deletedAt: { $exists: true } }, { cancelled: true }] }, { projection: { _id: 1 } }).toArray()).map(photo => String(photo._id))) : new Set();
-  const occupied = new Set([...(usage?.slots || []).filter(id => !released.has(String(id))), ...photos.filter(photo => ['PENDING', 'APPROVED'].includes(photo.status) && !photo.archived && !photo.deletedAt).map(photo => photo._id)].map(String));
+  const occupied = new Set([...(usage?.slots || []).filter(id => !released.has(String(id))), ...photos.filter(photo => ['PENDING', 'APPROVED'].includes(photo.status) && !photo.deletedAt).map(photo => photo._id)].map(String));
   await requireEnabled();
   res.status(200).json({ status: "success", results: photos.length, data: {
     photos: photos.map(photo => ({ id: photo._id, status: photo.archived ? "ARCHIVED" : photo.status, createdAt: photo.createdAt })),

@@ -115,7 +115,7 @@ const imageUrl = (id) => `${base}/api/v1/admin/memory-photos/${id}/image`;
 const imageRequest = (id, token = adminToken) => fetch(imageUrl(id), { headers: authHeaders(token) });
 const review = (id, status, token = adminToken) => request("PATCH", `/admin/memory-photos/${id}/review`, { status }, token);
 
-test("moderation history is newest first, retains reviewed photos and never reveals storage keys", async () => {
+test("moderation lists pending and approved photos newest first, hiding rejected records and storage keys", async () => {
   const oldest = await photo({ createdAt: new Date("2026-01-01") });
   const approved = await photo({ status: "APPROVED" });
   const rejected = await photo({ status: "REJECTED" });
@@ -123,21 +123,22 @@ test("moderation history is newest first, retains reviewed photos and never reve
   const middle = await photo({ createdAt: new Date("2026-01-02") });
   const response = await request("GET", "/admin/memory-photos?status=REJECTED");
   assert.equal(response.status, 200);
-  assert.equal(response.body.results, 5);
-  assert.deepEqual(response.body.data.photos.map((entry) => entry.id), [rejected, approved, newest, middle, oldest].map((entry) => String(entry._id)));
+  assert.equal(response.body.results, 4);
+  assert.deepEqual(response.body.data.photos.map((entry) => entry.id), [approved, newest, middle, oldest].map((entry) => String(entry._id)));
   for (const entry of response.body.data.photos) {
-    assert(["PENDING", "APPROVED", "REJECTED"].includes(entry.status));
+    assert(["PENDING", "APPROVED"].includes(entry.status));
     assert.deepEqual(Object.keys(entry).sort(), ["createdAt", "id", "owner", "status"]);
   }
   assert(!JSON.stringify(response.body).includes("memory-photos/"));
-  await MemoryPhoto.updateMany({}, { status: "APPROVED" });
+  await MemoryPhoto.updateMany({ status: "PENDING" }, { status: "APPROVED" });
   const empty = await request("GET", "/admin/memory-photos");
-  assert.equal(empty.body.results, 5);
+  assert.equal(empty.body.results, 4);
+  assert.equal((await MemoryPhoto.findById(rejected._id)).status, "REJECTED");
   assert(empty.body.data.photos.every(entry => entry.status === "APPROVED"));
 });
 
-test("admins retrieve private images with no-store and nosniff even while the feature is disabled", async () => {
-  for (const status of ["PENDING", "REJECTED", "APPROVED"]) {
+test("admins retrieve pending and approved images while disabled, but rejected images are inaccessible", async () => {
+  for (const status of ["PENDING", "APPROVED"]) {
     const saved = await photo({ status });
     const response = await imageRequest(saved._id);
     assert.equal(response.status, 200);
@@ -149,6 +150,12 @@ test("admins retrieve private images with no-store and nosniff even while the fe
     assert.deepEqual(Buffer.from(await response.arrayBuffer()), png);
     assert.equal((await fetch(`${base}/uploads/${saved.imageKey}`)).status, 404);
   }
+});
+
+test("rejected records never expose their private bytes even if legacy storage remains", async () => {
+  const saved = await photo({ status: "REJECTED" });
+  assert.equal((await imageRequest(saved._id)).status, 404);
+  assert.equal((await storage.getImage(saved.imageKey)).contentType, "image/png");
 });
 
 test("production-style private streams are delivered without issuing URLs", async () => {
@@ -236,7 +243,15 @@ test("approval and rejection save the authenticated reviewer and server timestam
     assert(Date.parse(reviewed.reviewedAt) >= before && Date.parse(reviewed.reviewedAt) <= after);
     assert.equal(reviewed.imageKey, undefined);
     const loaded = await MemoryPhoto.findById(saved._id);
-    assert.equal(loaded.imageKey, saved.imageKey);
+    if (status === "REJECTED") {
+      assert.equal(loaded.imageKey, undefined);
+      assert(loaded.storageDeletedAt instanceof Date);
+      await assert.rejects(storage.getImage(saved.imageKey), error => error.statusCode === 404);
+      assert.equal((await imageRequest(saved._id)).status, 404);
+    } else {
+      assert.equal(loaded.imageKey, saved.imageKey);
+      assert.equal((await storage.getImage(saved.imageKey)).contentType, "image/png");
+    }
     assert.equal(String(loaded.owner), String(owner._id));
     assert.equal(+loaded.createdAt, +saved.createdAt);
     assert.equal(String(loaded.reviewedBy), reviewed.reviewedBy);
@@ -249,7 +264,7 @@ test("approval and rejection save the authenticated reviewer and server timestam
     assert.equal(unchanged.reviewedAt.toISOString(), reviewed.reviewedAt);
     assert.equal(unchanged.status, status);
   }
-  assert.equal((await request("GET", "/admin/memory-photos")).body.results, 2);
+  assert.equal((await request("GET", "/admin/memory-photos")).body.results, 1);
 });
 
 test("simultaneous conflicting reviews have one atomic winner and preserve its full decision", async () => {
@@ -266,7 +281,7 @@ test("simultaneous conflicting reviews have one atomic winner and preserve its f
   assert.equal(winner.reviewedBy, String(winner.status === "APPROVED" ? admin._id : otherAdmin._id));
 });
 
-test("reviewing three real submissions while disabled leaves rejected photos counted in lifetime quota", async () => {
+test("rejecting three submissions while disabled removes bytes and frees their active slots", async () => {
   await Controls.updateOne({}, { memoryPhotosEnabled: true });
   const ids = [];
   for (let index = 0; index < 3; index++) {
@@ -277,17 +292,19 @@ test("reviewing three real submissions while disabled leaves rejected photos cou
     assert.equal(response.status, 201);
     ids.push((await response.json()).data.photo.id);
   }
-  const before = await Quota.findById(owner._id).lean();
+  assert.equal((await Quota.findById(owner._id)).slots.length, 3);
   await Controls.updateOne({}, { memoryPhotosEnabled: false });
   assert.equal((await request("GET", "/admin/memory-photos")).body.results, 3);
   for (const id of ids) assert.equal((await review(id, "REJECTED")).status, 200);
-  assert.deepEqual(await Quota.findById(owner._id).lean(), before);
+  assert.deepEqual((await Quota.findById(owner._id)).slots, []);
+  assert.equal((await request("GET", "/admin/memory-photos")).body.results, 0);
+  for (const id of ids) assert.equal((await MemoryPhoto.findById(id)).imageKey, undefined);
   assert.equal(await MemoryPhoto.countDocuments({ owner: owner._id, status: "REJECTED" }), 3);
   await Controls.updateOne({}, { memoryPhotosEnabled: true });
   const form = new FormData();
   form.append("images", new Blob([png], { type: "image/png" }), "extra.png");
   assert.equal((await fetch(`${base}/api/v1/memory-photos`, { method: "POST",
-    headers: authHeaders(userToken), body: form })).status, 409);
+    headers: authHeaders(userToken), body: form })).status, 201);
 });
 
 test("missing private objects return 404 and storage failures do not disclose private details", async () => {
