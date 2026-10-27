@@ -39,7 +39,7 @@ export default function PrivacyPage() {
         <h2>Contact and access</h2>
         <p>
           For account or deletion questions, contact the event organisers at{" "}
-          <a href="mailto:ywn.tiktokusa@gmail.com">ywn.tiktokusa@gmail.com</a>.
+          <a href="mailto:thantsinaungeddie@gmail.com">thantsinaungeddie@gmail.com</a>.
           Account verification does not prove attendance at the physical event.
         </p>
         <p>
