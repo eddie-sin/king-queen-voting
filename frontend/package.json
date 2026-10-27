@@ -12,7 +12,8 @@
     "test:wishes": "node tests/wish-browser.mjs",
     "test:wishes:live": "node tests/wish-live-browser.mjs",
     "test:music": "node tests/music-browser.mjs",
-    "dev:fixtures": "vite --host 127.0.0.1 --mode fixtures"
+    "dev:fixtures": "vite --host 127.0.0.1 --mode fixtures",
+    "test:memory-refresh": "node tests/memory-refresh-browser.mjs"
   },
   "dependencies": {
     "react": "^19.2.0",

@@ -51,7 +51,7 @@ try {
     mode = 'ready'; imageFailure = true; await page.getByRole('button', { name: 'Refresh gallery', exact: true }).click();
     await page.locator('.mp-print').first().waitFor();
     await page.locator('.mp-print').first().scrollIntoViewIfNeeded();
-    await page.getByText('This image needs a moment.').first().waitFor();
+    await page.getByText('This photo could not be loaded.').first().waitFor();
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)); assert.deepEqual(errors, []);
     await page.getByRole('link', { name: 'View explicitly labeled demo gallery' }).click();
     await page.getByRole('button', { name: 'Enlarge demo photo 1', exact: true }).waitFor();

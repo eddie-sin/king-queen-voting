@@ -11,7 +11,7 @@
     "mongo:start": "node scripts/localMongo.cjs start",
     "test:auth": "node scripts/runAuthChecks.cjs",
     "test:auth:api": "node scripts/runAuthChecks.cjs --no-browser",
-    "test:all": "npm test && npm run test:auth && npm --prefix frontend test && npm --prefix admin test && python3 -m unittest discover -s deploy -p \"test_*.py\" && npm run test:nginx",
+    "test:all": "npm test && npm run test:auth && npm --prefix frontend test && npm --prefix frontend run test:memory-refresh && npm --prefix admin test && python3 -m unittest discover -s deploy -p \"test_*.py\" && npm run test:nginx",
     "test:nginx": "node scripts/checkNginx.cjs",
     "mongo:stop": "node scripts/localMongo.cjs stop",
     "mongo:restart": "node scripts/localMongo.cjs restart",

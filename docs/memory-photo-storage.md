@@ -1,5 +1,9 @@
 # Private Memory Photo storage
 
+For the current shared-bucket deployment and teammate configuration, see
+[Live Memory Photo configuration](memory-photo-live-storage.md). Privacy is
+enforced on S3 objects and backend routes independently of MongoDB collections.
+
 `utils/memoryPhotoStorage.js` exports `uploadImage(file)`, `getImage(key)`, and
 `deleteImage(key)`. Uploads accept the existing Multer in-memory file shape,
 JPEG/PNG/WebP MIME types, and at most 5 MB per image. MIME checks do not verify

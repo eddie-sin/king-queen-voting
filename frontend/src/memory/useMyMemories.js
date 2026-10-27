@@ -5,15 +5,18 @@ const blank = phase => ({ phase, photos: [], quota: null });
 export function useMyMemories(api) {
   const [state, setState] = useState(() => blank(readStoredSession() ? 'loading' : 'anonymous'));
   const active = useRef(null);
-  const generation = useRef(0);
+  const generation = useRef(0), owner = useRef(null);
   const refresh = useCallback(async () => {
     active.current?.abort();
     const request = ++generation.current;
     const session = readStoredSession();
-    if (!session) { setState(previous => blank(previous.phase === 'expired' ? 'expired' : 'anonymous')); return; }
+    if (!session) { owner.current = null; setState(previous => blank(previous.phase === 'expired' ? 'expired' : 'anonymous')); return; }
     const token = session.token;
     const controller = new AbortController(); active.current = controller;
-    setState(blank('loading'));
+    const sameOwner = owner.current === token;
+    owner.current = token;
+    // Revalidate quietly for this account; account changes never retain old history.
+    setState(previous => sameOwner && previous.phase === 'ready' ? previous : blank('loading'));
     const current = () => !controller.signal.aborted && request === generation.current && readStoredSession()?.token === token;
     try {
       const data = await api.myMemoryPhotos(token, { signal: controller.signal });
