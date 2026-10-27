@@ -1,3 +1,4 @@
+import { startReleaseUpdates } from './releaseUpdates.js';
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.jsx';
@@ -21,3 +22,5 @@ mount();
 import './source-match.css';
 import './wishes/wish-sky.css';
 import './components/music-player.css';
+
+if (import.meta.env.PROD) startReleaseUpdates();

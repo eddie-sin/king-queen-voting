@@ -65,6 +65,7 @@ jobs:
           npm run test:nginx
           npm --prefix frontend test
           npm --prefix frontend run test:memory-refresh
+          npm --prefix frontend run test:updates
           npm --prefix admin test
           python3 -m unittest discover -s deploy -p "test_*.py"
 

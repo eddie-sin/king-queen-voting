@@ -21,11 +21,25 @@ async function main(){
   for(let n=0;;n++){try{await tls('/');break;}catch(e){if(n>30||nginx.exitCode!==null)throw e;await new Promise(r=>setTimeout(r,100));}}
   const redirect=await fetch(`http://127.0.0.1:${httpPort}/privacy?test=1`,{redirect:'manual'});assert.equal(redirect.status,308);assert.equal(redirect.headers.get('location'),'https://gusto-thadingyut-festival.eddiespace.com/privacy?test=1');
   for(const url of ['/','/privacy','/admin/']){const response=await tls(url);assert.equal(response.status,200);assert.match(response.body,/id="root"/);assert.equal(response.headers['cross-origin-opener-policy'],'same-origin-allow-popups');assert.match(response.headers['strict-transport-security'],/max-age/);}
+  // Reproduce releases with the same byte length and archive timestamp.
+  const indexFile=path.join(dir,'frontend/dist/index.html');
+  const first=await tls('/');
+  assert.equal(first.headers['cache-control'],'no-store');
+  assert.equal(first.headers.etag,undefined);
+  const oldBody=await fs.readFile(indexFile,'utf8');
+  await fs.writeFile(indexFile,oldBody.replace('frontend','newfront'));
+  await fs.utimes(indexFile,0,0);
+  for(const url of ['/','/index.html','/privacy','/admin/','/admin/index.html']){
+    const next=await tls(url,{'If-None-Match':first.headers.etag||'"0-269"','If-Modified-Since':'Thu, 31 Dec 2099 23:59:59 GMT'});
+    assert.equal(next.status,200,'Old release validators must never suppress changed HTML: '+url);
+    assert.equal(next.headers['cache-control'],'no-store');
+    if(!url.startsWith('/admin/'))assert.match(next.body,/newfront/);
+  }
   const response=await tls('/api/v1/auth/config',{'X-Forwarded-For':'203.0.113.8','CF-Connecting-IP':'203.0.113.9'});
   assert.equal(response.status,200);assert.equal(response.headers['cache-control'],'no-store');assert.equal(response.headers['x-content-type-options'],'nosniff');assert.match(response.headers['strict-transport-security'],/max-age/);
   const proxied=JSON.parse(response.body);assert.equal(proxied.forwarded,'127.0.0.1');assert.equal(proxied.protocol,'https');assert.equal(proxied.host,'localhost');
   assert.equal((await tls('/api/v1/health/ready')).status,403);assert.equal((await tls('/api/v1/health/ready/')).status,403);assert.equal((await tls('/.env')).status,403);
-  console.log('Nginx public template passed: syntax, canonical HTTPS redirect, TLS, homepage/admin/privacy routes, auth no-store headers, private readiness and spoofed-IP rejection. Temporary local server only.');
+  console.log('Nginx public template passed: syntax, canonical HTTPS redirect, TLS, homepage/admin/privacy routes, same-size release cache invalidation, HTML/auth no-store headers, private readiness and spoofed-IP rejection. Temporary local server only.');
  }finally{if(nginx?.pid&&nginx.exitCode===null){nginx.kill('SIGTERM');await exited;}if(api)await new Promise(r=>api.close(r));await fs.rm(dir,{recursive:true,force:true});}
 }
 main().catch(e=>{console.error(e.message);process.exitCode=1;});
