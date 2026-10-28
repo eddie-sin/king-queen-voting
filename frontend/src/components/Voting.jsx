@@ -2,23 +2,305 @@ import { useEffect, useState } from 'react';
 import { Crown, UserIcon } from './Artwork.jsx';
 import { Dialog } from './Dialog.jsx';
 import { titleCase } from '../domain.js';
+
 export function StatusBanner({ status, error, onRetry }) {
-  const headline = { open: 'Voting is open', closing: 'Voting is closing', closed: 'Voting is closed', unknown: 'Checking voting status' }[status];
-  return <div className={`schedule-banner ${status}`} role="status"><span className="schedule-dot"/><div><strong>{headline}</strong><p>{status === 'open' ? 'Choose carefully. You can vote once for King and once for Queen.' : status === 'closing' ? 'The organisers are finishing votes already being processed. New votes are closed.' : status === 'closed' ? 'The organisers will open voting when it is time. Your recorded choices remain available in your account.' : 'Voting stays unavailable until the server confirms its status.'}</p>{error && <p className="inline-error">{error}</p>}</div>{status === 'unknown' && <button className="btn secondary" onClick={onRetry}>Refresh status</button>}</div>;
+  const headline = {
+    open: 'Voting is open',
+    closing: 'Voting is closing',
+    closed: 'Voting is closed',
+    unknown: 'Checking voting status',
+  }[status];
+
+  return (
+    <div className={`schedule-banner ${status}`} role="status">
+      <span className="schedule-dot" aria-hidden="true" />
+      <div>
+        <strong>{headline}</strong>
+        <p>
+          {status === 'open'
+            ? 'Choose carefully. You can vote once for King and once for Queen.'
+            : status === 'closing'
+              ? 'The organisers are finishing votes already being processed. New votes are closed.'
+              : status === 'closed'
+                ? 'The organisers will open voting when it is time. Your recorded choices remain available in your account.'
+                : 'Voting stays unavailable until the server confirms its status.'}
+        </p>
+        {error && <p className="inline-error">{error}</p>}
+      </div>
+      {status === 'unknown' && (
+        <button className="btn secondary" onClick={onRetry}>
+          Refresh status
+        </button>
+      )}
+    </div>
+  );
 }
-export function AccountPanel({ session, choices, choiceState, busy, onLogin, onRegister, onSignOut }) {
-  if (!session) return <section className="source-section account-panel"><div className="account-card account-guest-card"><div className="account-avatar"><Crown/></div><div className="account-guest-copy"><span className="eyebrow">FESTIVAL ACCOUNT</span><h2>Sign in to view your votes</h2><p>Your King and Queen votes, lanterns, and festival wishes are saved to your account. Each submitted vote is final.</p><div className="account-guest-actions"><button className="btn primary" onClick={onLogin}>Sign in</button><button className="btn secondary" onClick={onRegister}>Create account</button></div></div></div></section>;
-  return <section className="source-section account-panel"><div className="account-card"><div className="account-card-head"><div className="account-identity"><div className="account-avatar is-logged-in"><UserIcon/></div><div><span className="eyebrow">YOUR FESTIVAL ACCOUNT</span><h2>{session.user.email}</h2></div></div><button className="btn secondary" disabled={busy} onClick={() => onSignOut()}>Sign out</button></div><div className="account-stats-grid">{['king', 'queen'].map(contest => <div className={`account-stat-box ${choices[contest] ? 'has-voted' : ''}`} key={contest}><span className="eyebrow">{contest.toUpperCase()} VOTE</span><strong>{choiceState !== 'ready' ? 'Checking…' : choices[contest] ? 'Vote recorded' : 'Not voted yet'}</strong><p>{choiceState === 'ready' && choices[contest] ? choices[contest].fullName : 'One final choice for this category.'}</p></div>)}<div className="account-stat-box"><span className="eyebrow">YOUR BALLOTS</span><strong>One vote per category</strong><p>Votes cannot be changed or removed after submission.</p></div></div></div></section>;
+
+export function AccountPanel({
+  session,
+  choices,
+  choiceState,
+  busy,
+  onLogin,
+  onRegister,
+  onSignOut,
+}) {
+  if (!session) {
+    return (
+      <section className="source-section account-panel">
+        <div className="account-card account-guest-card">
+          <div className="account-avatar" aria-hidden="true">
+            <Crown />
+          </div>
+          <div className="account-guest-copy">
+            <span className="eyebrow">FESTIVAL ACCOUNT</span>
+            <h2>Sign in to view your votes</h2>
+            <p>
+              Your King and Queen votes, lanterns, and festival wishes are saved to your
+              account. Each submitted vote is final.
+            </p>
+            <div className="account-guest-actions">
+              <button className="btn primary" onClick={onLogin}>
+                Sign in
+              </button>
+              <button className="btn secondary" onClick={onRegister}>
+                Create account
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="source-section account-panel">
+      <div className="account-card">
+        <div className="account-card-head">
+          <div className="account-identity">
+            <div className="account-avatar is-logged-in" aria-hidden="true">
+              <UserIcon />
+            </div>
+            <div className="account-identity-text">
+              <span className="eyebrow">YOUR FESTIVAL ACCOUNT</span>
+              <h2>{session.user.email}</h2>
+            </div>
+          </div>
+          <div className="account-head-actions">
+            <button
+              className="btn secondary"
+              disabled={busy}
+              onClick={() => onSignOut()}
+            >
+              Sign out
+            </button>
+          </div>
+        </div>
+        <div className="account-stats-grid">
+          {['king', 'queen'].map(contest => (
+            <div
+              className={`account-stat-box ${choices[contest] ? 'has-voted' : ''}`}
+              key={contest}
+            >
+              <span className="eyebrow">{contest.toUpperCase()} VOTE</span>
+              <strong>
+                {choiceState !== 'ready'
+                  ? 'Checking…'
+                  : choices[contest]
+                    ? 'Vote recorded'
+                    : 'Not voted yet'}
+              </strong>
+              <p>
+                {choiceState === 'ready' && choices[contest]
+                  ? choices[contest].fullName
+                  : 'One final choice for this category.'}
+              </p>
+            </div>
+          ))}
+          <div className="account-stat-box">
+            <span className="eyebrow">YOUR BALLOTS</span>
+            <strong>One vote per category</strong>
+            <p>Votes cannot be changed or removed after submission.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
 }
-export function ChoicesPage({ status, session, choices, choiceState, busy, onLogin, onRefresh, onBrowse }) {
-  return <section className="source-section choices-panel" id="choices"><div className="choices-section-head"><span className="eyebrow">MY RECORDED VOTES</span><h2>Your <em>King &amp; Queen</em> choices</h2></div>{!session ? <div className="choice-gate"><div className="choice-gate-copy"><span className="eyebrow">BALLOT STATUS</span><h3>Sign in to view your votes</h3><p>Sign in with your festival account to see your recorded choices or choose a King and Queen.</p></div><button className="btn primary" onClick={onLogin}>Sign in</button></div> : <><div className="choice-toolbar"><p>{choiceState === 'ready' ? 'These choices are saved to your account.' : 'Confirm your saved choices before voting.'}</p><button className="text-button" onClick={onRefresh} disabled={busy}>Refresh choices</button></div>{choiceState !== 'ready' ? <p role="status">{choiceState === 'uncertain' ? 'Your choices could not be confirmed. Please refresh.' : 'Checking your saved choices…'}</p> : <div className="choice-grid">{['king', 'queen'].map(contest => <article className={`choice-slot ${choices[contest] ? 'has-choice' : ''}`} key={contest}><div className="choice-portrait">{choices[contest]?.images?.[0] ? <img src={choices[contest].images[0]} alt=""/> : <Crown/>}</div><div className="choice-details"><span className="eyebrow">YOUR {contest.toUpperCase()} VOTE</span><h3>{choices[contest]?.fullName || 'No vote recorded'}</h3><p>{choices[contest] ? 'Your vote is recorded and cannot be changed.' : status === 'open' ? `Choose your ${titleCase(contest)} when you are ready.` : 'You can make your choice when voting opens.'}</p>{!choices[contest] && status === 'open' && <button className="btn secondary" disabled={busy} onClick={() => onBrowse(contest)}>Choose a {titleCase(contest)}</button>}</div></article>)}</div>}</>}<div className="source-page-links"><button className="text-button" onClick={() => onBrowse('candidates')}>Browse candidates</button></div></section>;
+
+export function ChoicesPage({
+  status,
+  session,
+  choices,
+  choiceState,
+  busy,
+  onLogin,
+  onRefresh,
+  onBrowse,
+}) {
+  return (
+    <section className="source-section choices-panel" id="choices">
+      <div className="choices-section-head">
+        <span className="eyebrow">MY RECORDED VOTES</span>
+        <h2>
+          Your <em>King &amp; Queen</em> choices
+        </h2>
+      </div>
+      {!session ? (
+        <div className="choice-gate">
+          <div className="choice-gate-copy">
+            <span className="eyebrow">BALLOT STATUS</span>
+            <h3>Sign in to view your votes</h3>
+            <p>
+              Sign in with your festival account to see your recorded choices or choose a
+              King and Queen.
+            </p>
+          </div>
+          <button className="btn primary" onClick={onLogin}>
+            Sign in
+          </button>
+        </div>
+      ) : (
+        <>
+          <div className="choice-toolbar">
+            <p>
+              {choiceState === 'ready'
+                ? 'These choices are saved to your account.'
+                : 'Confirm your saved choices before voting.'}
+            </p>
+            <button className="text-button" onClick={onRefresh} disabled={busy}>
+              Refresh choices
+            </button>
+          </div>
+          {choiceState !== 'ready' ? (
+            <p role="status">
+              {choiceState === 'uncertain'
+                ? 'Your choices could not be confirmed. Please refresh.'
+                : 'Checking your saved choices…'}
+            </p>
+          ) : (
+            <div className="choice-grid">
+              {['king', 'queen'].map(contest => (
+                <article
+                  className={`choice-slot ${choices[contest] ? 'has-choice' : ''}`}
+                  key={contest}
+                >
+                  <div className="choice-portrait">
+                    {choices[contest]?.images?.[0] ? (
+                      <img src={choices[contest].images[0]} alt="" />
+                    ) : (
+                      <Crown />
+                    )}
+                  </div>
+                  <div className="choice-details">
+                    <span className="eyebrow">YOUR {contest.toUpperCase()} VOTE</span>
+                    <h3>{choices[contest]?.fullName || 'No vote recorded'}</h3>
+                    <p>
+                      {choices[contest]
+                        ? 'Your vote is recorded and cannot be changed.'
+                        : status === 'open'
+                          ? `Choose your ${titleCase(contest)} when you are ready.`
+                          : 'You can make your choice when voting opens.'}
+                    </p>
+                    {!choices[contest] && status === 'open' && (
+                      <button
+                        className="btn secondary"
+                        disabled={busy}
+                        onClick={() => onBrowse(contest)}
+                      >
+                        Choose a {titleCase(contest)}
+                      </button>
+                    )}
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+      <div className="source-page-links">
+        <button className="text-button" onClick={() => onBrowse('candidates')}>
+          Browse candidates
+        </button>
+      </div>
+    </section>
+  );
 }
+
 export function VoteConfirmation({ pending, busy, canConfirm, onConfirm, onClose }) {
-  return <Dialog title="Confirm your final choice." locked={busy} onClose={onClose} className="confirm-dialog"><div className="dialog-ornament"><Crown/></div><p>Cast your {titleCase(pending.contest)} vote for <strong>{pending.candidate.fullName}</strong>?</p><p className="fine-print">You cannot change or remove this vote after submitting. Your other category is a separate choice.</p>{!canConfirm && <p className="inline-error" role="alert">Voting or your account status changed. Close this dialog and refresh.</p>}<div className="actions"><button className="btn secondary" disabled={busy} onClick={onClose}>Keep browsing</button><button className="btn primary" disabled={busy || !canConfirm} onClick={onConfirm}>{busy ? 'Recording…' : 'Confirm vote'}</button></div></Dialog>;
+  return (
+    <Dialog
+      title="Confirm your final choice."
+      locked={busy}
+      onClose={onClose}
+      className="confirm-dialog"
+    >
+      <div className="dialog-ornament">
+        <Crown />
+      </div>
+      <p>
+        Cast your {titleCase(pending.contest)} vote for{' '}
+        <strong>{pending.candidate.fullName}</strong>?
+      </p>
+      <p className="fine-print">
+        You cannot change or remove this vote after submitting. Your other category is a
+        separate choice.
+      </p>
+      {!canConfirm && (
+        <p className="inline-error" role="alert">
+          Voting or your account status changed. Close this dialog and refresh.
+        </p>
+      )}
+      <div className="actions">
+        <button className="btn secondary" disabled={busy} onClick={onClose}>
+          Keep browsing
+        </button>
+        <button
+          className="btn primary"
+          disabled={busy || !canConfirm}
+          onClick={onConfirm}
+        >
+          {busy ? 'Recording…' : 'Confirm vote'}
+        </button>
+      </div>
+    </Dialog>
+  );
 }
+
 export function Celebration({ event }) {
   const [visible, setVisible] = useState(false);
-  useEffect(() => { if (!event) return; setVisible(true); const timer = setTimeout(() => setVisible(false), 5200); return () => clearTimeout(timer); }, [event]);
+
+  useEffect(() => {
+    if (!event) return;
+    setVisible(true);
+    const timer = setTimeout(() => setVisible(false), 5200);
+    return () => clearTimeout(timer);
+  }, [event]);
+
   if (!visible) return null;
-  return <div className="vote-celebration" aria-hidden="true"><div className="sparkle-swish"/><div className="crown-moment"><Crown/><strong>A little choice.<em>A brighter celebration.</em></strong><span>Your vote is saved</span></div>{Array.from({ length: 32 }, (_, i) => <i key={i} className="confetti" style={{ '--left': `${(i * 31) % 100}%`, '--delay': `${2.5 + i % 7 * .07}s`, '--turn': `${i * 29}deg` }}/>)}</div>;
+
+  return (
+    <div className="vote-celebration" aria-hidden="true">
+      <div className="sparkle-swish" />
+      <div className="crown-moment">
+        <Crown />
+        <strong>
+          A little choice.
+          <em>A brighter celebration.</em>
+        </strong>
+        <span>Your vote is saved</span>
+      </div>
+      {Array.from({ length: 32 }, (_, i) => (
+        <i
+          key={i}
+          className="confetti"
+          style={{
+            '--left': `${(i * 31) % 100}%`,
+            '--delay': `${2.5 + (i % 7) * 0.07}s`,
+            '--turn': `${i * 29}deg`,
+          }}
+        />
+      ))}
+    </div>
+  );
 }

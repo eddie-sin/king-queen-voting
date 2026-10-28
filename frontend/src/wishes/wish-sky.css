@@ -1,123 +1,792 @@
-/* Wish Sky rules ported from the supplied Netlify source. */
-.wish-section{text-align:center;padding:45px 0 0;border-top:1px solid var(--line)}.wish-section h2{margin:15px 0}.wish-section>p{font-size:12px}.wish-wall{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;align-items:start;margin:40px 0}.wish-paper{min-height:180px;padding:25px 20px;background:linear-gradient(145deg,#ecd095,#bda17a);color:#112540;border-radius:80px 80px 8px 8px;box-shadow:0 0 28px #d6ac6015;position:relative}.wish-paper:after{content:'';width:1px;height:17px;background:var(--gold);position:absolute;bottom:-17px;left:50%}.wish-paper>span{font-size:28px}.wish-paper p{font-family:Georgia;font-size:17px;color:#132946;overflow-wrap:anywhere;line-height:1.5}.wish-paper small{font-size:9px;color:#1b3b65}.wish-form{text-align:left;max-width:550px}@media(max-width:580px){.wish-wall{grid-template-columns:1fr 1fr;gap:15px}.wish-paper{padding:22px 14px}.wish-paper p{font-size:15px}}
-.wish-section{scroll-margin-top:25px}.wish-sky{position:relative;isolation:isolate;margin:35px 0;border:1px solid #d6b27024;border-radius:45% 45% 16px 16px / 30px 30px 16px 16px;background:radial-gradient(ellipse at 50% 100%,#43658b22,transparent 60%),linear-gradient(#10162c66,#10233b55);min-height:330px;overflow:hidden}.wish-constellation{position:absolute;inset:0;z-index:-1;background-image:radial-gradient(circle,#fff0c28a .8px,transparent 1.5px),radial-gradient(circle,#d8eaff77 .6px,transparent 1.4px);background-size:73px 91px,137px 109px;background-position:12px 9px,46px 28px;opacity:.6}.wish-lantern-grid{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:30px 22px;padding:55px 30px 45px;max-height:550px;overflow-y:auto;scrollbar-color:#aa895055 transparent}.floating-wish{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;width:140px;min-height:185px;background:transparent;border:0;color:var(--gold);padding:20px 8px 8px;transform:translateY(calc(-1 * var(--lift)));border-radius:15px}.floating-wish:hover,.floating-wish:focus-visible{background:#edc77d08}.wish-lantern-shape{position:relative;display:block;width:60px;height:96px;flex-shrink:0;filter:drop-shadow(0 0 17px #e8a34466);animation:lantern-breathe var(--sway,8s) var(--float-delay,0s) ease-in-out infinite}.paper-shell{position:absolute;inset:0 0 18px;border-radius:40% 40% 28% 28% / 14% 14% 10% 10%;border:1px solid #f3d395b0;background:repeating-linear-gradient(90deg,transparent 0 13px,#dfa86733 14px,transparent 15px),radial-gradient(ellipse at 50% 95%,#ffe8a0b8,#f1b46c5c 45%,#ad755b26 90%);box-shadow:inset 0 0 22px #f9d48b29,0 0 30px #e8af5920;backdrop-filter:blur(2px)}.paper-shell:after{content:'✧';position:absolute;inset:18px 0;text-align:center;font-size:28px;color:#ffe7b486}.lantern-flame{position:absolute;width:11px;height:17px;background:#ffeabb;bottom:20px;left:25px;border-radius:70% 35% 65% 35%;box-shadow:0 0 16px 5px #ffbb6877}.lantern-tassel{position:absolute;width:1px;height:20px;bottom:0;left:30px;background:linear-gradient(#ecc77999,transparent)}.wish-sender{display:block;max-width:130px;margin-top:17px;font-size:10px;font-weight:400;color:#ddcfaad0;text-overflow:ellipsis;overflow:hidden;white-space:nowrap}.wish-sky-caption{font-family:Georgia;font-style:italic;font-size:13px;color:#a4bad3;padding:0 15px 20px}.wish-form{padding:28px;max-width:520px;border:1px solid #e4bc7026;border-radius:13px;background:#0b192b44}.wish-form textarea,.wish-form input{background:#09152444}.wish-form .btn{width:100%;margin-top:8px}.wish-form .eyebrow{text-align:center;font-size:9px}#wish-detail{width:min(440px,92vw);background:radial-gradient(ellipse at 50% 0,#1a3962,#0c1b2e 70%);border-color:#ecc88966}.wish-reading{padding:50px 30px 30px;text-align:center}.wish-reading>.wish-lantern-shape{margin:0 auto 30px;width:60px}.wish-reading .eyebrow{font-size:8px;letter-spacing:2px}.wish-reading .wish-message{font-family:'Cormorant Garamond',Georgia,serif;font-size:30px;line-height:1.35;color:#f5e5c9;overflow-wrap:anywhere;margin:25px 0}.wish-signature{font-size:11px;color:#9cb4cf;line-height:1.9}.wish-signature strong{font-weight:400;color:var(--gold);font-size:15px}.wish-reading .meta{margin-top:25px;font-size:9px}.wish-release{position:fixed;inset:0;pointer-events:none;z-index:110;overflow:hidden;background:radial-gradient(ellipse at 50% 100%,#edb8660d,transparent 55%)}.released-lantern{position:absolute;bottom:7%;left:calc(50% - 30px);animation:release-flight 5.8s cubic-bezier(.32,.12,.35,1) both}.released-lantern .wish-lantern-shape{scale:1.8;animation:none;filter:drop-shadow(0 0 28px #f6b763a0)}.release-trail{position:absolute;top:110px;left:27px;width:5px;height:180px;transform-origin:top;background:linear-gradient(#f6d69777,transparent);filter:blur(3px);animation:trail-flow 5.8s both}.release-caption{position:absolute;bottom:10%;left:0;right:0;text-align:center;font-family:Georgia;font-size:22px;color:#f9dc9f;text-shadow:0 2px 12px #0a1625;animation:release-caption 5.5s both}.new-wish .wish-lantern-shape{animation:new-wish-glow 6s both}.swish-sparkle{position:absolute;left:var(--sx);top:var(--sy);font-style:normal;font-size:var(--ss);color:#ffe8b2;opacity:0;text-shadow:0 0 13px #f5c269;animation:swish-glitter 3.3s var(--sd) both}@keyframes lantern-breathe{0%,100%{transform:translate(0,0) rotate(-3deg)}50%{transform:translate(7px,-15px) rotate(4deg)}}@keyframes release-flight{0%{transform:translate(0,70px) scale(.9);opacity:0}12%{opacity:1}42%{transform:translate(28px,-30vh) scale(.8);opacity:1}80%{opacity:.8}100%{transform:translate(-30px,-95vh) scale(.2);opacity:0}}@keyframes release-caption{0%,10%{opacity:0;translate:0 15px}25%,65%{opacity:1;translate:0 0}100%{opacity:0;translate:0 -8px}}@keyframes new-wish-glow{0%,60%{opacity:.35}80%{opacity:1;filter:drop-shadow(0 0 40px #ffd787)}100%{opacity:1;filter:drop-shadow(0 0 17px #e8a34466)}}@keyframes swish-sweep{0%{stroke-dashoffset:2100;opacity:0}15%{opacity:1}75%{opacity:1}100%{stroke-dashoffset:-500;opacity:0}}@keyframes swish-glitter{0%{opacity:0;transform:translate(-35px,25px) scale(.2) rotate(-45deg)}35%{opacity:1;transform:translate(0,0) scale(1) rotate(0)}100%{opacity:0;transform:translate(25px,-35px) scale(.2) rotate(60deg)}}@media(max-width:580px){.wish-lantern-grid{gap:12px 6px;padding:48px 12px 25px}.floating-wish{width:100px;min-height:165px}.wish-lantern-shape{width:52px;height:84px}.lantern-flame{left:21px}.lantern-tassel{left:26px}.wish-sender{max-width:95px;font-size:9px}.wish-form{padding:22px}.wish-reading{padding:45px 25px 25px}.wish-reading .wish-message{font-size:27px}.released-lantern{left:calc(50% - 26px)}}@media(prefers-reduced-motion:reduce){.wish-lantern-shape,.released-lantern,.release-caption,.new-wish .wish-lantern-shape{animation:none}.released-lantern{bottom:45%;opacity:1}.release-trail{display:none}.release-caption{bottom:30%;opacity:1}}
-.wishes-mode{background:#111f2e}.wishes-mode main{min-height:100svh}.wishes-mode footer{margin-top:0;background:#111f2e88}.wish-world{position:relative;isolation:isolate;overflow:hidden;min-height:115vh;background:radial-gradient(ellipse at 50% 55%,#1a396240,transparent 70%),linear-gradient(#131b3844,#0c192c66)}.sky-atmosphere{position:absolute;inset:0;z-index:-1;pointer-events:none;overflow:hidden}.wish-world-content{max-width:1400px;margin:auto;padding:45px 25px 25px}.wish-world .wish-section{border:0;padding:10px 0 0}.wish-world h2{font-size:clamp(48px,6vw,78px)}.wish-world .wish-section>p{color:#b5c7dc}.wish-world .wish-sky{background:transparent;border:0;min-height:440px;margin:10px 0 0;overflow:visible}.wish-world .wish-lantern-grid{max-height:none;min-height:400px;padding:80px 14% 40px;gap:30px 38px}.wish-world .wish-constellation{opacity:.15}.wish-world .floating-wish{width:130px;min-height:190px}.wish-world .wish-form{background:#0c192c88;backdrop-filter:blur(8px);position:relative;z-index:2;margin-top:25px}.wish-world .wish-sky-caption{opacity:.7}.wish-world .note{position:relative;z-index:2}.balloon-credit{text-align:center;font-size:9px;letter-spacing:1px;margin:25px 0;color:#8ca8c8}.taunggyi-balloon{position:absolute;width:230px;filter:drop-shadow(0 0 28px #e5a95e33);animation:balloon-drift 16s ease-in-out infinite;opacity:.9}.taunggyi-balloon svg{width:100%;height:auto}.balloon-1{left:1%;top:10%}.balloon-2{right:0;top:39%;width:280px;animation-duration:21s;animation-delay:-8s;filter:hue-rotate(16deg) drop-shadow(0 0 28px #e5a95e33)}.distant-lantern{position:absolute;left:var(--dx);top:var(--dy);scale:var(--ds);opacity:.42;animation:sky-rise 36s var(--dd) linear infinite}.sky-cloud{position:absolute;width:70%;height:140px;border-radius:50%;filter:blur(40px);opacity:.17;background:radial-gradient(ellipse,#5a82af,transparent 65%);animation:cloud-drift 34s ease-in-out infinite}.cloud-one{top:30%;left:-20%}.cloud-two{top:62%;right:-20%;animation-delay:-17s}.sky-firefly{position:absolute;width:3px;height:3px;background:#ffe4a8;border-radius:50%;box-shadow:0 0 10px #ffca72;animation:firefly-drift 9s ease-in-out infinite}@keyframes balloon-drift{0%,100%{transform:translate(0,0) rotate(-3deg)}50%{transform:translate(18px,-40px) rotate(4deg)}}@keyframes sky-rise{0%{translate:0 80px;opacity:0}15%,80%{opacity:.42}100%{translate:22px -280px;opacity:0}}@keyframes cloud-drift{50%{translate:20% -25px}}@keyframes firefly-drift{0%,100%{transform:translate(0,0);opacity:.1}50%{transform:translate(20px,-35px);opacity:.85}}@media(max-width:580px){.wish-world-content{padding:35px 14px 20px}.wish-world .wish-lantern-grid{padding:70px 10px 30px;gap:20px 6px;min-height:430px}.wish-world .floating-wish{width:105px}.balloon-1{width:140px;left:-35px;top:16%;opacity:.7}.balloon-2{width:180px;right:-50px;top:51%;opacity:.7}.wish-world h2{font-size:52px}.wish-world .wish-form{margin-top:15px}.wish-world .wish-sky-caption{font-size:11px}}@media(prefers-reduced-motion:reduce){.taunggyi-balloon,.distant-lantern,.sky-cloud,.sky-firefly{animation:none}.distant-lantern{opacity:.4}}.wishes-mode{overflow:hidden;height:100svh}.wishes-mode header{background:linear-gradient(#0a1626dd,#0a162699);backdrop-filter:blur(5px);position:relative;z-index:10}.wishes-mode main{min-height:0}.wishes-mode footer{display:none}.wishes-mode .page{animation:none}.wish-world{position:fixed;inset:0;width:100%;height:100svh;min-height:0;overflow:hidden;z-index:0}.wish-world .sky-atmosphere{position:absolute;inset:0;z-index:0}.wish-world-content{position:absolute;inset:0;max-width:none;padding:0;pointer-events:none;z-index:1}.wish-world .wish-section{position:absolute;inset:0;padding:0;margin:0;pointer-events:none}.wish-world .free-sky-heading h2{font-size:clamp(39px,5vw,65px);margin:13px 0}.wish-world .wish-sky,.wish-world .wish-lantern-grid{position:absolute;inset:0;width:100%;height:100%;min-height:0;max-height:none;padding:0;margin:0;border:0;border-radius:0;overflow:visible;background:none;display:block;pointer-events:none}.wish-world .floating-wish{position:absolute;left:clamp(0px,calc(var(--wx) - 55px),calc(100% - 110px));top:100%;width:110px;min-height:130px;margin:0;padding:8px 5px;pointer-events:auto;transform:none;animation:wish-cross-sky var(--journey) var(--phase) linear infinite;will-change:transform;z-index:2}.wish-world .floating-wish:hover,.wish-world .floating-wish:focus-visible{animation-play-state:paused;background:#edc77d09}.wish-world .floating-wish .wish-lantern-shape{animation:none}.wish-world .wish-sender{max-width:105px;margin-top:9px;text-shadow:0 2px 7px #0a1524}.wish-world .sky-actions{position:absolute;left:5%;bottom:max(22px,env(safe-area-inset-bottom));z-index:4;pointer-events:auto;display:flex;flex-wrap:wrap;gap:10px;max-width:390px}.sky-actions p{width:100%;font-size:9px;color:#9eb5d0;margin:0;text-shadow:0 2px 7px #0a1524}.sky-actions .btn.ghost{background:#0b192b99;backdrop-filter:blur(5px)}.wish-world .balloon-credit{position:absolute;bottom:28px;right:65px;margin:0;max-width:280px;z-index:3;pointer-events:none;font-size:8px;text-align:right}.wish-world .distant-lantern{top:100%;animation:decor-cross-sky 42s var(--dd) linear infinite;opacity:.4}.wish-world .distant-lantern .wish-lantern-shape{animation:none}.wish-world .taunggyi-balloon{top:100%;animation:balloon-cross-sky 75s linear infinite;will-change:transform}.wish-world .balloon-1{left:6%;animation-delay:-27s}.wish-world .balloon-2{right:5%;animation-duration:92s;animation-delay:-65s}.wish-world dialog{pointer-events:auto}.wish-world #wish-compose{width:min(510px,92vw);background:radial-gradient(ellipse at top,#163153,#0c1b2e);padding:16px 10px}.wish-world .wish-form{position:static;background:none;border:0;backdrop-filter:none;margin:0;padding:28px 22px}.wish-world .wish-form h2{font-size:40px;text-align:center;margin:15px 0 25px}.wish-world .wish-form .note{font-size:10px;margin-bottom:0}#wish-list{width:min(480px,92vw)}.wish-list-content{padding:45px 25px 25px}.wish-list-content h2{font-size:38px;margin:13px 0 25px}.wish-list-item{display:flex;align-items:center;gap:15px;width:100%;background:transparent;border:0;border-top:1px solid var(--line);padding:18px 4px;color:var(--gold);font-size:12px;text-align:left}.wish-list-item small{margin-left:auto;font-size:9px;color:var(--muted)}body:has(#wish-detail[open]) .floating-wish,body:has(#wish-compose[open]) .floating-wish,body:has(#wish-list[open]) .floating-wish{animation-play-state:paused}.wish-world .floating-wish.new-wish{animation-delay:0s}.wish-world .floating-wish.new-wish .wish-lantern-shape{animation:none}@keyframes wish-cross-sky{0%{transform:translate3d(0,40px,0) rotate(-3deg)}50%{transform:translate3d(var(--drift),calc(-50svh - 100px),0) rotate(3deg)}100%{transform:translate3d(0,calc(-100svh - 220px),0) rotate(-2deg)}}@keyframes decor-cross-sky{0%{transform:translate3d(0,100px,0);opacity:0}10%,85%{opacity:.4}100%{transform:translate3d(35px,calc(-100svh - 200px),0);opacity:0}}@keyframes balloon-cross-sky{0%{transform:translate3d(0,60px,0) rotate(-3deg)}50%{transform:translate3d(25px,calc(-50svh - 220px),0) rotate(3deg)}100%{transform:translate3d(-10px,calc(-100svh - 520px),0) rotate(-3deg)}}@media(max-width:580px){.wish-world .free-sky-heading h2{font-size:41px}.wish-world .sky-actions{left:18px;right:45px;bottom:22px;max-width:none;gap:8px}.sky-actions .btn{font-size:11px;padding:11px 17px}.wish-world .balloon-credit{display:none}.wish-world .balloon-1{left:0}.wish-world .balloon-2{right:0}.wish-world .floating-wish{width:85px;left:clamp(0px,calc(var(--wx) - 42px),calc(100% - 85px))}.wish-world .wish-sender{max-width:80px;font-size:9px}}@media(prefers-reduced-motion:reduce){.wish-world .floating-wish{animation:none;top:var(--wy);transform:none}.wish-world .distant-lantern{animation:none;top:var(--dy);opacity:.4}.wish-world .taunggyi-balloon{animation:none;top:30%}.wish-world .balloon-2{top:55%}}.river-scene{position:absolute;left:0;right:0;bottom:0;height:35svh;min-height:220px;max-height:460px;z-index:0;pointer-events:none;overflow:hidden}.river-scene svg{display:block;width:100%;height:100%}.wish-world .sky-atmosphere{z-index:1}.wish-world .wish-world-content{z-index:2}.wish-world .balloon-credit{bottom:14px;right:60px;padding:3px 8px;background:#0f192966;border-radius:5px}.river-ripples{animation:river-shimmer 8s ease-in-out infinite;transform-origin:75% 60%}.ripples-far{animation-duration:13s;animation-delay:-4s}.gold-water-glow{animation:reflection-glow 9s ease-in-out infinite}.wish-world .sky-actions{padding:14px 15px 11px;border-radius:12px;background:linear-gradient(120deg,#101b33b3,#101b331a);backdrop-filter:blur(3px)}.slow-release-caption{background:none}.slow-release-caption .release-caption{bottom:34%;animation:release-caption 6.2s both}.wish-world .floating-wish.new-wish .wish-lantern-shape{filter:drop-shadow(0 0 26px #ffd28b99)}@keyframes river-shimmer{0%,100%{transform:translateX(-8px) scaleX(.98);opacity:.65}50%{transform:translateX(10px) scaleX(1.02);opacity:1}}@keyframes reflection-glow{0%,100%{opacity:.65}50%{opacity:1}}@media(max-width:580px){.river-scene{height:33svh;min-height:200px}.river-scene svg{width:170%;max-width:none;transform:translateX(-39%)}.wish-world .sky-actions{left:12px;right:42px;padding:11px}.slow-release-caption .release-caption{font-size:18px;bottom:37%}}@media(prefers-reduced-motion:reduce){.river-ripples,.gold-water-glow{animation:none}.slow-release-caption .release-caption{animation:none;opacity:1}}.river-scene{height:47svh;min-height:280px;max-height:620px;overflow:visible}.river-scene svg{height:100%;width:100%;transform:none;overflow:visible}.wish-world .sky-actions{max-width:260px}@media(max-width:580px){.river-scene{height:44svh;min-height:270px;max-height:none}.river-scene svg{width:200%;transform:translateX(-42%);overflow:visible}.wish-world .sky-actions{max-width:260px;right:auto}}
-body.wishes-mode #sky {
-  background: #05152c url('/art/source-navy-sky.svg') center top / cover no-repeat;
+/* Wish Sky rules & interactive Taunggyi sky — Thadingyut Design System v1.0 */
+
+/* Wishes Fullscreen World */
+.wishes-mode {
+  background: var(--bg);
+  overflow: hidden;
+  height: 100vh;
+  height: 100svh;
 }
-.wish-form {
-  background-color: #0b1d36;
+
+.wishes-mode main {
+  min-height: 0;
 }
+
+.wishes-mode footer,
+.wish-route .site-footer {
+  display: none;
+}
+
+.wish-route .source-page {
+  animation: none;
+  min-height: 0;
+}
+
+.wish-route .fixture-ribbon {
+  position: relative;
+  z-index: 10;
+}
+
 .wish-world {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100vh;
+  height: 100svh;
+  min-height: 0;
+  overflow: hidden;
+  z-index: 0;
+  isolation: isolate;
   background-color: #09182e;
-  background-image: radial-gradient(ellipse at 50% 58%, #19385988, transparent 70%);
-}
-.wish-sky {
-  background-color: #0a1b33;
-  background-image: radial-gradient(ellipse at 50% 100%, #1d3b5b77, transparent 65%), linear-gradient(#0b1e39aa, #111e37aa);
-}
-.wish-world .sky-actions .wish-quota-note{text-align:left}
-.river-scene svg [fill="#203144"] {
-  fill: #152b48;
-}
-.river-scene svg [fill="#171f31"] {
-  fill: #0e2038;
-}
-.river-scene svg [fill="#0c1729"] {
-  fill: #08162c;
-}
-.wish-world {
-  background-image: radial-gradient(ellipse at 50% 58%, #19385944, transparent 70%), url('/art/source-navy-sky.svg');
+  background-image: radial-gradient(ellipse at 50% 58%, rgba(25, 56, 89, 0.27), transparent 70%),
+    url('/art/source-navy-sky.svg');
   background-size: cover;
   background-position: center top;
 }
-body.wishes-mode{background-color:#05152c}
-.sky-cloud{background:radial-gradient(ellipse,#638cb1,transparent 65%)}/* React integration: message-only privacy, finite lantern fleet and account controls. */
-.wish-route .site-header{position:relative;z-index:10;background:linear-gradient(#0a1626dd,#0a162699);backdrop-filter:blur(5px)}
-.wish-route .site-footer{display:none}.wish-route .source-page{animation:none;min-height:0}.wish-route main{min-height:0}.wish-route .fixture-ribbon{position:relative;z-index:10}.wish-route .motion-button{z-index:12}
-.wish-world{background-color:#09182e}.wish-world .river-scene img{display:block;width:100%;height:100%;object-fit:fill;overflow:visible}.wish-world .taunggyi-balloon img{display:block;width:100%;height:auto}.wish-world .balloon-2{filter:drop-shadow(0 0 28px #e5a95e33)}
-.floating-wish{border:0;background:transparent;color:var(--gold);border-radius:10px}.floating-wish:focus-visible{outline:2px solid var(--gold);outline-offset:-3px}.wish-world .floating-wish{min-height:115px;padding:8px 5px}
-.wish-world .floating-wish{pointer-events:none}.wish-world .floating-wish .wish-lantern-shape{pointer-events:auto}.wish-dialog-open .floating-wish,.wish-dialog-open .taunggyi-balloon,.wish-dialog-open .distant-lantern{animation-play-state:paused!important}
-.wish-world .wish-section{border:0}.wish-world .sky-actions{max-width:340px}.sky-actions .btn{white-space:normal}.sky-actions p{margin:0}.wish-world .free-sky-heading{max-width:510px}.free-sky-heading p{margin-top:12px}
-.wish-world .newly-released-wish{animation-delay:0s;z-index:6;filter:drop-shadow(0 0 26px #ffd28b99)}.wish-release{animation:caption-lifetime 7s both}.release-caption{font-family:var(--display);font-size:28px!important}.wish-world .wish-release{z-index:8}
-@keyframes caption-lifetime{0%,85%{visibility:visible}100%{visibility:hidden}}
-.wish-reading-dialog{width:min(440px,92vw);padding:20px;background:radial-gradient(ellipse at 50% 0,#1a3962,#0c1b2e 70%);border-color:#ecc88966}.wish-reading-dialog>.dialog-title{font:500 9px var(--ui);text-transform:uppercase;letter-spacing:2px;padding:0 18px;margin:18px 0 0;color:var(--gold)}.wish-reading{padding:28px 10px 10px}.wish-reading .wish-message{white-space:pre-wrap}.wish-reading .text-button{margin-top:14px}
-.wish-compose-dialog{width:min(510px,92vw);padding:20px;background:radial-gradient(ellipse at top,#163153,#0c1b2e)}.wish-compose-dialog>.dialog-title{font-size:40px;margin:20px 0}.wish-compose-dialog .wish-form{border:0;background:none;padding:0 12px;max-width:none}.wish-compose-dialog .wish-form .eyebrow{margin:12px 0 25px}.wish-compose-dialog .wish-form textarea{resize:vertical;min-height:130px;max-height:220px;background:#09152444}.wish-compose-dialog .wish-form .btn{width:100%;margin-top:12px}.wish-form .wish-counter{text-align:right;font-size:10px;margin:6px 0 12px}.wish-form-note{font-size:11px;margin:14px 0;color:var(--muted)}.wish-uncertain{padding:12px;border:1px solid var(--line);border-radius:8px}.wish-uncertain p{font-size:12px}.wish-error{width:100%;font-size:11px}.wish-error .text-button{font-size:11px;padding:2px 0}.wish-error p{color:#ffd1bd}.wish-notice{color:var(--gold)!important}
-@media(max-width:580px){.wish-world .river-scene img{width:200%;max-width:none;transform:translateX(-42%)}.wish-world .sky-actions{max-width:280px;left:12px;bottom:max(22px,env(safe-area-inset-bottom))}.wish-world .free-sky-heading{top:185px}.wish-world .free-sky-heading h2{font-size:41px}.wish-reading .wish-message{font-size:27px}.wish-route .site-header nav{gap:22px}.wish-world .balloon-1{width:140px}.wish-world .balloon-2{width:180px}}
-@media(prefers-reduced-motion:reduce){.wish-world .floating-wish{top:var(--wy);left:var(--wx);width:64px;min-height:85px;animation:none}.wish-world .floating-wish .wish-lantern-shape{scale:.75;transform-origin:top left}.wish-world .wish-release{display:none}}
-@media(prefers-reduced-motion:reduce){.wish-world .floating-wish{left:clamp(0px,calc(var(--wx) - 32px),calc(100% - 64px))}}
-.wish-world .paper-shell{backdrop-filter:none}
-/* The source heading is a floating overlay, leaving the rest of the sky free. */
-.free-sky-heading{position:absolute;left:5%;top:160px;max-width:510px;text-align:left;z-index:3;pointer-events:none;text-shadow:0 2px 25px #101c29}
-.free-sky-heading .eyebrow{font-size:9px}.free-sky-heading p{font-size:12px;color:#b1c4da}
-@media(max-width:1100px){.free-sky-heading{top:175px}}
-@media(max-width:580px){.wish-world .free-sky-heading{left:22px;right:22px;top:185px}.free-sky-heading .eyebrow{font-size:8px}.free-sky-heading p{font-size:10px}}
 
-/* Only the large, warm lanterns carry wishes. Cool lights belong to the scenery. */
-.wish-world .ambient-lantern{
-  position:absolute;
-  left:var(--dx);
-  top:100%;
-  display:block;
-  width:13px;
-  height:19px;
-  pointer-events:none;
-  scale:var(--ds);
-  opacity:0;
-  animation:ambient-lantern-rise var(--ambient-duration) var(--dd) linear infinite;
+.sky-atmosphere {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  overflow: hidden;
 }
-.ambient-lantern i{
-  display:block;
-  width:100%;
-  height:100%;
-  border:1px solid #91b6c966;
-  border-radius:42% 42% 30% 30%;
-  background:radial-gradient(ellipse at 50% 80%,#a7c5d477,transparent 75%);
-  box-shadow:0 0 10px #84b3d044;
+
+.wish-world-content {
+  position: absolute;
+  inset: 0;
+  max-width: none;
+  padding: 0;
+  pointer-events: none;
+  z-index: 2;
 }
-.wish-world .floating-wish{
-  left:clamp(0px,calc(var(--wx) - 55px),calc(100% - 110px));
-  animation:wish-natural-rise var(--journey) var(--phase) linear infinite;
+
+.wish-world .wish-section {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  pointer-events: none;
 }
-.wish-world .floating-wish .wish-lantern-shape{
-  transform-origin:50% 12%;
-  animation:lantern-natural-sway var(--sway-period) var(--sway-phase) ease-in-out infinite;
+
+/* Floating overlay heading */
+.free-sky-heading {
+  position: absolute;
+  left: 5%;
+  top: 160px;
+  max-width: 510px;
+  text-align: left;
+  z-index: 3;
+  pointer-events: none;
+  text-shadow: 0 2px 25px #101c29;
 }
-.wish-world .floating-wish:hover .wish-lantern-shape,
-.wish-world .floating-wish:focus-visible .wish-lantern-shape,
-.wish-dialog-open .floating-wish .wish-lantern-shape{
-  animation-play-state:paused;
+
+.free-sky-heading .eyebrow {
+  font-size: var(--text-eyebrow);
+  letter-spacing: 2px;
 }
-.wish-world .newly-released-wish .wish-lantern-shape{
-  filter:drop-shadow(0 0 25px #ffd28b99);
+
+.free-sky-heading h2 {
+  font-size: clamp(38px, 5vw, 65px);
+  margin: 12px 0;
+  color: var(--cream);
 }
-@keyframes wish-natural-rise{
-  0%{transform:translate3d(0,65px,0) scale(.95);opacity:0}
-  8%{opacity:1}
-  25%{transform:translate3d(var(--x25),calc(-25svh - 10px),0) scale(.87)}
-  50%{transform:translate3d(var(--x50),calc(-50svh - 80px),0) scale(.77)}
-  75%{transform:translate3d(var(--x75),calc(-75svh - 150px),0) scale(.66);opacity:1}
-  96%{opacity:.35}
-  100%{transform:translate3d(var(--x100),calc(-100svh - 245px),0) scale(.56);opacity:0}
+
+.free-sky-heading p {
+  font-size: var(--text-control);
+  color: #b1c4da;
+  margin-top: 10px;
+  line-height: 1.65;
 }
-@keyframes lantern-natural-sway{
-  0%,100%{transform:rotate(-4deg) translateX(-2px)}
-  27%{transform:rotate(2deg) translateX(2px)}
-  53%{transform:rotate(5deg) translateX(4px)}
-  78%{transform:rotate(-1deg) translateX(-1px)}
+
+/* Lantern Canvas & Containers */
+.wish-world .wish-sky,
+.wish-world .wish-lantern-grid {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  max-height: none;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
+  background: none;
+  display: block;
+  pointer-events: none;
 }
-@keyframes ambient-lantern-rise{
-  0%{transform:translate3d(0,55px,0);opacity:0}
-  12%,78%{opacity:.3}
-  50%{transform:translate3d(var(--ambient-mid),calc(-50svh - 50px),0)}
-  100%{transform:translate3d(var(--ambient-end),calc(-100svh - 130px),0);opacity:0}
+
+/* Interactive Floating Wish Lanterns */
+.wish-world .floating-wish {
+  position: absolute;
+  left: clamp(0px, calc(var(--wx) - 55px), calc(100% - 110px));
+  top: 100%;
+  width: 110px;
+  min-height: 115px;
+  margin: 0;
+  padding: 8px 5px;
+  border: 0;
+  border-radius: var(--radius-card);
+  background: transparent;
+  color: var(--gold);
+  pointer-events: none;
+  transform: none;
+  animation: wish-natural-rise var(--journey) var(--phase) linear infinite;
+  will-change: transform;
+  z-index: 2;
 }
-@media(max-width:580px){
-  .wish-world .floating-wish{left:clamp(0px,calc(var(--wx) - 42px),calc(100% - 85px))}
-  .wish-world .balloon-credit{display:block;right:12px;bottom:10px;max-width:130px;font-size:8px}
+
+.wish-world .floating-wish .wish-lantern-shape {
+  pointer-events: auto;
+  cursor: pointer;
 }
-@media(prefers-reduced-motion:reduce){
-  .wish-world .floating-wish{left:clamp(0px,calc(var(--wx) - 32px),calc(100% - 64px));top:var(--wy);animation:none;opacity:1}
-  .wish-world .floating-wish .wish-lantern-shape{animation:none}
-  .wish-world .ambient-lantern{top:var(--dy);animation:none;opacity:.3}
+
+.wish-world .floating-wish:hover,
+.wish-world .floating-wish:focus-visible {
+  animation-play-state: paused;
+  background: rgba(237, 199, 125, 0.04);
+}
+
+.wish-world .floating-wish:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: -3px;
+}
+
+.wish-lantern-shape {
+  position: relative;
+  display: block;
+  width: 60px;
+  height: 96px;
+  margin: 0 auto;
+  flex-shrink: 0;
+  filter: drop-shadow(0 0 17px rgba(232, 163, 68, 0.4));
+  transform-origin: 50% 12%;
+  animation: lantern-natural-sway var(--sway-period, 8s) var(--sway-phase, 0s) ease-in-out infinite;
+}
+
+.paper-shell {
+  position: absolute;
+  inset: 0 0 18px;
+  border-radius: 40% 40% 28% 28% / 14% 14% 10% 10%;
+  border: 1px solid rgba(243, 211, 149, 0.7);
+  background:
+    repeating-linear-gradient(90deg, transparent 0 13px, rgba(223, 168, 103, 0.2) 14px, transparent 15px),
+    radial-gradient(
+      ellipse at 50% 95%,
+      rgba(255, 232, 160, 0.72),
+      rgba(241, 180, 108, 0.36) 45%,
+      rgba(173, 117, 91, 0.15) 90%
+    );
+  box-shadow:
+    inset 0 0 22px rgba(249, 212, 139, 0.16),
+    0 0 30px rgba(232, 175, 89, 0.12);
+}
+
+.paper-shell::after {
+  content: '✧';
+  position: absolute;
+  inset: 18px 0;
+  text-align: center;
+  font-size: 26px;
+  color: rgba(255, 231, 180, 0.55);
+}
+
+.lantern-flame {
+  position: absolute;
+  width: 11px;
+  height: 17px;
+  background: #ffeabb;
+  bottom: 20px;
+  left: 25px;
+  border-radius: 70% 35% 65% 35%;
+  box-shadow: 0 0 16px 5px rgba(255, 187, 104, 0.47);
+}
+
+.lantern-tassel {
+  position: absolute;
+  width: 1px;
+  height: 20px;
+  bottom: 0;
+  left: 30px;
+  background: linear-gradient(rgba(236, 199, 121, 0.6), transparent);
+}
+
+.wish-sender {
+  display: block;
+  max-width: 105px;
+  margin-top: 9px;
+  font-size: var(--text-eyebrow);
+  font-weight: 400;
+  color: rgba(221, 207, 170, 0.85);
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  text-shadow: 0 2px 7px #0a1524;
+}
+
+.wish-world .newly-released-wish {
+  animation-delay: 0s;
+  z-index: 6;
+  filter: drop-shadow(0 0 26px rgba(255, 210, 139, 0.6));
+}
+
+.wish-world .newly-released-wish .wish-lantern-shape {
+  filter: drop-shadow(0 0 26px rgba(255, 210, 139, 0.6));
+}
+
+/* Ambient scenery lanterns */
+.wish-world .ambient-lantern {
+  position: absolute;
+  left: var(--dx);
+  top: 100%;
+  display: block;
+  width: 13px;
+  height: 19px;
+  pointer-events: none;
+  scale: var(--ds);
+  opacity: 0;
+  animation: ambient-lantern-rise var(--ambient-duration) var(--dd) linear infinite;
+}
+
+.ambient-lantern i {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 1px solid rgba(145, 182, 201, 0.4);
+  border-radius: 42% 42% 30% 30%;
+  background: radial-gradient(ellipse at 50% 80%, rgba(167, 197, 212, 0.45), transparent 75%);
+  box-shadow: 0 0 10px rgba(132, 179, 208, 0.25);
+}
+
+/* Taunggyi Balloons */
+.wish-world .taunggyi-balloon {
+  position: absolute;
+  top: 100%;
+  width: 230px;
+  filter: drop-shadow(0 0 28px rgba(229, 169, 94, 0.2));
+  animation: balloon-cross-sky 75s linear infinite;
+  will-change: transform;
+  opacity: 0.9;
+}
+
+.wish-world .taunggyi-balloon img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.wish-world .balloon-1 {
+  left: 6%;
+  animation-delay: -27s;
+}
+
+.wish-world .balloon-2 {
+  right: 5%;
+  width: 280px;
+  animation-duration: 92s;
+  animation-delay: -65s;
+  filter: drop-shadow(0 0 28px rgba(229, 169, 94, 0.2));
+}
+
+/* River Scene */
+.river-scene {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 47svh;
+  min-height: 280px;
+  max-height: 620px;
+  z-index: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.river-scene svg,
+.river-scene img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  transform: none;
+  overflow: visible;
+}
+
+.river-ripples {
+  animation: river-shimmer 8s ease-in-out infinite;
+  transform-origin: 75% 60%;
+}
+.ripples-far {
+  animation-duration: 13s;
+  animation-delay: -4s;
+}
+.gold-water-glow {
+  animation: reflection-glow 9s ease-in-out infinite;
+}
+
+/* Sky Actions & Quota Note (Exact alignment required by tests) */
+.wish-world .sky-actions {
+  position: absolute;
+  left: 5%;
+  bottom: max(22px, env(safe-area-inset-bottom));
+  z-index: 4;
+  pointer-events: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  max-width: 340px;
+  padding: 14px 15px 11px;
+  border-radius: var(--radius-card);
+  background: linear-gradient(120deg, rgba(16, 27, 51, 0.7), rgba(16, 27, 51, 0.1));
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+
+.wish-world .sky-actions .btn {
+  white-space: normal;
+}
+
+.wish-world .sky-actions .wish-quota-note {
+  width: 100%;
+  font-size: var(--text-eyebrow);
+  color: #9eb5d0;
+  margin: 0;
+  text-shadow: 0 2px 7px #0a1524;
+  text-align: left;
+}
+
+.wish-world .balloon-credit {
+  position: absolute;
+  bottom: 14px;
+  right: 60px;
+  margin: 0;
+  max-width: 280px;
+  z-index: 3;
+  pointer-events: none;
+  font-size: 8px;
+  letter-spacing: 1px;
+  text-align: right;
+  color: #8ca8c8;
+  padding: 3px 8px;
+  background: rgba(15, 25, 41, 0.4);
+  border-radius: 5px;
+}
+
+/* Floating Lantern Dialogs */
+.wish-reading-dialog {
+  width: min(440px, 92vw);
+  padding: 20px;
+  background: radial-gradient(ellipse at 50% 0, #1a3962, #0c1b2e 70%);
+  border: 1px solid rgba(236, 200, 137, 0.4);
+  border-radius: var(--radius-dialog);
+}
+
+.wish-reading-dialog > .dialog-title {
+  font: 500 9px var(--font-ui);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  padding: 0 18px;
+  margin: 18px 0 0;
+  color: var(--gold);
+}
+
+.wish-reading {
+  padding: 28px 10px 10px;
+  text-align: center;
+}
+
+.wish-reading > .wish-lantern-shape {
+  margin: 0 auto 24px;
+  width: 60px;
+}
+
+.wish-reading .wish-message {
+  font-family: var(--font-display);
+  font-size: 28px;
+  line-height: 1.35;
+  color: #f5e5c9;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  margin: 20px 0;
+}
+
+.wish-signature {
+  font-size: var(--text-fine);
+  color: #9cb4cf;
+  line-height: 1.9;
+}
+
+.wish-signature strong {
+  font-weight: 400;
+  color: var(--gold);
+  font-size: 15px;
+}
+
+.wish-reading .meta {
+  margin-top: 20px;
+  font-size: 9px;
+}
+
+.wish-compose-dialog {
+  width: min(510px, 92vw);
+  padding: 20px;
+  background: radial-gradient(ellipse at top, #163153, #0c1b2e);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-dialog);
+}
+
+.wish-compose-dialog > .dialog-title {
+  font-size: var(--text-section-h2);
+  margin: 20px 0;
+}
+
+.wish-compose-dialog .wish-form {
+  border: 0;
+  background: none;
+  padding: 0 12px;
+  max-width: none;
+}
+
+.wish-compose-dialog .wish-form .eyebrow {
+  margin: 12px 0 25px;
+}
+
+.wish-compose-dialog .wish-form textarea {
+  resize: vertical;
+  min-height: 130px;
+  max-height: 220px;
+  background: rgba(9, 21, 36, 0.44);
+}
+
+.wish-compose-dialog .wish-form .btn {
+  width: 100%;
+  margin-top: 12px;
+}
+
+.wish-form .wish-counter {
+  text-align: right;
+  font-size: 10px;
+  margin: 6px 0 12px;
+}
+
+.wish-form-note {
+  font-size: var(--text-fine);
+  margin: 14px 0;
+  color: var(--muted);
+}
+
+.wish-uncertain {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+}
+
+.wish-uncertain p {
+  font-size: var(--text-control);
+}
+
+.wish-error {
+  width: 100%;
+  font-size: var(--text-fine);
+}
+
+.wish-error .text-button {
+  font-size: var(--text-fine);
+  padding: 2px 0;
+}
+
+.wish-error p {
+  color: #ffd1bd;
+}
+
+.wish-notice {
+  color: var(--gold) !important;
+}
+
+/* Release animation */
+.wish-release {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 110;
+  overflow: hidden;
+  background: radial-gradient(ellipse at 50% 100%, rgba(237, 184, 102, 0.05), transparent 55%);
+  animation: caption-lifetime 7s both;
+}
+
+.released-lantern {
+  position: absolute;
+  bottom: 7%;
+  left: calc(50% - 30px);
+  animation: release-flight 5.8s cubic-bezier(0.32, 0.12, 0.35, 1) both;
+}
+
+.released-lantern .wish-lantern-shape {
+  scale: 1.8;
+  animation: none;
+  filter: drop-shadow(0 0 28px rgba(246, 183, 99, 0.6));
+}
+
+.release-caption {
+  position: absolute;
+  bottom: 10%;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 28px !important;
+  color: #f9dc9f;
+  text-shadow: 0 2px 12px #0a1625;
+  animation: release-caption 5.5s both;
+}
+
+/* Pause animations when a dialog is open */
+body:has(#wish-detail[open]) .floating-wish,
+body:has(#wish-compose[open]) .floating-wish,
+body:has(#wish-list[open]) .floating-wish,
+.wish-dialog-open .floating-wish,
+.wish-dialog-open .taunggyi-balloon,
+.wish-dialog-open .distant-lantern {
+  animation-play-state: paused !important;
+}
+
+/* Keyframe Animations */
+@keyframes wish-natural-rise {
+  0% {
+    transform: translate3d(0, 65px, 0) scale(0.95);
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  25% {
+    transform: translate3d(var(--x25, 0), calc(-25svh - 10px), 0) scale(0.87);
+  }
+  50% {
+    transform: translate3d(var(--x50, 0), calc(-50svh - 80px), 0) scale(0.77);
+  }
+  75% {
+    transform: translate3d(var(--x75, 0), calc(-75svh - 150px), 0) scale(0.66);
+    opacity: 1;
+  }
+  96% {
+    opacity: 0.35;
+  }
+  100% {
+    transform: translate3d(var(--x100, 0), calc(-100svh - 245px), 0) scale(0.56);
+    opacity: 0;
+  }
+}
+
+@keyframes lantern-natural-sway {
+  0%,
+  100% {
+    transform: rotate(-4deg) translateX(-2px);
+  }
+  27% {
+    transform: rotate(2deg) translateX(2px);
+  }
+  53% {
+    transform: rotate(5deg) translateX(4px);
+  }
+  78% {
+    transform: rotate(-1deg) translateX(-1px);
+  }
+}
+
+@keyframes ambient-lantern-rise {
+  0% {
+    transform: translate3d(0, 55px, 0);
+    opacity: 0;
+  }
+  12%,
+  78% {
+    opacity: 0.3;
+  }
+  50% {
+    transform: translate3d(var(--ambient-mid, 0), calc(-50svh - 50px), 0);
+  }
+  100% {
+    transform: translate3d(var(--ambient-end, 0), calc(-100svh - 130px), 0);
+    opacity: 0;
+  }
+}
+
+@keyframes balloon-cross-sky {
+  0% {
+    transform: translate3d(0, 60px, 0) rotate(-3deg);
+  }
+  50% {
+    transform: translate3d(25px, calc(-50svh - 220px), 0) rotate(3deg);
+  }
+  100% {
+    transform: translate3d(-10px, calc(-100svh - 520px), 0) rotate(-3deg);
+  }
+}
+
+@keyframes release-flight {
+  0% {
+    transform: translate(0, 70px) scale(0.9);
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  42% {
+    transform: translate(28px, -30vh) scale(0.8);
+    opacity: 1;
+  }
+  80% {
+    opacity: 0.8;
+  }
+  100% {
+    transform: translate(-30px, -95vh) scale(0.2);
+    opacity: 0;
+  }
+}
+
+@keyframes release-caption {
+  0%,
+  10% {
+    opacity: 0;
+    translate: 0 15px;
+  }
+  25%,
+  65% {
+    opacity: 1;
+    translate: 0 0;
+  }
+  100% {
+    opacity: 0;
+    translate: 0 -8px;
+  }
+}
+
+@keyframes caption-lifetime {
+  0%,
+  85% {
+    visibility: visible;
+  }
+  100% {
+    visibility: hidden;
+  }
+}
+
+@keyframes river-shimmer {
+  0%,
+  100% {
+    transform: translateX(-8px) scaleX(0.98);
+    opacity: 0.65;
+  }
+  50% {
+    transform: translateX(10px) scaleX(1.02);
+    opacity: 1;
+  }
+}
+
+@keyframes reflection-glow {
+  0%,
+  100% {
+    opacity: 0.65;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Responsive adjustments */
+@media (max-width: 580px) {
+  .river-scene {
+    height: 44svh;
+    min-height: 270px;
+    max-height: none;
+  }
+  .river-scene svg,
+  .river-scene img {
+    width: 200%;
+    max-width: none;
+    transform: translateX(-42%);
+    overflow: visible;
+  }
+  .wish-world .sky-actions {
+    max-width: 260px;
+    left: 12px;
+    right: auto;
+    bottom: max(22px, env(safe-area-inset-bottom));
+    padding: 11px;
+    gap: 8px;
+  }
+  .wish-world .sky-actions .btn {
+    font-size: 11px;
+    padding: 9px 16px;
+    min-height: 42px;
+  }
+  .wish-world .free-sky-heading {
+    left: 22px;
+    right: 22px;
+    top: 185px;
+  }
+  .wish-world .free-sky-heading h2 {
+    font-size: 41px;
+  }
+  .wish-world .balloon-credit {
+    display: block;
+    right: 12px;
+    bottom: 10px;
+    max-width: 130px;
+    font-size: 8px;
+  }
+  .wish-world .balloon-1 {
+    width: 140px;
+    left: 0;
+  }
+  .wish-world .balloon-2 {
+    width: 180px;
+    right: 0;
+  }
+  .wish-world .floating-wish {
+    width: 85px;
+    left: clamp(0px, calc(var(--wx) - 42px), calc(100% - 85px));
+  }
+  .wish-world .wish-sender {
+    max-width: 80px;
+    font-size: 9px;
+  }
+  .wish-reading .wish-message {
+    font-size: 26px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wish-world .floating-wish {
+    left: clamp(0px, calc(var(--wx) - 32px), calc(100% - 64px));
+    top: var(--wy);
+    animation: none;
+    opacity: 1;
+  }
+  .wish-world .floating-wish .wish-lantern-shape {
+    animation: none;
+  }
+  .wish-world .ambient-lantern {
+    top: var(--dy);
+    animation: none;
+    opacity: 0.3;
+  }
+  .wish-world .taunggyi-balloon {
+    animation: none;
+    top: 30%;
+  }
+  .wish-world .balloon-2 {
+    top: 55%;
+  }
+  .river-ripples,
+  .gold-water-glow {
+    animation: none;
+  }
+  .wish-world .wish-release {
+    display: none;
+  }
 }

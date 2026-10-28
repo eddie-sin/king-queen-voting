@@ -4,7 +4,9 @@ import { createServer } from 'vite';
 
 const server = await createServer({ configFile: 'vite.config.js', mode: 'fixtures', server: { host: '127.0.0.1', port: 0 } });
 await server.listen();
-const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
+const browser = await chromium.launch({ headless: true,
+  ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } : {}),
+  args: ['--no-sandbox'] });
 const base = `http://127.0.0.1:${server.httpServer.address().port}`;
 
 try {

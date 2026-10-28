@@ -22,6 +22,7 @@ try {
         assert.match(url.pathname, /^\/api\/v1\/memory-photos\/[a-f0-9]{24}\/image$/);
         return route.fulfill(imageFailure ? { status: 404, body: 'Unavailable' } : { contentType: 'image/png', body: png });
       }
+      if (url.pathname.endsWith('/auth/me')) return route.fulfill({ status: 401, json: { status: 'fail' } });
       assert.equal(url.pathname, '/api/v1/memory-photos');
       assert.equal(url.searchParams.get('limit'), '20');
       if (mode === 'loading') await wait;

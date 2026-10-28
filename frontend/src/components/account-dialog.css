@@ -41,20 +41,20 @@
   border: 0;
 }
 
-/* Close button */
+/* Close button (44x44px touch target) */
 .festival-dialog.account-dialog .close-button {
   position: absolute;
-  top: 16px;
-  right: 16px;
-  width: 36px;
-  height: 36px;
+  top: 14px;
+  right: 14px;
+  width: 44px;
+  height: 44px;
   display: grid;
   place-items: center;
   border-radius: 50%;
   background: rgba(8, 24, 46, 0.65);
   border: 1px solid rgba(212, 181, 118, 0.25);
   color: var(--gold, #edc77d);
-  font-size: 22px;
+  font-size: 24px;
   line-height: 1;
   padding: 0;
   cursor: pointer;
