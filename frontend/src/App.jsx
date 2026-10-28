@@ -62,6 +62,7 @@ export default function App(props) {
   const [returnToMemories, setReturnToMemories] = useState(false);
   const [memoryHash, setMemoryHash] = useState(() => location.hash);
   const memoryTab = memoryTabFromHash(memoryHash);
+  const memoryRoute = memoryHash.slice(1).replace(/-demo$/, '') || 'memory-gallery';
   useEffect(() => {
     const changed = () => { setMemoryHash(location.hash); setMemoryMenuOpen(false); };
     window.addEventListener('hashchange', changed);
@@ -99,7 +100,7 @@ export default function App(props) {
   const memorySignOut=async()=>{try{await props.api.logout?.();memoryAuthSequence.current++;writeStoredSession(null);announceAccountChange();window.google?.accounts?.id?.disableAutoSelect();setMemoryAuthError('');}catch{setMemoryAuthError('Sign-out could not be confirmed. Check your connection and retry.');}};
   const memoryLogin = () => { setMemoryMenuOpen(false); setReturnToMemories(true); location.hash = '#account'; };
   // Memory pages reuse the session store without mounting unrelated API hooks.
-  return memoryTab ? <><div className="source-app memory-site-header"><SiteHeader items={NAV_ITEMS} route="memory-gallery" session={memorySession} menuOpen={memoryMenuOpen} setMenuOpen={setMemoryMenuOpen} onLogin={memoryLogin} onRegister={memoryLogin} onSignOut={memorySignOut}/>{memoryAuthError&&<p role="alert">{memoryAuthError}</p>}</div><MemoryPhotoDemo tab={memoryTab} api={props.api} onRequireLogin={memoryLogin} demo={props.fixtureMode || ['#my-memories-demo', '#memory-gallery-demo', '#memory-upload-demo'].includes(memoryHash)}/></> : <FestivalApp {...props}/>;
+  return memoryTab ? <><div className="source-app memory-site-header"><SiteHeader items={NAV_ITEMS} route={memoryRoute} session={memorySession} menuOpen={memoryMenuOpen} setMenuOpen={setMemoryMenuOpen} onLogin={memoryLogin} onRegister={memoryLogin} onSignOut={memorySignOut}/>{memoryAuthError&&<p role="alert">{memoryAuthError}</p>}</div><MemoryPhotoDemo tab={memoryTab} api={props.api} onRequireLogin={memoryLogin} demo={props.fixtureMode || ['#my-memories-demo', '#memory-gallery-demo', '#memory-upload-demo'].includes(memoryHash)}/></> : <FestivalApp {...props}/>;
 }
 
 function FestivalApp({ api, wishApi, fixtureMode = false }) {
