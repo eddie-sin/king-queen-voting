@@ -170,11 +170,22 @@ test('Wish Sky is anonymous to read, student-only to write and atomically limite
   assert.equal(attempts.filter(response => response.status === 409).length, 5);
   assert.equal(await fixture.db.collection('wishes').countDocuments({ user: new ObjectId(owner.user.id) }), 3);
   assert.deepEqual((await fixture.request('GET', '/wishes/mine', { token: owner.token })).body.data, { used: 3, remaining: 0 });
-  assert.equal((await fixture.request('POST', '/wishes', { token: other.token, body: { message: 'Another wish' } })).status, 201);
+  assert.equal((await fixture.request('POST', '/wishes', { token: other.token, body: { message: 'Another wish', name: '  Aye  ' } })).status, 201);
   const publicList = await fixture.request('GET', '/wishes');
   assert.equal(publicList.status, 200); assert.equal(publicList.body.results, 4);
-  assert(publicList.body.data.wishes.every(wish => Object.keys(wish).sort().join(',') === 'id,message'));
-  assert.equal(JSON.stringify(publicList.body).includes(owner.user.id), false);
+  for (const wish of publicList.body.data.wishes) {
+    // Explicit public allowlist: reaction metadata and optional display name are public;
+    // account ownership, timestamps, browser identity and quota slots stay private.
+    assert.deepEqual(Object.keys(wish).sort(), wish.name
+      ? ['id', 'message', 'name', 'reacted', 'reactions']
+      : ['id', 'message', 'reacted', 'reactions']);
+    assert.equal(wish.reactions, 0);
+    assert.equal(wish.reacted, false);
+  }
+  assert.equal(publicList.body.data.wishes.find(wish => wish.message === 'Another wish').name, 'Aye');
+  for (const privateValue of [owner.user.id, other.user.id, owner.user.email, other.user.email].filter(Boolean)) {
+    assert.equal(JSON.stringify(publicList.body).includes(privateValue), false);
+  }
 });
 
 test('Wish Sky cursor pagination visits each record once and validates input', async () => {
@@ -187,7 +198,12 @@ test('Wish Sky cursor pagination visits each record once and validates input', a
   do {
     const query = new URLSearchParams({ limit: '40' }); if (cursor) query.set('cursor', cursor);
     const response = await fixture.request('GET', `/wishes?${query}`); assert.equal(response.status, 200);
-    response.body.data.wishes.forEach(wish => { assert.deepEqual(Object.keys(wish).sort(), ['id', 'message']); seen.add(wish.id); });
+    response.body.data.wishes.forEach(wish => {
+      assert.deepEqual(Object.keys(wish).sort(), ['id', 'message', 'reacted', 'reactions']);
+      assert.equal(wish.reactions, 0); assert.equal(wish.reacted, false);
+      assert.equal(seen.has(wish.id), false, 'Cursor pages must not repeat a wish');
+      seen.add(wish.id);
+    });
     cursor = response.body.data.nextCursor;
   } while (cursor);
   assert.equal(seen.size, 105);
