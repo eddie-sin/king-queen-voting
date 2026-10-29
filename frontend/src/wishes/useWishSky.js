@@ -40,7 +40,15 @@ export function useWishSky(api,session,capacity){
     }catch(e){if(source===feed.current)setError(e.message);return null;}
     finally{requests.current.delete(index);}
   },[]);
-  async function submit(message){
+  const react=useCallback(async(wish,active)=>{
+    const result=await api.react(wish.id,active);
+    const updated={...wish,...result};
+    current.current=current.current.map(item=>item.id===wish.id?updated:item);
+    setSlots([...current.current]);
+    setRelease(previous=>previous?.wish.id===wish.id?{...previous,wish:updated}:previous);
+    return updated;
+  },[api]);
+  async function submit(message,name=''){
     if(mutex.current)throw new Error('Your lantern is already being released.');
     if(!token)throw new Error('Sign in to release a wish.');
     if(!quota||!quota.remaining||uncertain)throw new Error('Please check your remaining wishes before releasing.');
@@ -49,7 +57,7 @@ export function useWishSky(api,session,capacity){
       // Authoritative account check before every release; backend must enforce the cap atomically.
       const before=await loadQuota();if(generation!==epoch.current)return;
       if(!before||!before.remaining)throw new Error('You have no verified wishes remaining.');
-      const result=await api.create(token,message);if(generation!==epoch.current)return;
+      const result=await api.create(token,message,name);if(generation!==epoch.current)return;
       setQuota({used:before.used+1,remaining:Math.max(0,2-before.used)});
       if(release&&!current.current.some(w=>w.id===release.wish.id)){
         current.current=[release.wish,...current.current].slice(0,capacity);
@@ -58,7 +66,7 @@ export function useWishSky(api,session,capacity){
       setTotal(value=>value===null?null:value+1);
       releaseWishId.current=result.wish.id;
       setRelease({wish:result.wish,id:Date.now()});setState('ready');
-      // Keep the new wish as an extra slow release lantern until its first journey ends.
+      // Keep the latest wish in its own recurring lantern; a later release returns it to the feed.
       await loadQuota();return result.wish;
     }catch(e){if(generation===epoch.current){
       if(e.interrupted){setUncertain(true);await loadQuota();}
@@ -67,5 +75,5 @@ export function useWishSky(api,session,capacity){
     }throw e;}
     finally{mutex.current=false;setBusy(false);}
   }
-  return {total,slots,state,error,quota,quotaError,busy,uncertain,release,rotate,submit,loadQuota,retry:()=>setReload(x=>x+1),acknowledgeUncertain:async()=>{if(await loadQuota())setUncertain(false);},finishRelease:()=>{if(release&&!current.current.some(w=>w.id===release.wish.id)){current.current=[release.wish,...current.current].slice(0,capacity);setSlots([...current.current]);}releaseWishId.current=null;setRelease(null);}};
+  return {total,slots,state,error,quota,quotaError,busy,uncertain,release,rotate,react,submit,loadQuota,retry:()=>setReload(x=>x+1),acknowledgeUncertain:async()=>{if(await loadQuota())setUncertain(false);}};
 }

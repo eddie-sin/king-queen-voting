@@ -55,11 +55,24 @@ test('public candidate views omit private contacts and cookie students cannot mu
 test('Wish Sky keeps cookie ownership private and enforces three wishes during concurrent requests',async()=>{
  await request('/wishes',{message:'anonymous'},401,null);
  await request('/wishes',{message:'forged',user:crypto.randomBytes(12).toString('hex')},400,token);
+ await request('/wishes',{message:'forged',name:'x'.repeat(61)},400,token);
+ const named=await request('/wishes',{message:'A named wish',name:'  Aye  '},201,token);
+ assert.equal(named.wish.name,'Aye');
  const responses=await Promise.all(Array.from({length:10},(_,n)=>fetch(base+'/wishes',{method:'POST',headers:{...headers(token),'Content-Type':'application/json'},body:JSON.stringify({message:'Wish '+n})})));
- assert.equal(responses.filter(r=>r.status===201).length,3);assert.equal(responses.filter(r=>r.status===409).length,7);
+ assert.equal(responses.filter(r=>r.status===201).length,2);assert.equal(responses.filter(r=>r.status===409).length,8);
  assert.equal((await request('/wishes/mine',undefined,200,token)).used,3);
  const wishes=await request('/wishes',undefined,200,null);
  assert.equal(wishes.wishes.length,3);
- for(const wish of wishes.wishes)assert.deepEqual(Object.keys(wish).sort(),['id','message']);
+ assert.equal(wishes.wishes.find(wish=>wish.id===named.wish.id).name,'Aye');
+ for(const wish of wishes.wishes)assert.deepEqual(Object.keys(wish).sort(),wish.name?['id','message','name','reacted','reactions']:['id','message','reacted','reactions']);
  assert(!JSON.stringify(wishes).includes(String(user._id)));assert(!JSON.stringify(wishes).includes(user.email));
+ const anonymousHeaders={...headers(token),Cookie:headers(token).Cookie.split('; ').find(part=>part.startsWith('kq_browser=')),'Content-Type':'application/json'};
+ const react=async active=>{
+  const response=await fetch(base+'/wishes/'+named.wish.id+'/reaction',{method:'POST',headers:anonymousHeaders,body:JSON.stringify({active})});
+  assert.equal(response.status,200);return (await response.json()).data;
+ };
+ assert.deepEqual(await react(true),{reactions:1,reacted:true});
+ assert.deepEqual(await react(true),{reactions:1,reacted:true});
+ assert.equal((await request('/wishes',undefined,200,null)).wishes.find(wish=>wish.id===named.wish.id).reactions,1);
+ assert.deepEqual(await react(false),{reactions:0,reacted:false});
 });

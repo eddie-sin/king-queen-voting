@@ -12,7 +12,11 @@ export default function MusicPlayer() {
   const wantsPlayback = useRef(true);
   const [trackIndex, setTrackIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
+  const [volume, setVolume] = useState(0.55);
+  const [volumeOpen, setVolumeOpen] = useState(false);
   const track = tracks[trackIndex];
+
+  useEffect(() => { if (audioRef.current) audioRef.current.volume = volume; }, [volume]);
 
   function play() {
     const audio = audioRef.current;
@@ -62,7 +66,9 @@ export default function MusicPlayer() {
       </span>
       <div className="music-player-controls">
         <button className="music-player-button music-player-play" type="button" onClick={togglePlayback} aria-label={playing ? 'Pause music' : 'Play music'} title={playing ? 'Pause' : 'Play'}>{playing ? 'Ⅱ' : '▶'}</button>
+        <button className="music-player-button music-player-volume" type="button" onClick={() => setVolumeOpen(open => !open)} aria-label="Adjust volume" aria-expanded={volumeOpen} title="Volume">{volume === 0 ? '🔇' : '🔊'}</button>
       </div>
     </div>
+    {volumeOpen && <div className="music-volume-panel"><label htmlFor="music-volume">Volume</label><input id="music-volume" type="range" min="0" max="100" value={Math.round(volume * 100)} onChange={event => setVolume(Number(event.target.value) / 100)} aria-label="Music volume"/></div>}
   </aside>;
 }

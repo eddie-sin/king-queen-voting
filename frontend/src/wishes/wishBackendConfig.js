@@ -1,4 +1,4 @@
-// The backend's public list contains message-only records and an opaque cursor.
+// The backend's public list contains wish content, reaction counts and an opaque cursor.
 // The authenticated allowance is scoped to the account in the Bearer token.
 export const wishBackendConfig = {
   listRequest({ cursor, limit }) {
@@ -9,6 +9,7 @@ export const wishBackendConfig = {
   mapList: payload => ({ wishes: payload.data.wishes, nextCursor: payload.data.nextCursor, total: payload.data.total }),
   allowanceRequest: () => ({ path: '/wishes/mine' }),
   mapAllowance: payload => ({ used: payload.data.used }),
-  createRequest: message => ({ path: '/wishes', method: 'POST', body: { message } }),
+  createRequest: (message, name) => ({ path: '/wishes', method: 'POST', body: { message, ...(name ? { name } : {}) } }),
   mapCreated: payload => ({ wish: payload.data.wish }),
+  mapReaction: payload => ({ reactions: payload.data.reactions, reacted: payload.data.reacted }),
 };

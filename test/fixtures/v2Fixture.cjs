@@ -25,7 +25,7 @@ exports.createV2Fixture = async () => {
   let mongo, mongoExit, api, apiExit, base, client, adminToken;
   const environment = Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^(AWS_|DATABASE|JWT_|ADMIN_|NODE_OPTIONS|MEMORY_PHOTO_|LOCAL_UPLOAD_DIR|TEST_V2_)/.test(key)));
   Object.assign(environment, { NODE_ENV: 'test', TEST_V2_URI: uri, JWT_SECRET: secret, JWT_EXPIRES_IN: '1h', ADMIN_USERNAME: 'v2-root', ADMIN_PASSWORD: password,
-    AUTH_ENVIRONMENT: 'local', AUTH_TEST_MODE: 'true', AUTH_ORIGIN: 'http://localhost:5173', AUTH_OTP_SECRET: crypto.randomBytes(32).toString('hex'),
+    AUTH_ENVIRONMENT: 'local', AUTH_TEST_MODE: 'true', AUTH_ORIGIN: process.env.TEST_V2_ORIGIN || 'http://localhost:5173', AUTH_OTP_SECRET: crypto.randomBytes(32).toString('hex'),
     AUTH_MAIL_SECRET: crypto.randomBytes(32).toString('hex'), GOOGLE_CLIENT_ID_DEVELOPMENT: 'fixture.apps.googleusercontent.com', RESEND_API_KEY: 'fixture-not-used',
     MEMORY_PHOTO_STORAGE: 'local', MEMORY_PHOTO_ALLOW_SHARED_BUCKET: 'false', LOCAL_UPLOAD_DIR: path.join(directory, 'public'),
     MEMORY_PHOTO_UPLOAD_DIR: path.join(directory, 'private'), AWS_EC2_METADATA_DISABLED: 'true' });

@@ -100,6 +100,17 @@
   line-height: 1.65;
 }
 
+.wish-tour { position: fixed; inset: 0; z-index: 90; pointer-events: none; }
+.wish-tour-spotlight { position: fixed; z-index: 1; border: 2px solid #ffe5a5; border-radius: 14px; box-shadow: 0 0 0 200vmax rgba(2, 10, 25, .78), 0 0 22px 5px rgba(255, 206, 125, .85); pointer-events: none; }
+.wish-tour-spotlight.is-lantern { border-radius: 50%; }
+.wish-tour-card { position: fixed; z-index: 2; padding: 15px 17px 13px; border: 1px solid rgba(255, 225, 169, .72); border-radius: 16px; background: #102844; box-shadow: 0 12px 45px #020b1ccc; color: #f5e8d0; pointer-events: auto; }
+.wish-tour-progress { font-size: 10px; color: #eac580; letter-spacing: 1.5px; }
+.wish-tour-card h3 { margin: 5px 0 4px; color: #ffe7b4; font-family: var(--font-display); font-size: 20px; line-height: 1.2; }
+.wish-tour-card p { margin: 0; font-size: 12px; line-height: 1.45; color: #d8e4f1; }
+.wish-tour-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; }
+.wish-tour-actions .text-button { min-height: 36px; padding: 0; font-size: 11px; }
+.wish-tour-actions .btn { min-height: 36px; padding: 6px 15px; font-size: 11px; }
+
 /* Lantern Canvas & Containers */
 .wish-world .wish-sky,
 .wish-world .wish-lantern-grid {
@@ -143,6 +154,7 @@
   pointer-events: auto;
   cursor: pointer;
 }
+.wish-world .floating-wish.tutorial-sample-wish { left: calc(50% - 55px); top: 40%; animation: none; opacity: 1; z-index: 7; }
 
 .wish-world .floating-wish:hover,
 .wish-world .floating-wish:focus-visible {
@@ -227,14 +239,32 @@
   text-shadow: 0 2px 7px #0a1524;
 }
 
-.wish-world .newly-released-wish {
-  animation-delay: 0s;
+.wish-world .floating-wish.newly-released-wish {
+  left: 50%;
+  top: 100%;
+  translate: -50% 0;
+  transform-origin: 50% 0;
+  animation: released-wish-flight 14.5s cubic-bezier(.32, .12, .35, 1) both,
+    release-arrival 7.25s linear both;
   z-index: 6;
   filter: drop-shadow(0 0 26px rgba(255, 210, 139, 0.6));
 }
+.wish-world .newly-released-wish.is-releasing .wish-lantern-shape { pointer-events: none; }
+.wish-world .floating-wish.newly-released-wish.is-in-sky {
+  animation: wish-natural-rise var(--journey) var(--phase) linear infinite;
+}
+.wish-world .newly-released-wish:not(.is-releasing):is(:hover, :focus-visible) { animation-play-state: paused; }
 
 .wish-world .newly-released-wish .wish-lantern-shape {
-  filter: drop-shadow(0 0 26px rgba(255, 210, 139, 0.6));
+  scale: 1.25;
+}
+.wish-world .newly-released-wish .wish-lantern-shape {
+  filter: drop-shadow(0 0 18px #fff0bc) drop-shadow(0 0 35px #f7a94e);
+}
+.wish-world .newly-released-wish .paper-shell {
+  border: 2px solid #fff3c8;
+  background: radial-gradient(ellipse at 50% 90%, #fff9cb, #ffcd74 50%, #bb6d4d 100%);
+  box-shadow: 0 0 28px #ffd275, inset 0 0 18px #fff5ce;
 }
 
 /* Ambient scenery lanterns */
@@ -358,6 +388,42 @@
   text-align: left;
 }
 
+.firework-station {
+  position: absolute;
+  left: 50%;
+  bottom: max(20px, env(safe-area-inset-bottom));
+  z-index: 4;
+  width: 156px;
+  height: 95px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  transform: translateX(-50%);
+  pointer-events: auto;
+  filter: drop-shadow(0 0 10px rgba(255, 183, 100, .38));
+}
+.firework-sticks { position: absolute; inset: 4px 15px 12px; display: flex; align-items: end; justify-content: center; gap: 9px; }
+.firework-stick {
+  position: relative;
+  display: block;
+  width: 9px;
+  height: 68px;
+  flex: none;
+  border: 1px solid rgba(255, 255, 255, .82);
+  border-radius: 50% 50% 3px 3px / 12% 12% 3px 3px;
+  background: linear-gradient(to bottom, #fff9d6 0 5%, transparent 8% 67%, #f1cc85 72% 100%), repeating-linear-gradient(0deg, #fff 0 2px, transparent 2px 5px) 0 70% / 100% 5px no-repeat, linear-gradient(90deg, color-mix(in srgb, var(--stick-color) 66%, #390f4c), var(--stick-color) 45% 72%, color-mix(in srgb, var(--stick-color) 62%, #180d3d));
+  box-shadow: 0 0 10px color-mix(in srgb, var(--stick-color) 78%, transparent), inset 0 0 4px rgba(255, 255, 255, .7);
+  transform: rotate(var(--stick-tilt));
+  transform-origin: 50% 100%;
+}
+.firework-stick::before { content: ''; position: absolute; left: 50%; bottom: 2px; width: 1px; height: 16px; background: rgba(255, 249, 220, .95); box-shadow: 0 0 6px var(--stick-color); transform: translateX(-50%); }
+.firework-stick::after { content: ''; position: absolute; top: -3px; left: 50%; width: 4px; height: 7px; border-radius: 50% 50% 35% 35%; background: #fff; box-shadow: 0 0 5px 2px #fff1a6, 0 0 11px 4px var(--stick-color); transform: translateX(-50%); }
+.firework-station-base { position: absolute; bottom: 7px; left: 25%; width: 50%; height: 9px; border-radius: 50%; background: radial-gradient(ellipse, #bc8358, #563b38); box-shadow: 0 2px 8px #080e1c; }
+.firework-station:hover .firework-stick, .firework-station:focus-visible .firework-stick { filter: brightness(1.25); }
+.firework-station:focus-visible { outline: 2px solid #fff1c2; outline-offset: 2px; border-radius: 8px; }
+.firework-display { position: fixed; inset: 0; z-index: 40; pointer-events: none; overflow: hidden; }
+.firework-canvas { display: block; width: 100%; height: 100%; }
+
 .wish-world .balloon-credit {
   position: absolute;
   bottom: 14px;
@@ -412,6 +478,11 @@
   white-space: pre-wrap;
   margin: 20px 0;
 }
+.wish-reaction { margin: 18px 0 4px; }
+.wish-react-button { min-width: 72px; min-height: 42px; padding: 5px 13px; border: 1px solid rgba(237,199,125,.6); border-radius: 30px; background: rgba(237,199,125,.08); color: #ffe1aa; font-size: 15px; }
+.wish-react-button span { font-size: 21px; vertical-align: -2px; }
+.wish-react-button.is-reacted { background: rgba(249,112,130,.18); border-color: #ff9bab; color: #ffb5c1; }
+.wish-react-button:hover:not(:disabled), .wish-react-button:focus-visible { border-color: #fff0cf; }
 
 .wish-signature {
   font-size: var(--text-fine);
@@ -461,6 +532,12 @@
   background: rgba(9, 21, 36, 0.44);
 }
 
+.wish-compose-dialog .wish-form input {
+  width: 100%;
+  background: rgba(9, 21, 36, 0.44);
+}
+.wish-form .optional-label { color: var(--muted); font-weight: 400; }
+
 .wish-compose-dialog .wish-form .btn {
   width: 100%;
   margin-top: 12px;
@@ -502,10 +579,6 @@
   color: #ffd1bd;
 }
 
-.wish-notice {
-  color: var(--gold) !important;
-}
-
 /* Release animation */
 .wish-release {
   position: fixed;
@@ -514,20 +587,7 @@
   z-index: 110;
   overflow: hidden;
   background: radial-gradient(ellipse at 50% 100%, rgba(237, 184, 102, 0.05), transparent 55%);
-  animation: caption-lifetime 7s both;
-}
-
-.released-lantern {
-  position: absolute;
-  bottom: 7%;
-  left: calc(50% - 30px);
-  animation: release-flight 5.8s cubic-bezier(0.32, 0.12, 0.35, 1) both;
-}
-
-.released-lantern .wish-lantern-shape {
-  scale: 1.8;
-  animation: none;
-  filter: drop-shadow(0 0 28px rgba(246, 183, 99, 0.6));
+  animation: caption-lifetime 15s both;
 }
 
 .release-caption {
@@ -540,7 +600,7 @@
   font-size: 28px !important;
   color: #f9dc9f;
   text-shadow: 0 2px 12px #0a1625;
-  animation: release-caption 5.5s both;
+  animation: release-caption 14.5s both;
 }
 
 /* Pause animations when a dialog is open */
@@ -627,25 +687,27 @@ body:has(#wish-list[open]) .floating-wish,
   }
 }
 
-@keyframes release-flight {
+@keyframes released-wish-flight {
   0% {
-    transform: translate(0, 70px) scale(0.9);
+    transform: translate3d(0, calc(-7svh - 26px), 0) scale(1.296);
     opacity: 0;
   }
-  12% {
-    opacity: 1;
-  }
+  12% { opacity: 1; }
   42% {
-    transform: translate(28px, -30vh) scale(0.8);
+    transform: translate3d(28px, calc(-37svh - 96px), 0) scale(1.152);
     opacity: 1;
   }
-  80% {
-    opacity: 0.8;
-  }
+  80% { opacity: .8; }
   100% {
-    transform: translate(-30px, -95vh) scale(0.2);
+    transform: translate3d(-30px, calc(-102svh - 96px), 0) scale(.288);
     opacity: 0;
   }
+}
+
+/* This event enables reading without replacing or restarting the flight animation. */
+@keyframes release-arrival {
+  from { --release-arrived: 0; }
+  to { --release-arrived: 1; }
 }
 
 @keyframes release-caption {
@@ -698,7 +760,25 @@ body:has(#wish-list[open]) .floating-wish,
 }
 
 /* Responsive adjustments */
+@media (min-width: 581px) and (max-width: 950px) {
+  .wish-world .free-sky-heading { max-width: 390px; }
+}
 @media (max-width: 580px) {
+  .wish-route {
+    --wish-controls-bottom: max(38px, calc(env(safe-area-inset-bottom) + 28px));
+    --wish-release-width: clamp(112px, calc(100vw - 204px), 156px);
+  }
+  .firework-station {
+    left: calc(50% + (var(--wish-release-width) - 96px) / 2);
+    right: auto;
+    bottom: var(--wish-controls-bottom);
+    width: 60px;
+    height: 76px;
+    transform: translateX(-50%);
+  }
+  .firework-sticks { inset: 6px 6px 12px; gap: 13px; }
+  .firework-stick:nth-child(n+3) { display: none; }
+  .firework-stick { height: 53px; }
   .river-scene {
     height: 44svh;
     min-height: 270px;
@@ -712,30 +792,30 @@ body:has(#wish-list[open]) .floating-wish,
     overflow: visible;
   }
   .wish-world .sky-actions {
-    max-width: 260px;
+    width: var(--wish-release-width);
+    max-width: none;
     left: 12px;
     right: auto;
-    bottom: max(22px, env(safe-area-inset-bottom));
-    padding: 11px;
-    gap: 8px;
+    bottom: var(--wish-controls-bottom);
+    padding: 8px;
+    gap: 6px;
   }
   .wish-world .sky-actions .btn {
-    font-size: 11px;
-    padding: 9px 16px;
-    min-height: 42px;
+    width: 100%;
+    font-size: 10px;
+    padding: 9px 8px;
+    min-height: 44px;
+    white-space: nowrap;
   }
+  .wish-world .sky-actions .wish-quota-note { font-size: 10px; line-height: 10px; }
   .wish-world .free-sky-heading {
-    left: 22px;
-    right: 22px;
-    top: 185px;
+    display: none;
   }
-  .wish-world .free-sky-heading h2 {
-    font-size: 41px;
-  }
+  .wish-world .floating-wish.tutorial-sample-wish { left: calc(50% - 42px); }
   .wish-world .balloon-credit {
     display: block;
     right: 12px;
-    bottom: 10px;
+    bottom: max(8px, env(safe-area-inset-bottom));
     max-width: 130px;
     font-size: 8px;
   }
@@ -761,6 +841,8 @@ body:has(#wish-list[open]) .floating-wish,
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .wish-world .floating-wish.newly-released-wish,
+  .wish-world .floating-wish.newly-released-wish.is-in-sky { animation: none; top: 38%; }
   .wish-world .floating-wish {
     left: clamp(0px, calc(var(--wx) - 32px), calc(100% - 64px));
     top: var(--wy);
