@@ -2,9 +2,11 @@ import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { createServer } from 'vite';
 
-const server = await createServer({ configFile: 'vite.config.js', mode: 'fixtures', server: { host: '127.0.0.1', port: 0 } });
+const server = await createServer({ configFile: 'vite.config.js', mode: 'fixtures', server: { host: '127.0.0.1', port: 0, strictPort: false } });
 await server.listen();
-const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
+const browser = await chromium.launch({ headless: true,
+  ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } : {}),
+  args: ['--no-sandbox'] });
 const base = `http://127.0.0.1:${server.httpServer.address().port}`;
 
 try {
@@ -22,11 +24,14 @@ try {
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     const playerBox = await player.boundingBox();
     const creditBox = await page.locator('.balloon-credit').boundingBox();
-    assert.ok(Math.abs(playerBox.x + playerBox.width / 2 - creditBox.x - creditBox.width / 2) <= 2, 'Player should align with the caption center');
+    if (viewport.width > 580) assert.ok(Math.abs(playerBox.x + playerBox.width / 2 - creditBox.x - creditBox.width / 2) <= 2, 'Player should align with the caption center');
     assert.ok(playerBox.y + playerBox.height + 8 <= creditBox.y, 'Player should sit above the caption');
-    assert.equal(await player.getByRole('slider').count(), 0);
-    assert.ok(playerBox.width <= 90 && playerBox.height <= 80);
-    assert.equal(await player.getByRole('button').count(), 1);
+    await player.getByRole('button', { name: 'Adjust volume' }).click();
+    await player.getByRole('slider', { name: 'Music volume' }).fill('25');
+    assert.equal(await player.locator('audio').evaluate(audio => audio.volume), 0.25);
+    await player.getByRole('button', { name: 'Adjust volume' }).click();
+    assert.ok(playerBox.width <= 96 && playerBox.height <= 80);
+    assert.equal(await player.getByRole('button').count(), 2);
     assert.equal(await player.evaluate(element => getComputedStyle(element).backgroundImage), 'none');
     assert.equal(await player.locator('.music-player-play').evaluate(element => getComputedStyle(element).backgroundColor), 'rgba(0, 0, 0, 0)');
     const iconBox = await player.locator('.music-player-icon').boundingBox();
@@ -37,7 +42,10 @@ try {
     assert.ok(iconBox.y + iconBox.height < playBox.y);
     if (viewport.width < 580) {
       const actionsBox = await page.locator('.sky-actions').boundingBox();
-      assert.ok(playerBox.y + playerBox.height <= actionsBox.y, 'Mobile music player should clear Wish Sky actions');
+      const stationBox = await page.locator('.firework-station').boundingBox();
+      assert.ok(actionsBox.x + actionsBox.width <= stationBox.x && stationBox.x + stationBox.width <= playerBox.x, 'Mobile music controls should sit beside the firework sticks and release button');
+      assert.ok(Math.abs(playerBox.y + playerBox.height - actionsBox.y - actionsBox.height) < 2, 'Mobile music and release controls should align along the bottom');
+      assert.ok(playBox.width >= 44 && playBox.height >= 44);
     }
     if (await player.getByRole('button', { name: 'Play music' }).count()) await player.getByRole('button', { name: 'Play music' }).click();
     await player.getByRole('button', { name: 'Pause music' }).waitFor();

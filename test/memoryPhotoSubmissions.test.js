@@ -17,7 +17,8 @@ process.env.LOCAL_UPLOAD_DIR = path.join(directory, "public");
 process.env.MEMORY_PHOTO_UPLOAD_DIR = path.join(directory, "private");
 const app = require("../app");
 const User = require("../model/usersModel");
-const Election = require("../model/electionModel");
+const Controls = require("../model/eventControlsModel");
+const { createUser, studentToken, headers: authHeaders } = require("./helpers/accounts.cjs");
 const MemoryPhoto = require("../model/memoryPhotosModel");
 const Quota = require("../model/memoryPhotoQuotasModel");
 const quota = require("../utils/memoryPhotoQuota");
@@ -47,7 +48,7 @@ before(async () => {
   await fs.mkdir(databasePath);
   const port = await freePort();
   mongo = spawn(process.env.MONGOD_BINARY || "mongod", [
-    "--bind_ip", "127.0.0.1", "--port", String(port), "--dbpath", databasePath,
+    "--replSet", "isolatedTests", "--bind_ip", "127.0.0.1", "--port", String(port), "--dbpath", databasePath,
     "--logpath", path.join(databasePath, "mongod.log"),
   ], { stdio: "ignore" });
   let spawnError;
@@ -65,9 +66,10 @@ before(async () => {
         await new Promise((resolve) => setTimeout(resolve, 100));
       }
     }
+    await require("./helpers/replica.cjs").initialize(client, port);
   } finally { await client.close(); }
   await mongoose.connect(`mongodb://127.0.0.1:${port}/memory_photo_submissions_test`);
-  await Promise.all([User.init(), Election.init(), MemoryPhoto.init(), Quota.init()]);
+  await Promise.all([...Object.values(mongoose.models).map(model => model.init()), Controls.init(), MemoryPhoto.init(), Quota.init()]);
   png = await sharp({ create: { width: 4, height: 4, channels: 3, background: "red" } }).png().toBuffer();
   server = app.listen(0, "127.0.0.1");
   await new Promise((resolve) => server.once("listening", resolve));
@@ -75,12 +77,11 @@ before(async () => {
 }, { timeout: 30000 });
 
 beforeEach(async () => {
-  await Promise.all([User.deleteMany({}), Election.deleteMany({}), MemoryPhoto.deleteMany({}), Quota.deleteMany({})]);
+  await Promise.all([User.deleteMany({}), Controls.deleteMany({}), MemoryPhoto.deleteMany({}), Quota.deleteMany({})]);
   await fs.rm(process.env.MEMORY_PHOTO_UPLOAD_DIR, { recursive: true, force: true });
-  user = await User.create({ email: "student@example.com", passwordHash: "test-only-hash" });
-  token = jwt.sign({ userId: user._id.toString(), role: "user" }, process.env.JWT_SECRET, { algorithm: "HS256" });
-  await Election.create({ registrationClosesAt: new Date("2026-11-06"), votingOpensAt: new Date("2026-10-28"),
-    votingClosesAt: new Date("2026-11-02"), resultsPublishedAt: new Date("2026-11-03"), memoryPhotosEnabled: true });
+  user = await createUser({ email: "student@gmail.com", passwordHash: "test-only-hash" });
+  token = await studentToken(user);
+  await Controls.create({ _id: "event", memoryPhotosEnabled: true });
 });
 
 after(async () => {
@@ -95,7 +96,7 @@ const submit = async ({ auth = token, bytes = png, type = "image/png", count = 1
   for (let index = 0; index < count; index++) form.append(field, new Blob([bytes], { type }), "photo.png");
   for (const [name, value] of Object.entries(fields)) form.append(name, value);
   const response = await fetch(`${base}/api/v1/memory-photos`, {
-    method: "POST", headers: auth ? { Authorization: `Bearer ${auth}` } : {}, body: form,
+    method: "POST", headers: authHeaders(auth), body: form,
   });
   return { status: response.status, body: await response.json() };
 };
@@ -106,7 +107,7 @@ const files = async () => {
 
 const mine = async (auth = token, query = "") => {
   const response = await fetch(`${base}/api/v1/memory-photos/mine${query}`, {
-    headers: auth ? { Authorization: `Bearer ${auth}` } : {},
+    headers: authHeaders(auth),
   });
   return { status: response.status, body: await response.json(), headers: response.headers };
 };
@@ -114,20 +115,20 @@ const mine = async (auth = token, query = "") => {
 test("My Memories requires an active student, rejecting anonymous, forged, expired and admin tokens", async () => {
   assert.equal((await mine(null)).status, 401);
   assert.equal((await mine("not-a-token")).status, 401);
-  const expired = jwt.sign({ userId: String(user._id), role: "user" }, process.env.JWT_SECRET, { expiresIn: -1 });
+  const expired = await studentToken(user, {expired: true});
   assert.equal((await mine(expired)).status, 401);
-  for (const adminRole of ["ADMIN", "MEMORY_ADMIN"]) {
+  for (const adminRole of ["admin", "memory_admin"]) {
     const adminToken = jwt.sign({ adminId: String(new mongoose.Types.ObjectId()), role: "admin", adminRole }, process.env.JWT_SECRET);
-    assert.equal((await mine(adminToken)).status, 403);
+    assert.equal((await mine(adminToken)).status, 401);
   }
   await User.updateOne({ _id: user._id }, { status: "disabled" });
-  assert.equal((await mine()).status, 403);
+  assert.equal((await mine()).status, 401);
   await User.deleteOne({ _id: user._id });
   assert.equal((await mine()).status, 401);
 });
 
-test("My Memories returns only the JWT owner's safe metadata in deterministic newest-first order", async () => {
-  const other = await User.create({ email: "mine-other@example.com", passwordHash: "test-only-hash" });
+test("My Memories returns only the cookie session owner's safe metadata in deterministic newest-first order", async () => {
+  const other = await createUser({ email: "mine-other@gmail.com", passwordHash: "test-only-hash" });
   const reviewer = new mongoose.Types.ObjectId();
   const sameDate = new Date("2026-10-22T00:00:00Z");
   const saved = await MemoryPhoto.create(["PENDING", "APPROVED", "REJECTED"].map((status, index) => ({
@@ -140,15 +141,15 @@ test("My Memories returns only the JWT owner's safe metadata in deterministic ne
   const response = await mine();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("cache-control"), /private.*no-store/);
-  assert.match(response.headers.get("vary"), /Authorization/);
+  assert.match(response.headers.get("vary"), /Cookie/);
   const expected = [...saved].sort((a, b) => +b.createdAt - +a.createdAt || String(b._id).localeCompare(String(a._id)));
   assert.deepEqual(response.body.data.photos.map(photo => photo.id), expected.map(photo => String(photo._id)));
   assert.equal(response.body.results, 3);
   assert.deepEqual(new Set(response.body.data.photos.map(photo => photo.status)), new Set(["PENDING", "APPROVED", "REJECTED"]));
   for (const photo of response.body.data.photos) assert.deepEqual(Object.keys(photo).sort(), ["createdAt", "id", "status"]);
-  assert.deepEqual(response.body.data.quota, { limit: 3, acceptedCount: 3, remainingSlots: 0 });
+  assert.deepEqual(response.body.data.quota, { limit: 3, acceptedCount: 2, remainingSlots: 1 });
   for (const query of [`?userId=${other._id}`, `?owner=${other._id}`, "?status=APPROVED"]) assert.equal((await mine(token, query)).status, 400);
-  const otherToken = jwt.sign({ userId: String(other._id), role: "user" }, process.env.JWT_SECRET);
+  const otherToken = await studentToken(other);
   const own = await mine(otherToken);
   assert.equal(own.body.results, 1);
   assert(!own.body.data.photos.some(photo => saved.some(item => String(item._id) === photo.id)));
@@ -157,7 +158,7 @@ test("My Memories returns only the JWT owner's safe metadata in deterministic ne
 test("My Memories uses legacy records without creating quota state and handles an empty history", async () => {
   assert.deepEqual((await mine()).body.data, { photos: [], quota: { limit: 3, acceptedCount: 0, remainingSlots: 3 } });
   await MemoryPhoto.create({ owner: user._id, imageKey: "legacy", status: "REJECTED" });
-  assert.deepEqual((await mine()).body.data.quota, { limit: 3, acceptedCount: 1, remainingSlots: 2 });
+  assert.deepEqual((await mine()).body.data.quota, { limit: 3, acceptedCount: 0, remainingSlots: 3 });
   assert.equal(await Quota.countDocuments(), 0);
 });
 
@@ -175,20 +176,20 @@ test("My Memories excludes cancellation markers while retaining unresolved reser
   await quota.reserve(user._id, unresolved);
   const response = await mine();
   assert.equal(response.body.results, 1);
-  assert.deepEqual(response.body.data.quota, { limit: 3, acceptedCount: 1, remainingSlots: 1 });
+  assert.deepEqual(response.body.data.quota, { limit: 3, acceptedCount: 2, remainingSlots: 1 });
   assert.equal((await Quota.findById(user._id)).slots.length, 2);
-  // Deleted records never make their retained lifetime slots available again.
+  // A missing record alone cannot prove completion or free an unresolved reservation.
   await MemoryPhoto.deleteOne({ _id: accepted.body.data.photo.id });
-  assert.deepEqual((await mine()).body.data.quota, { limit: 3, acceptedCount: 0, remainingSlots: 1 });
+  assert.deepEqual((await mine()).body.data.quota, { limit: 3, acceptedCount: 2, remainingSlots: 1 });
 });
 
 test("My Memories remains disabled for false, missing and absent feature settings", async () => {
   await MemoryPhoto.create({ owner: user._id, imageKey: "hidden-when-disabled" });
-  await Election.updateOne({}, { memoryPhotosEnabled: false });
+  await Controls.updateOne({}, { memoryPhotosEnabled: false });
   assert.equal((await mine()).status, 403);
-  await Election.collection.updateOne({}, { $unset: { memoryPhotosEnabled: "" } });
+  await Controls.collection.updateOne({}, { $unset: { memoryPhotosEnabled: "" } });
   assert.equal((await mine()).status, 403);
-  await Election.deleteMany({});
+  await Controls.deleteMany({});
   assert.equal((await mine()).status, 403);
 });
 
@@ -199,14 +200,14 @@ test("My Memories rechecks the feature after reading and propagates database err
     const lean = query.lean;
     query.lean = async function (...options) {
       const photos = await lean.apply(this, options);
-      await Election.updateOne({}, { memoryPhotosEnabled: false });
+      await Controls.updateOne({}, { memoryPhotosEnabled: false });
       return photos;
     };
     return query;
   };
   try { assert.equal((await mine()).status, 403); }
   finally { MemoryPhoto.find = find; }
-  await Election.updateOne({}, { memoryPhotosEnabled: true });
+  await Controls.updateOne({}, { memoryPhotosEnabled: true });
   MemoryPhoto.find = () => { throw new Error("private-database-detail"); };
   try {
     const response = await mine();
@@ -218,21 +219,21 @@ test("My Memories rechecks the feature after reading and propagates database err
 test("only active authenticated students may submit; admins and anonymous callers are rejected", async () => {
   assert.equal((await submit({ auth: null })).status, 401);
   assert.equal((await submit({ auth: "invalid-token" })).status, 401);
-  const admin = jwt.sign({ adminId: new mongoose.Types.ObjectId().toString(), role: "admin" }, process.env.JWT_SECRET);
-  assert.equal((await submit({ auth: admin })).status, 403);
+  const admin = jwt.sign({ adminId: new mongoose.Types.ObjectId().toString(), role: "admin", v: 0 }, process.env.JWT_SECRET);
+  assert.equal((await submit({ auth: admin })).status, 401);
   await User.updateOne({ _id: user._id }, { status: "disabled" });
-  assert.equal((await submit()).status, 403);
+  assert.equal((await submit()).status, 401);
   assert.equal(await MemoryPhoto.countDocuments(), 0);
   assert.equal(await Quota.countDocuments(), 0);
   assert.deepEqual(await files(), []);
 });
 
 test("disabled, missing and legacy feature settings reject uploads before buffering or storage", async () => {
-  await Election.updateOne({}, { memoryPhotosEnabled: false });
+  await Controls.updateOne({}, { memoryPhotosEnabled: false });
   assert.equal((await submit({ bytes: Buffer.alloc(6 * 1024 * 1024) })).status, 403);
-  await Election.collection.updateOne({}, { $unset: { memoryPhotosEnabled: "" } });
+  await Controls.collection.updateOne({}, { $unset: { memoryPhotosEnabled: "" } });
   assert.equal((await submit()).status, 403);
-  await Election.deleteMany({});
+  await Controls.deleteMany({});
   assert.equal((await submit()).status, 403);
   assert.equal(await Quota.countDocuments(), 0);
   assert.deepEqual(await files(), []);
@@ -280,22 +281,55 @@ test("real JPEG and WebP content is accepted and stored with the validated forma
   }
 });
 
-test("all three moderation statuses consume lifetime quota and deleting bytes does not restore it", async () => {
+test("rejected records free a slot, while deleting active image bytes alone does not release capacity", async () => {
   for (const status of ["PENDING", "APPROVED", "REJECTED"]) {
     const result = await submit();
     assert.equal(result.status, 201);
     await MemoryPhoto.updateOne({ _id: result.body.data.photo.id }, { status });
   }
   for (const photo of await MemoryPhoto.find()) await storage.deleteImage(photo.imageKey);
+  assert.equal((await submit()).status, 201);
   assert.equal((await submit()).status, 409);
-  assert.equal(await MemoryPhoto.countDocuments(), 3);
+  assert.equal(await MemoryPhoto.countDocuments(), 4);
   assert.equal((await Quota.findById(user._id)).slots.length, 3);
 });
 
-test("old submissions are included when the quota is first initialized", async () => {
+test("legacy quota initialization counts pending and approved photos but releases rejected history", async () => {
   await MemoryPhoto.create(["PENDING", "APPROVED", "REJECTED"].map((status) => ({ owner: user._id, imageKey: `old/${status}`, status })));
+  assert.equal((await submit()).status, 201);
   assert.equal((await submit()).status, 409);
   assert.equal((await Quota.findById(user._id)).slots.length, 3);
+});
+
+test("archived photos retain capacity before and after legacy quota initialization", async () => {
+  const photos = await MemoryPhoto.create(Array.from({ length: 3 }, (_, index) => ({
+    owner: user._id, imageKey: `legacy/archive-${index}`, status: "APPROVED", archived: true,
+  })));
+  const expected = { limit: 3, acceptedCount: 3, remainingSlots: 0 };
+  const history = await mine();
+  assert.deepEqual(history.body.data.quota, expected);
+  assert(history.body.data.photos.every(photo => photo.status === "ARCHIVED"));
+  assert.equal(await Quota.countDocuments(), 0);
+  assert.equal((await submit()).status, 409);
+  assert.deepEqual(new Set((await Quota.findById(user._id)).slots.map(String)), new Set(photos.map(photo => String(photo._id))));
+  assert.deepEqual((await mine()).body.data.quota, expected);
+});
+
+test("legacy rejected and deleted slots reconcile without freeing archived or unresolved slots", async () => {
+  const archived = await MemoryPhoto.create({ owner: user._id, imageKey: "legacy/archived", status: "APPROVED", archived: true });
+  const rejected = await MemoryPhoto.create({ owner: user._id, status: "REJECTED" });
+  const deleted = await MemoryPhoto.create({ owner: user._id, status: "APPROVED", deletedAt: new Date() });
+  const unresolved = new mongoose.Types.ObjectId();
+  await Quota.create({ _id: user._id, slots: [archived._id, rejected._id, deleted._id, unresolved] });
+  assert.deepEqual((await mine()).body.data.quota, { limit: 3, acceptedCount: 2, remainingSlots: 1 });
+  const responses = await Promise.all(Array.from({ length: 6 }, () => submit()));
+  assert.equal(responses.filter(response => response.status === 201).length, 1);
+  assert.equal(responses.filter(response => response.status === 409).length, 5);
+  const slots = (await Quota.findById(user._id)).slots.map(String);
+  assert.equal(slots.length, 3);
+  assert(slots.includes(String(archived._id)) && slots.includes(String(unresolved)));
+  assert(!slots.includes(String(rejected._id)) && !slots.includes(String(deleted._id)));
+  assert.deepEqual((await mine()).body.data.quota, { limit: 3, acceptedCount: 3, remainingSlots: 0 });
 });
 
 test("twelve concurrent requests atomically accept exactly three submissions", async () => {
@@ -368,7 +402,7 @@ test("disabling during storage rejects the upload and rolls back file and reserv
   const original = storage.uploadImage;
   storage.uploadImage = async (...args) => {
     const key = await original(...args);
-    await Election.updateOne({}, { memoryPhotosEnabled: false });
+    await Controls.updateOne({}, { memoryPhotosEnabled: false });
     return key;
   };
   try {
@@ -418,8 +452,8 @@ test("image cleanup failure does not consume quota after confirmed database roll
 
 test("each student has an independent quota and accepted IDs survive model reloads", async () => {
   for (let index = 0; index < 3; index++) assert.equal((await submit()).status, 201);
-  const second = await User.create({ email: "second@example.com", passwordHash: "test-only-hash" });
-  const secondToken = jwt.sign({ userId: second._id.toString(), role: "user" }, process.env.JWT_SECRET);
+  const second = await createUser({ email: "second@gmail.com", passwordHash: "test-only-hash" });
+  const secondToken = await studentToken(second);
   assert.equal((await submit({ auth: secondToken })).status, 201);
   // Read using an independent connection/model, as a new worker would.
   const connection = await mongoose.createConnection(mongoose.connection.client.s.url).asPromise();
@@ -478,8 +512,8 @@ test("a delayed insert cannot free its slot until durable cancellation completes
     assert.equal(await MemoryPhoto.exists({ _id: delayed._id }), null);
     assert.equal(await MemoryPhoto.findOneAndUpdate({ _id: delayed._id }, { status: "APPROVED" }), null);
     const Admin = require("../model/adminsModel");
-    const admin = await Admin.create({ username: "cancellation-review-test", passwordHash: "test-only-hash" });
-    const adminToken = jwt.sign({ adminId: String(admin._id), role: "admin" }, process.env.JWT_SECRET);
+    const admin = await Admin.create({ username: "cancellation-review-test", role: "admin", passwordHash: "test-only-hash" });
+    const adminToken = jwt.sign({ adminId: String(admin._id), role: "admin", v: 0 }, process.env.JWT_SECRET);
     const headers = { Authorization: `Bearer ${adminToken}` };
     const queue = await fetch(`${base}/api/v1/admin/memory-photos`, { headers });
     assert.equal(queue.status, 200);
@@ -496,7 +530,7 @@ test("a delayed insert cannot free its slot until durable cancellation completes
     assert.deepEqual((await gallery.json()).data.photos, []);
     assert.equal((await fetch(`${base}/api/v1/memory-photos/${delayed._id}/image`)).status, 404);
     assert.equal((await fetch(`${base}/api/v1/memory-photos/${delayed._id}/like`, {
-      method: "POST", headers: { Authorization: `Bearer ${token}` },
+      method: "POST", headers: authHeaders(token),
     })).status, 404);
     assert.equal((await Quota.findById(user._id)).slots.length, 0);
   } finally {

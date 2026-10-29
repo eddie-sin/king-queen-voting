@@ -108,7 +108,7 @@ try {
   reports.push('Empty history and reserved/deleted-history capacity use backend counts, never visible-card counts');
   {
     const { page, context } = await setup({ imageError: true });
-    await page.getByText('This image needs a moment.').waitFor();
+    await page.getByText('This photo could not be loaded.').waitFor();
     assert.equal(await page.locator('.mp-my-page img[src*="memory-photo/"]').count(), 0);
     await context.close();
   }

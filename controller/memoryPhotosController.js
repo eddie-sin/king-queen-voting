@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const Election = require("../model/electionModel");
+const Controls = require("../model/eventControlsModel");
 const MemoryPhoto = require("../model/memoryPhotosModel");
 const MemoryPhotoQuota = require("../model/memoryPhotoQuotasModel");
 const quota = require("../utils/memoryPhotoQuota");
@@ -9,7 +9,7 @@ const AppError = require("../utils/appError");
 const catchAsync = require("../utils/catchAsync");
 
 const requireEnabled = async () => {
-  const election = await Election.findById("election").select("memoryPhotosEnabled").lean();
+  const election = await Controls.findById("event").select("memoryPhotosEnabled").lean();
   if (election?.memoryPhotosEnabled !== true) throw new AppError("Memory Photo submissions are disabled.", 403);
 };
 
@@ -20,23 +20,73 @@ exports.requireEnabled = catchAsync(async (req, res, next) => {
 
 exports.listMine = catchAsync(async (req, res) => {
   res.set("Cache-Control", "private, no-store");
-  res.vary("Authorization");
+  res.vary("Cookie");
   if (Object.keys(req.query).length || Object.keys(req.body || {}).length) {
     throw new AppError("My Memories does not accept body or query fields.", 400);
   }
   // Model query middleware excludes permanent cancellation fences, including
   // fences created by converting an ambiguously committed insert.
-  const photos = await MemoryPhoto.find({ owner: req.userId })
-    .select("_id status createdAt").sort({ createdAt: -1, _id: -1 }).lean();
+  const photos = await MemoryPhoto.find({ owner: req.userId, deletedAt: { $exists: false } })
+    .select("_id status createdAt archived deletedAt").sort({ createdAt: -1, _id: -1 }).lean();
   const usage = await MemoryPhotoQuota.findById(req.userId).select("slots").lean();
   // Include legacy photos before quota initialization, and never advertise a
   // free slot already occupied by an unresolved reservation or retained history.
-  const occupied = new Set([...(usage?.slots || []), ...photos.map(photo => photo._id)].map(String));
+  const released = usage?.slots?.length ? new Set((await MemoryPhoto.collection.find({ _id: { $in: usage.slots }, $or: [{ status: 'REJECTED' }, { deletedAt: { $exists: true } }, { cancelled: true }] }, { projection: { _id: 1 } }).toArray()).map(photo => String(photo._id))) : new Set();
+  const occupied = new Set([...(usage?.slots || []).filter(id => !released.has(String(id))), ...photos.filter(photo => ['PENDING', 'APPROVED'].includes(photo.status) && !photo.deletedAt).map(photo => photo._id)].map(String));
   await requireEnabled();
   res.status(200).json({ status: "success", results: photos.length, data: {
-    photos: photos.map(photo => ({ id: photo._id, status: photo.status, createdAt: photo.createdAt })),
-    quota: { limit: 3, acceptedCount: photos.length, remainingSlots: Math.max(0, 3 - occupied.size) },
+    photos: photos.map(photo => ({ id: photo._id, status: photo.archived ? "ARCHIVED" : photo.status, createdAt: photo.createdAt })),
+    quota: { limit: 3, acceptedCount: occupied.size, remainingSlots: Math.max(0, 3 - occupied.size) },
   } });
+});
+
+exports.archiveOwn = catchAsync(async (req, res) => {
+  if (!mongoose.isObjectIdOrHexString(req.params.id)) throw new AppError("A valid Memory Photo ID is required.", 400);
+  const photo = await MemoryPhoto.findOneAndUpdate(
+    { _id: req.params.id, owner: req.userId, status: "APPROVED", archived: { $ne: true }, deletedAt: { $exists: false } },
+    { $set: { archived: true, archivedAt: new Date(), archivedBy: req.userId } },
+    { new: true, runValidators: true },
+  ).select("_id status archived createdAt").lean();
+  if (!photo) throw new AppError("Only your approved photos can be archived.", 409);
+  res.status(200).json({ status: "success", data: { photo: { id: photo._id, status: "ARCHIVED", createdAt: photo.createdAt } } });
+});
+
+exports.unarchiveOwn = catchAsync(async (req, res) => {
+  if (!mongoose.isObjectIdOrHexString(req.params.id)) throw new AppError("A valid Memory Photo ID is required.", 400);
+  const photo = await MemoryPhoto.findOneAndUpdate(
+    { _id: req.params.id, owner: req.userId, status: "APPROVED", archived: true, deletedAt: { $exists: false } },
+    { $set: { archived: false }, $unset: { archivedAt: 1, archivedBy: 1 } },
+    { new: true, runValidators: true },
+  ).select("_id status createdAt").lean();
+  if (!photo) throw new AppError("Only your archived approved photos can be restored.", 409);
+  res.status(200).json({ status: "success", data: { photo: { id: photo._id, status: "APPROVED", createdAt: photo.createdAt } } });
+});
+
+exports.getOwnImage = catchAsync(async (req, res) => {
+  if (!mongoose.isObjectIdOrHexString(req.params.id)) throw new AppError("A valid Memory Photo ID is required.", 400);
+  const photo = await MemoryPhoto.findOne({ _id: req.params.id, owner: req.userId, status: "APPROVED", archived: true, deletedAt: { $exists: false } }).select("imageKey").lean();
+  if (!photo) throw new AppError("Memory Photo not found.", 404);
+  const image = await storage.getImage(photo.imageKey);
+  if (!["image/jpeg", "image/png", "image/webp"].includes(image.contentType)) throw new AppError("Could not retrieve the Memory Photo image.", 503);
+  res.set({ "Content-Type": image.contentType, "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff", "Content-Disposition": "inline" });
+  if (Buffer.isBuffer(image.body)) return res.status(200).send(image.body);
+  return require("node:stream/promises").pipeline(image.body, res).catch(() => res.destroy());
+});
+
+exports.deleteOwn = catchAsync(async (req, res) => {
+  if (!mongoose.isObjectIdOrHexString(req.params.id)) throw new AppError("A valid Memory Photo ID is required.", 400);
+  const photo = await MemoryPhoto.findOne({ _id: req.params.id, owner: req.userId, status: "APPROVED", deletedAt: { $exists: false } }).select("_id owner imageKey").lean();
+  if (!photo) throw new AppError("Only your approved photos can be deleted.", 409);
+  try { await storage.deleteImage(photo.imageKey); } catch (error) {
+    if (!(error instanceof AppError && error.statusCode === 404)) throw new AppError("Photo deletion is pending storage confirmation. Please retry.", 503);
+  }
+  const marked = await MemoryPhoto.findOneAndUpdate(
+    { _id: photo._id, owner: req.userId, status: "APPROVED", deletedAt: { $exists: false } },
+    { $unset: { imageKey: 1 }, $set: { deletedAt: new Date(), deletedBy: req.userId, storageDeletedAt: new Date() } },
+    { new: true, runValidators: false },
+  ).select("_id").lean();
+  if (marked) await quota.releaseSlot(req.userId, photo._id);
+  res.status(200).json({ status: "success", data: { deleted: true, id: photo._id } });
 });
 
 exports.submitPhoto = catchAsync(async (req, res) => {
