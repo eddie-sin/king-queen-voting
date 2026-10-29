@@ -164,6 +164,7 @@ export function SiteHeader({
                     >
                       Account &amp; Choices
                     </a>
+                    <a className="btn secondary" href="#my-wishes" onClick={() => setMenuOpen(false)}>My wishes</a>
                     <button
                       type="button"
                       className="btn secondary"

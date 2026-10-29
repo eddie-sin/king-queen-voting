@@ -20,17 +20,24 @@ try {
     const page = await context.newPage();
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
-    let signedIn = false, used = 0;
+    let signedIn = false, used = 0, failMine = viewport.width === 1440, failReaction = viewport.width === 1440;
+    const ownWishes = [];
     const reactions = new Map();
     await page.route('**/api/v1/**', route => {
       const path = new URL(route.request().url()).pathname;
       const ok = data => route.fulfill({ json: { status: 'success', data } });
       if (path.endsWith('/config')) return ok({ csrfToken: 'wish-browser-csrf', googleClientId: null });
       if (path.endsWith('/pending')) return ok({ flow: null });
-      if (path.endsWith('/login')) { signedIn = true; return ok({ sessionKey: 'wish-browser-session', user: { id: 'wish-user', email: 'demo@gmail.com' } }); }
-      if (path.endsWith('/me')) return signedIn ? ok({ sessionKey: 'wish-browser-session', user: { id: 'wish-user', email: 'demo@gmail.com' } }) : route.fulfill({ status: 401, json: { status: 'fail', message: 'Sign in to continue.' } });
+      if (path.endsWith('/login')) { signedIn = true; return ok({ sessionKey: 'wish-browser-session', user: { id: 'wish-user', email: 'demo@gmail.com', round: 1 } }); }
+      if (path.endsWith('/me')) return signedIn ? ok({ sessionKey: 'wish-browser-session', user: { id: 'wish-user', email: 'demo@gmail.com', round: 1 } }) : route.fulfill({ status: 401, json: { status: 'fail', message: 'Sign in to continue.' } });
+      if (path.endsWith('/logout')) { signedIn = false; return ok({}); }
       if (path.endsWith('/wishes/mine')) return ok({ used, remaining: Math.max(0, 3 - used) });
+      if (path.endsWith('/wishes/mine/wishes')) {
+        if (failMine) { failMine = false; return route.fulfill({ status: 503, json: { status: 'error', message: 'Try again.' } }); }
+        return ok({ wishes: [...ownWishes].reverse() });
+      }
       if (path.endsWith('/reaction')) {
+        if (failReaction) { failReaction = false; return route.fulfill({ status: 503, json: { status: 'error', message: 'Try again.' } }); }
         const id = path.split('/').at(-2);
         const active = route.request().postDataJSON().active;
         reactions.set(id, active);
@@ -38,7 +45,7 @@ try {
       }
       if (path.endsWith('/wishes') && route.request().method() === 'POST') {
         if (used >= 3) return route.fulfill({ status: 409, json: { status: 'fail', message: 'Wish limit reached.' } });
-        used++; const { message, name } = route.request().postDataJSON(); return ok({ wish: { id: `created-${used}`, message, ...(name ? { name } : {}) } });
+        used++; const { message, name } = route.request().postDataJSON(); const wish = { id: `created-${used}`, message, ...(name ? { name } : {}) }; ownWishes.push(wish); return ok({ wish });
       }
       if (path.endsWith('/wishes')) return ok({ wishes: Array.from({ length: 24 }, (_, index) => ({ id: `wish-${index + 1}`, message: `Festival wish ${index + 1}`, reactions: reactions.get(`wish-${index + 1}`) ? 1 : 0, reacted: reactions.get(`wish-${index + 1}`) || false })), nextCursor: null, total: 24 });
       if (path.endsWith('/voting/my-votes')) return ok({ votes: [], round: 1, window: 1 });
@@ -82,7 +89,10 @@ try {
     await page.locator('.firework-canvas').waitFor({ state: 'attached' });
     assert.equal(await page.locator('.firework-display').evaluate(element => Math.round(element.getBoundingClientRect().width)), viewport.width);
     const firstBursts = JSON.parse(await page.locator('.firework-canvas').getAttribute('data-bursts'));
-    assert.deepEqual(firstBursts.map(burst => burst.shape).sort(), ['butterfly', 'flower', 'heart', 'star']);
+    const ordinary = ['round', 'chrysanthemum', 'willow'];
+    assert.equal(firstBursts.length, 4);
+    assert.ok(firstBursts.filter(burst => ordinary.includes(burst.shape)).length >= 3, 'Ordinary fireworks should dominate the show');
+    assert.ok(firstBursts.every(burst => [...ordinary, 'butterfly', 'flower', 'heart', 'star'].includes(burst.shape)));
     await page.waitForTimeout(1800);
     assert.deepEqual(errors, [], 'The firework renderer should run without browser errors');
     const pixels = () => page.locator('.firework-canvas').evaluate(canvas => {
@@ -100,7 +110,8 @@ try {
     const nextBursts = JSON.parse(await page.locator('.firework-canvas').getAttribute('data-bursts'));
     assert.notDeepEqual(nextBursts.map(burst => [burst.x, burst.y]), firstBursts.map(burst => [burst.x, burst.y]), 'Each launch should change burst positions');
     if (viewport.width < 580) assert.equal(await page.getByRole('heading', { name: /A sky full of/ }).isVisible(), false);
-    assert.equal(await page.locator('.floating-wish').count(), viewport.width < 580 ? 12 : 24);
+    assert.equal(await page.locator('.floating-wish').count(), viewport.width < 580 ? 8 : 24);
+    assert.equal(await page.locator('.floating-wish .wish-lantern-shape').first().evaluate(element => parseFloat(getComputedStyle(element).width)), 60);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     const releaseButton = await page.getByRole('button', { name: 'Release a wish' }).boundingBox();
     const quotaNote = page.locator('.wish-quota-note');
@@ -138,10 +149,18 @@ try {
     await page.mouse.click(point.x, point.y);
     await page.getByRole('dialog').locator('.wish-message').waitFor();
     await page.getByRole('button', { name: 'React to wish' }).click();
+    if (viewport.width === 1440) {
+      await page.getByRole('dialog').getByRole('alert').waitFor();
+      assert.equal(await page.locator('.wish-reaction-burst').count(), 0, 'A failed reaction should not celebrate');
+      await page.getByRole('button', { name: 'React to wish' }).click();
+    }
     await page.getByRole('button', { name: 'Remove reaction' }).waitFor();
+    await page.locator('.wish-reaction-burst').waitFor();
+    if (reducedMotion === 'reduce') assert.equal(await page.locator('.wish-reaction-burst').evaluate(element => getComputedStyle(element).transform), 'none');
     assert.equal(await page.locator('dialog.account-dialog').count(), 0);
     await page.getByRole('button', { name: 'Remove reaction' }).click();
     await page.getByRole('button', { name: 'React to wish' }).waitFor();
+    await page.locator('.wish-reaction-burst').waitFor({ state: 'detached' });
     assert.equal(await page.getByRole('button', { name: /see more wishes|read another wish/i }).count(), 0);
     await page.getByRole('button', { name: 'Close dialog' }).click();
     assert.equal(await firstWish.evaluate(element => document.activeElement === element), true);
@@ -212,6 +231,14 @@ try {
           assert.equal(await page.locator('.wish-release').count(), 0);
           await released.evaluate(element => element.getAnimations().find(animation => animation.animationName === 'released-wish-flight').finish());
           await page.locator('.newly-released-wish.is-in-sky').waitFor();
+          await page.keyboard.press('Tab');
+          await released.focus();
+          assert.equal(await released.evaluate(element => getComputedStyle(element).animationPlayState), 'running', 'The returning lantern must keep moving when focus returns to it');
+          const beforeFocusRise = await released.evaluate(element => new DOMMatrix(getComputedStyle(element).transform).m42);
+          await page.waitForTimeout(250);
+          const afterFocusRise = await released.evaluate(element => new DOMMatrix(getComputedStyle(element).transform).m42);
+          assert.ok(afterFocusRise < beforeFocusRise - 1, 'The returning lantern must actually rise instead of freezing near the bottom');
+          await released.evaluate(element => element.blur());
           for (const cycle of [.4, 1.4]) {
             await released.evaluate((element, cycle) => {
               const animation = element.getAnimations().find(animation => animation.animationName === 'wish-natural-rise');
@@ -233,6 +260,38 @@ try {
     }
     await page.getByRole('button', { name: 'Release a wish' }).click();
     assert.equal(await page.getByRole('button', { name: 'Release my lantern' }).isDisabled(), true);
+    await page.keyboard.press('Escape');
+    await page.getByRole('link', { name: 'Account and my choices', exact: true }).click();
+    await page.getByRole('link', { name: 'My wishes', exact: true }).click();
+    await page.getByRole('heading', { name: 'My wishes.' }).waitFor();
+    if (viewport.width === 1440) { await page.locator('.my-wishes-page').getByRole('alert').waitFor(); await page.getByRole('button', { name: 'Try again', exact: true }).click(); }
+    await page.getByRole('article', { name: 'Your wish 1', exact: true }).waitFor();
+    assert.equal(await page.locator('.my-wish-card').count(), 3);
+    assert.equal(await page.locator('.my-wish-message').first().innerText(), 'Wish 3');
+    assert.equal(await page.locator('.my-wish-message').last().innerText(), 'a'.repeat(600));
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    assert.equal(await page.evaluate(() => localStorage.getItem('wish-sky-tour-v1')), 'done');
+    await page.getByRole('link', { name: 'See tutorial', exact: true }).click();
+    await page.getByRole('heading', { name: 'Read a wish', exact: true }).waitFor();
+    assert.equal(await page.locator('.wish-tour-progress').innerText(), '1 / 5');
+    if (viewport.width === 1440) {
+      for (const title of ['Play or pause', 'Adjust the volume', 'Light up the sky', 'Release your wish']) {
+        await page.getByRole('button', { name: 'Next', exact: true }).click();
+        await page.getByRole('heading', { name: title, exact: true }).waitFor();
+      }
+      await page.getByRole('button', { name: 'Finish', exact: true }).click();
+    } else await page.getByRole('button', { name: 'Skip tutorial', exact: true }).click();
+    await page.reload();
+    await page.locator('.floating-wish').first().waitFor();
+    assert.equal(await page.locator('.wish-tour-card').count(), 0, 'A finished or skipped replay should stay dismissed on normal visits');
+    await page.evaluate(() => { location.hash = 'my-wishes'; });
+    await page.getByRole('heading', { name: 'My wishes.' }).waitFor();
+    await page.getByRole('link', { name: 'Back to account', exact: true }).click();
+    await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+    await page.evaluate(() => { location.hash = 'my-wishes'; });
+    await page.getByRole('heading', { name: 'My wishes.' }).waitFor();
+    await page.getByText('Sign in to revisit the wishes you’ve released.').waitFor();
+    assert.equal(await page.locator('.my-wish-card').count(), 0, 'Signing out must clear the account wishes');
     assert.deepEqual(errors, []);
     await context.close();
   }

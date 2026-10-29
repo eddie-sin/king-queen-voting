@@ -3,6 +3,7 @@ import { LanternResultsPage, SectionResultsLink } from './components/SectionResu
 import { announceAccountChange } from './authSession.js';
 import { SiteHeader } from './components/SiteHeader.jsx';
 import WishSky from './wishes/WishSky.jsx';
+import MyWishes from './wishes/MyWishes.jsx';
 import { readStoredSession, writeStoredSession, useFestival } from './hooks/useFestival.js';
 import { titleCase } from './domain.js';
 import {
@@ -57,7 +58,7 @@ const NAV_ITEMS = [
     href: '#wishes',
     label: 'Wish Sky',
     hint: 'Write & share your wishes',
-    match: ['wishes'],
+    match: ['wishes', 'my-wishes'],
   },
   {
     id: 'memory-gallery',
@@ -90,6 +91,7 @@ function readRoute() {
       'queen',
       'lanterns',
       'wishes',
+      'my-wishes',
       'entertainment',
       'developers',
       'privacy',
@@ -523,6 +525,8 @@ function FestivalApp({ api, wishApi, fixtureMode = false }) {
               accountOpen={Boolean(accountMode)}
               paused={false}
             />
+          ) : route === 'my-wishes' ? (
+            <MyWishes api={wishApi} session={model.session} onRequireLogin={() => setAccountMode('login')}/>
           ) : route === 'entertainment' ? (
             <>
               {heading(

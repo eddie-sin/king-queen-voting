@@ -13,6 +13,7 @@ const sticks = [
 ];
 
 function shapePoint(shape, angle) {
+  if (['round', 'chrysanthemum', 'willow'].includes(shape)) return { x: Math.cos(angle), y: Math.sin(angle) };
   if (shape === 'heart') return { x: Math.sin(angle) ** 3, y: -(13 * Math.cos(angle) - 5 * Math.cos(2 * angle) - 2 * Math.cos(3 * angle) - Math.cos(4 * angle)) / 17 };
   if (shape === 'butterfly') {
     const radius = (Math.exp(Math.cos(angle)) - 2 * Math.cos(4 * angle) - Math.sin(angle / 12) ** 5) / 3.2;
@@ -49,15 +50,15 @@ function FireworkShow({ show }) {
     };
     const bursts = show.bursts.map(burst => ({ ...burst, particles: Array.from({ length: 210 }, (_, index) => {
       const point = shapePoint(burst.shape, (index < 160 ? index / 160 : Math.random()) * Math.PI * 2);
-      const scatter = index < 160 ? random(.96, 1.04) : random(.15, .85);
+      const scatter = burst.shape === 'chrysanthemum' ? random(.3, 1) : index < 160 ? random(.96, 1.04) : random(.15, .85);
       return { x: point.x * scatter, y: point.y * scatter, radius: random(.6, 1.5), color: Math.random() < .8 ? burst.color : '#fff1c0', flicker: random(0, Math.PI * 2), life: random(2.1, 3.5), driftX: random(-4, 4), driftY: random(-2, 3) };
     }) }));
     const started = performance.now();
     const position = (burst, particle, age) => {
       // Sparks leave a single shell, lose speed, and fall under gravity.
-      const spread = (1 - Math.exp(-2.5 * age)) * burst.size * Math.min(width, 900);
+      const spread = (1 - Math.exp(-(burst.shape === 'willow' ? 1.7 : 2.5) * age)) * burst.size * Math.min(width, 900);
       const drift = Math.max(0, age - .8) ** 2;
-      return { x: burst.x * width + particle.x * spread + burst.wind * age + particle.driftX * drift, y: burst.y * height + particle.y * spread + 8 * age * age + particle.driftY * drift };
+      return { x: burst.x * width + particle.x * spread + burst.wind * age + particle.driftX * drift, y: burst.y * height + particle.y * spread + (burst.shape === 'willow' ? 20 : 8) * age * age + particle.driftY * drift };
     };
     const draw = now => {
       context.clearRect(0, 0, width, height);
@@ -91,7 +92,7 @@ function FireworkShow({ show }) {
           context.globalAlpha = opacity * fading * (motion.matches ? 1 : .78 + .22 * Math.sin(sparkAge * 18 + particle.flicker));
           context.fillStyle = particle.color; context.strokeStyle = particle.color;
           if (!motion.matches) {
-            const tail = position(burst, particle, Math.max(0, sparkAge - .12));
+            const tail = position(burst, particle, Math.max(0, sparkAge - (burst.shape === 'willow' ? .24 : .12)));
             context.lineWidth = particle.radius * .7;
             context.beginPath(); context.moveTo(tail.x, tail.y); context.lineTo(head.x, head.y); context.stroke();
           }
@@ -121,8 +122,9 @@ export default function FireworkStation() {
   function launch() {
     const bounds = station.current.getBoundingClientRect();
     const shapes = ['flower', 'butterfly', 'heart', 'star'];
+    const special = Math.random() < .6 ? Math.floor(Math.random() * 4) : -1;
     const bursts = Array.from({ length: 4 }, (_, index) => ({
-      shape: shapes.splice(Math.floor(Math.random() * shapes.length), 1)[0],
+      shape: index === special ? pick(shapes) : pick(['round', 'chrysanthemum', 'willow']),
       x: random(.23 + (index % 2) * .3, .44 + (index % 2) * .3),
       y: random(.28 + Math.floor(index / 2) * .17, .38 + Math.floor(index / 2) * .17),
       color: pick(colors), delay: index * random(.28, .48), size: random(.18, .23), wind: random(-4, 4),

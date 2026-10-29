@@ -75,4 +75,18 @@ test('Wish Sky keeps cookie ownership private and enforces three wishes during c
  assert.deepEqual(await react(true),{reactions:1,reacted:true});
  assert.equal((await request('/wishes',undefined,200,null)).wishes.find(wish=>wish.id===named.wish.id).reactions,1);
  assert.deepEqual(await react(false),{reactions:0,reacted:false});
+ await request('/wishes/mine/wishes',undefined,401,null);
+ await request('/wishes/mine/wishes',undefined,401,admin);
+ const mine=await request('/wishes/mine/wishes',undefined,200,token);
+ assert.equal(mine.wishes.length,3);
+ assert.deepEqual(new Set(mine.wishes.map(wish=>wish.id)),new Set(wishes.wishes.map(wish=>wish.id)));
+ assert(!JSON.stringify(mine).includes(String(user._id)));
+ const other=await createUser({email:'otherwishes@gmail.com'}),otherToken=await studentToken(other);
+ const otherRead=await fetch(base+'/wishes/mine/wishes',{headers:headers(otherToken)});
+ assert.equal(otherRead.status,200);assert.deepEqual((await otherRead.json()).data.wishes,[]);
+ const otherCreate=await fetch(base+'/wishes',{method:'POST',headers:{...headers(otherToken),'Content-Type':'application/json'},body:JSON.stringify({message:'Another account’s wish'})});
+ assert.equal(otherCreate.status,201);
+ const otherWish=(await otherCreate.json()).data.wish;
+ const refreshed=await request('/wishes/mine/wishes?user='+other._id,undefined,200,token);
+ assert.equal(refreshed.wishes.length,3);assert(!refreshed.wishes.some(wish=>wish.id===otherWish.id));
 });

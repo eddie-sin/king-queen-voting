@@ -87,6 +87,7 @@ export function AccountPanel({
             </div>
           </div>
           <div className="account-head-actions">
+            <a className="btn secondary" href="#my-wishes">My wishes</a>
             <button
               className="btn secondary"
               disabled={busy}

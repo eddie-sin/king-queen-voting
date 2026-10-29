@@ -3,6 +3,7 @@ import { Dialog } from '../components/Dialog.jsx';
 import { useWishSky } from './useWishSky.js';
 import FireworkStation from './FireworkStation.jsx';
 import WishSkyTour from './WishSkyTour.jsx';
+import WishReaction from './WishReaction.jsx';
 export function WishLantern(){return <span className="wish-lantern-shape" aria-hidden="true"><i className="paper-shell"/><i className="lantern-flame"/><i className="lantern-tassel"/></span>;}
 const randomBetween = (min,max) => min + Math.random() * (max - min);
 function makeFlightPath(fresh = false,previous = null){
@@ -43,17 +44,12 @@ function Atmosphere(){
 function useSkyPreferences(){
  const [small,setSmall]=useState(()=>matchMedia('(max-width:580px)').matches),[reduced,setReduced]=useState(()=>matchMedia('(prefers-reduced-motion:reduce)').matches);
  useEffect(()=>{const a=matchMedia('(max-width:580px)'),b=matchMedia('(prefers-reduced-motion:reduce)');const update=()=>{setSmall(a.matches);setReduced(b.matches);};a.addEventListener('change',update);b.addEventListener('change',update);return()=>{a.removeEventListener('change',update);b.removeEventListener('change',update);};},[]);
- return {capacity:small?12:24,reduced};
+ return {capacity:small?8:24,reduced};
 }
 function ReleasedWish({release,launching,onArrive,onRead}){
  const [flight,setFlight]=useState(()=>makeFlightPath(true));
  const [inSky,setInSky]=useState(false);
  return <button className={`floating-wish newly-released-wish ${launching?'is-releasing':''} ${inSky?'is-in-sky':''}`} style={flight} aria-label="Read your released wish" disabled={launching} onClick={()=>onRead({wish:release.wish,index:-1})} onAnimationEnd={e=>{if(e.target!==e.currentTarget)return;if(e.animationName==='release-arrival')onArrive(release.id);else if(e.animationName==='released-wish-flight'){onArrive(release.id);setInSky(true);}}} onAnimationIteration={e=>{if(e.target===e.currentTarget&&e.animationName==='wish-natural-rise')setFlight(previous=>makeFlightPath(false,previous));}}><WishLantern/></button>;
-}
-function WishReaction({wish,onReact}) {
- const [busy,setBusy]=useState(false),[error,setError]=useState('');
- useEffect(()=>setError(''),[wish.id]);
- return <div className="wish-reaction"><button type="button" className={`wish-react-button ${wish.reacted?'is-reacted':''}`} aria-label={wish.reacted?'Remove reaction':'React to wish'} aria-pressed={wish.reacted} disabled={busy} onClick={async()=>{setBusy(true);setError('');try{await onReact(wish,!wish.reacted);}catch(e){setError(e.message);}finally{setBusy(false);}}}><span aria-hidden="true">{wish.reacted?'♥':'♡'}</span> {wish.reactions}</button>{error&&<p role="alert" className="inline-error">{error}</p>}</div>;
 }
 export default function WishSky({api,session,onRequireLogin,accountOpen,paused}){
  const {capacity,reduced}=useSkyPreferences();const model=useWishSky(api,session,capacity);
