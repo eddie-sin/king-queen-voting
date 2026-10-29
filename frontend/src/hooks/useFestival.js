@@ -3,11 +3,17 @@ import { announcementState, eventState, savedChoices } from '../domain.js';
 const EMPTY = { king: null, queen: null };
 import {readStoredSession,writeStoredSession,announceAccountChange} from '../authSession.js';
 export {readStoredSession,writeStoredSession} from '../authSession.js';
+export const SESSION_CHECK_TIMEOUT_MS = 6000;
+export function withSessionTimeout(promise, timeoutMs = SESSION_CHECK_TIMEOUT_MS) {
+  let timer;
+  const timeout = new Promise((_, reject) => { timer = setTimeout(() => reject(Object.assign(new Error('Authentication service is temporarily unavailable.'), { code: 'SESSION_TIMEOUT' })), timeoutMs); });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
 export function useFestival(api) {
   const [candidates, setCandidates] = useState([]), [candidateState, setCandidateState] = useState('loading'), [candidateError, setCandidateError] = useState('');
   const [lanterns, setLanterns] = useState([]), [lanternState, setLanternState] = useState('loading'), [lanternError, setLanternError] = useState('');
   const [controls, setControls] = useState(null), [controlsError, setControlsError] = useState(''), [checkedAt, setCheckedAt] = useState(0), [now, setNow] = useState(Date.now());
-  const [session, setSession] = useState(readStoredSession), [choices, setChoices] = useState(EMPTY), [choiceState, setChoiceState] = useState('loading');
+  const [session, setSession] = useState(readStoredSession), [sessionReady, setSessionReady] = useState(false), [choices, setChoices] = useState(EMPTY), [choiceState, setChoiceState] = useState('loading');
   const [busy, setBusy] = useState(false), [notice, setNotice] = useState(null), [celebration, setCelebration] = useState(0);
   const [results, setResults] = useState(null), [resultsLoad, setResultsLoad] = useState('idle'), [resultsError, setResultsError] = useState('');
   const current = useRef({ controls: null, checkedAt: 0, session, choices: EMPTY, choiceState: 'loading', results: null });
@@ -118,13 +124,26 @@ export function useFestival(api) {
   async function restoreSession() {
     const generation=epoch.current;
     try {
-      const data=api.session?await api.session():null;
+      const data=api.session?await withSessionTimeout(api.session()):null;
       if(!mounted.current||generation!==epoch.current)return;
       if(data?.sessionKey&&data.user){
         if(current.current.session?.token!==data.sessionKey){epoch.current++;clearChoices();}
-        updateSession({token:data.sessionKey,user:data.user}); await refreshChoices();
+        updateSession({token:data.sessionKey,user:data.user}); await withSessionTimeout(refreshChoices());
+      } else {
+        updateSession(null);
+        clearChoices();
       }
-    } catch(error) { if([401,403].includes(error.status)&&generation===epoch.current){epoch.current++;updateSession(null);clearChoices();} }
+    } catch(error) {
+      if (generation === epoch.current && mounted.current) {
+        epoch.current++;
+        updateSession(null);
+        clearChoices();
+        setNotice({ type: 'error', text: [401, 403].includes(error.status)
+          ? 'Your account session ended. Please sign in again.'
+          : 'The account service is unavailable. Please try signing in again.' });
+      }
+    }
+    finally { if (mounted.current) setSessionReady(true); }
   }
   async function acceptLogin(data) {
     if(!data?.user||!(data.sessionKey||data.token))throw new Error('The sign-in response is incomplete.');
@@ -168,6 +187,6 @@ export function useFestival(api) {
     lanterns, lanternState, lanternError, reloadLanterns: loadLanterns, controls, controlsError,
     status: fresh ? eventState(controls) : { registration: 'unknown', voting: 'unknown' }, reloadControls: loadControls,
     resultsStage: fresh ? announcementState(controls) : 'unknown', results: fresh ? results : null, resultsLoad, resultsError, reloadResults: loadResults,
-    session, choices, choiceState, busy, notice, celebration, dismissNotice: () => setNotice(null),
+    session, sessionReady, choices, choiceState, busy, notice, celebration, dismissNotice: () => setNotice(null),
     login, register, acceptLogin, signOut, refreshChoices, mutate };
 }

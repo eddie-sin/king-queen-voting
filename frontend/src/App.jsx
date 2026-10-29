@@ -24,11 +24,14 @@ import { LanternGallery } from './components/LanternGallery.jsx';
 import MusicPlayer from './components/MusicPlayer.jsx';
 import PrivacyPage from './components/PrivacyPage.jsx';
 import HomePage from './components/HomePage.jsx';
+import AuthLanding from './components/AuthLanding.jsx';
 import DevelopersPage from './components/DevelopersPage.jsx';
 import './home.css';
+import './authLanding.css';
 import { ResultsPage } from './components/Results.jsx';
 import MemoryPhotoDemo from './memory/MemoryPhotoDemo.jsx';
 import { memoryTabFromHash } from './memory/demo.js';
+import { isMemoryDemoHash, shouldShowGuestLanding, shouldShowSessionCheckShell, shouldShowSessionLoader } from './authRoutePolicy.js';
 
 const NAV_ITEMS = [
   {
@@ -127,6 +130,7 @@ function PlaceholderStage({ badge, title, description, primaryAction }) {
 export default function App(props) {
   const [memoryMenuOpen, setMemoryMenuOpen] = useState(false);
   const [memorySession, setMemorySession] = useState(readStoredSession);
+  const [memorySessionReady, setMemorySessionReady] = useState(false);
   const [memoryAuthError, setMemoryAuthError] = useState('');
   const memoryAuthSequence = useRef(0);
   const [returnToMemories, setReturnToMemories] = useState(false);
@@ -183,14 +187,16 @@ export default function App(props) {
     };
   }, [Boolean(memoryTab)]);
 
-  const isDemo =
-    props.fixtureMode ||
-    ['#my-memories-demo', '#memory-gallery-demo', '#memory-upload-demo'].includes(
-      memoryHash,
-    );
+  // Demo pages are available only in the explicit fixture preview, never in a
+  // normal production build where their sample content could be mistaken for live data.
+  const isDemo = Boolean(props.fixtureMode) && isMemoryDemoHash(memoryHash);
 
   useEffect(() => {
-    if (!memoryTab || isDemo || !props.api?.session) return;
+    if (!memoryTab || isDemo || !props.api?.session) {
+      setMemorySessionReady(true);
+      return;
+    }
+    setMemorySessionReady(false);
     let live = true;
     const restore = async () => {
       const sequence = ++memoryAuthSequence.current;
@@ -198,15 +204,15 @@ export default function App(props) {
         const data = await props.api.session();
         if (live && sequence === memoryAuthSequence.current) {
           writeStoredSession({ token: data.sessionKey, user: data.user });
+          setMemorySession({ token: data.sessionKey, user: data.user });
         }
       } catch (e) {
-        if (
-          live &&
-          sequence === memoryAuthSequence.current &&
-          [401, 403].includes(e.status)
-        ) {
+        if (live && sequence === memoryAuthSequence.current) {
           writeStoredSession(null);
+          setMemorySession(null);
         }
+      } finally {
+        if (live && sequence === memoryAuthSequence.current) setMemorySessionReady(true);
       }
     };
     const external = e => {
@@ -220,7 +226,7 @@ export default function App(props) {
       window.removeEventListener('focus', restore);
       window.removeEventListener('storage', external);
     };
-  }, [Boolean(memoryTab), props.api]);
+  }, [Boolean(memoryTab), isDemo, props.api]);
 
   const memorySignOut = async () => {
     try {
@@ -244,6 +250,33 @@ export default function App(props) {
   };
 
   // Memory pages reuse the session store without mounting unrelated API hooks.
+  if (memoryTab && !isDemo && shouldShowSessionLoader({ sessionReady: memorySessionReady, session: memorySession })) {
+    return <div className="festival-app source-app auth-route"><Sky /><main className="auth-loading" aria-live="polite">Preparing your festival welcome…</main></div>;
+  }
+  if (memoryTab && !isDemo && shouldShowSessionCheckShell({ sessionReady: memorySessionReady, session: memorySession })) {
+    return <div className="festival-app source-app memory-route"><Sky /><SiteHeader items={NAV_ITEMS} route="memory-gallery" session={memorySession} menuOpen={memoryMenuOpen} setMenuOpen={setMemoryMenuOpen} onLogin={memoryLogin} onRegister={memoryLogin} onSignOut={memorySignOut} /><main className="auth-session-check" aria-live="polite">Checking your festival account…</main></div>;
+  }
+  if (memoryTab && !isDemo && !memorySession) {
+    return (
+      <div className="festival-app source-app auth-route">
+        <Sky />
+        <AuthLanding
+          api={props.api}
+          registrationStatus="open"
+          onOpenLogin={() => {}}
+          onOpenRegister={() => {}}
+          onLogin={async (...args) => {
+            const data = await props.api.login(...args);
+            writeStoredSession({ token: data.sessionKey || data.token, user: data.user });
+            location.reload();
+          }}
+          onRegister={props.api.register}
+          onAuthenticated={() => {}}
+          onRefreshControls={() => {}}
+        />
+      </div>
+    );
+  }
   if (memoryTab) {
     return (
       <div className="festival-app source-app memory-route">
@@ -262,12 +295,7 @@ export default function App(props) {
           tab={memoryTab}
           api={props.api}
           onRequireLogin={memoryLogin}
-          demo={
-            props.fixtureMode ||
-            ['#my-memories-demo', '#memory-gallery-demo', '#memory-upload-demo'].includes(
-              memoryHash,
-            )
-          }
+          demo={isDemo}
         />
       </div>
     );
@@ -359,6 +387,30 @@ function FestivalApp({ api, wishApi, fixtureMode = false }) {
       <p>{description}</p>
     </div>
   );
+
+  if (shouldShowSessionLoader({ sessionReady: model.sessionReady, session: model.session, fixtureMode })) {
+    return <div className="festival-app source-app auth-route"><Sky /><main className="auth-loading" aria-live="polite">Preparing your festival welcome…</main></div>;
+  }
+  if (shouldShowSessionCheckShell({ sessionReady: model.sessionReady, session: model.session, fixtureMode })) {
+    return <div className="festival-app source-app"><Sky /><SiteHeader items={NAV_ITEMS} route={route} session={model.session} menuOpen={menuOpen} setMenuOpen={setMenuOpen} onLogin={() => setAccountMode('login')} onRegister={() => setAccountMode('register')} onSignOut={model.signOut} /><main id="main" className="auth-session-check" aria-live="polite">Checking your festival account…</main></div>;
+  }
+  if (shouldShowGuestLanding({ sessionReady: model.sessionReady, session: model.session, fixtureMode })) {
+    return (
+      <div className="festival-app source-app auth-route">
+        <Sky />
+        <AuthLanding
+          api={api}
+          registrationStatus={model.status.registration}
+          onOpenLogin={() => {}}
+          onOpenRegister={() => {}}
+          onLogin={model.login}
+          onRegister={model.register}
+          onAuthenticated={model.acceptLogin}
+          onRefreshControls={model.reloadControls}
+        />
+      </div>
+    );
+  }
 
   return (
     <div
