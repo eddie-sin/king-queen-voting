@@ -12,7 +12,8 @@ try {
   const png = await readFile('../postman/fixtures/memory-photo.png');
   for (const width of [1440, 390]) {
     const context = await browser.newContext({ viewport: { width, height: 950 }, reducedMotion: 'reduce' });
-    const page = await context.newPage(); const errors = []; page.on('pageerror', e => errors.push(e.message));
+    const page = await context.newPage();
+    await page.addInitScript(() => localStorage.setItem('festival-language', 'en')); const errors = []; page.on('pageerror', e => errors.push(e.message));
     let mode = 'loading', imageFailure = false, release;
     const wait = new Promise(resolve => release = resolve);
     await page.route('**/api/**', async route => {
@@ -22,6 +23,7 @@ try {
         assert.match(url.pathname, /^\/api\/v1\/memory-photos\/[a-f0-9]{24}\/image$/);
         return route.fulfill(imageFailure ? { status: 404, body: 'Unavailable' } : { contentType: 'image/png', body: png });
       }
+      if (url.pathname.endsWith('/auth/me')) return route.fulfill({ status: 401, json: { status: 'fail' } });
       assert.equal(url.pathname, '/api/v1/memory-photos');
       assert.equal(url.searchParams.get('limit'), '20');
       if (mode === 'loading') await wait;
@@ -51,7 +53,7 @@ try {
     mode = 'ready'; imageFailure = true; await page.getByRole('button', { name: 'Refresh gallery', exact: true }).click();
     await page.locator('.mp-print').first().waitFor();
     await page.locator('.mp-print').first().scrollIntoViewIfNeeded();
-    await page.getByText('This image needs a moment.').first().waitFor();
+    await page.getByText('This photo could not be loaded.').first().waitFor();
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)); assert.deepEqual(errors, []);
     await page.getByRole('link', { name: 'View explicitly labeled demo gallery' }).click();
     await page.getByRole('button', { name: 'Enlarge demo photo 1', exact: true }).waitFor();

@@ -6,7 +6,7 @@ export const wishBackendConfig = {
     if (cursor) params.set('cursor', cursor);
     return { path: `/wishes?${params}` };
   },
-  mapList: payload => ({ wishes: payload.data.wishes, nextCursor: payload.data.nextCursor }),
+  mapList: payload => ({ wishes: payload.data.wishes, nextCursor: payload.data.nextCursor, total: payload.data.total }),
   allowanceRequest: () => ({ path: '/wishes/mine' }),
   mapAllowance: payload => ({ used: payload.data.used }),
   createRequest: message => ({ path: '/wishes', method: 'POST', body: { message } }),

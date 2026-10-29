@@ -3,7 +3,9 @@ import { createServer } from 'vite';
 import { readFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 process.env.VOTING_API_TARGET = 'http://127.0.0.1:1';
-const server = await createServer({ configFile: 'vite.config.js', server: { host: '127.0.0.1', port: 0 } });
+// Use an ephemeral test port so an already-running manual preview is never
+// disturbed by the browser suite.
+const server = await createServer({ configFile: false, server: { host: '127.0.0.1', port: 0 } });
 await server.listen(); let browser;
 const token = 'generated-browser-fixture';
 try {
@@ -20,19 +22,22 @@ try {
       URL.createObjectURL = blob => { const url = create(blob); window.previewCreated.push(url); return url; };
       URL.revokeObjectURL = url => { window.previewRevoked.push(url); revoke(url); };
     }, { token, signed: !state.anonymous });
-    const page = await context.newPage(); const errors = [], posts = [], photos = [];
+    const page = await context.newPage();
+    await page.addInitScript(() => localStorage.setItem('festival-language', 'en')); const errors = [], posts = [], photos = [];
     let reads = 0, active = 0;
     page.on('pageerror', error => errors.push(error.message));
     await page.route('**/api/**', async route => {
       const request = route.request(), path = new URL(request.url()).pathname;
-      assert.equal(request.headers().authorization, `Bearer ${token}`);
+      // v2 student auth uses the HttpOnly cookie session; browser requests
+      // must not expose a bearer token to JavaScript or outgoing headers.
+      assert.equal(request.headers().authorization, undefined);
       if (path.endsWith('/mine')) {
         reads++;
         if (state.mineStatus) return route.fulfill({ status: state.mineStatus, json: { status: 'fail' } });
         const remaining = state.remaining ?? Math.max(0, 3 - photos.length);
         return route.fulfill({ json: { status: 'success', results: photos.length, data: { photos, quota: { limit: 3, acceptedCount: photos.length, remainingSlots: state.changedQuota && reads > 1 ? 0 : remaining } } } });
       }
-      if (path.endsWith('/auth/me')) return route.fulfill({ json: { status: 'success', data: { user: { id: 'fixture-student' } } } });
+      if (path.endsWith('/auth/me')) return route.fulfill({ json: { status: 'success', data: { sessionKey: token, user: { id: 'fixture-student' } } } });
       assert.equal(path, '/api/v1/memory-photos'); assert.equal(request.method(), 'POST');
       assert.match(request.headers()['content-type'], /^multipart\/form-data; boundary=/);
       const body = request.postDataBuffer().toString('latin1');
@@ -67,7 +72,7 @@ try {
     await page.getByText('Limit: 3 · Accepted: 0 · Remaining: 1').waitFor();
     await page.locator('input[type=file][multiple]').setInputFiles([file('one.png'), file('two.png')]);
     assert.equal(await page.locator('.mp-slot.is-filled').count(), 1);
-    await page.getByRole('alert').filter({ hasText: 'remaining lifetime slots' }).waitFor();
+  await page.getByRole('alert').filter({ hasText: 'remaining active slots' }).waitFor();
     await page.getByRole('button', { name: 'Remove selected photo 1' }).click();
     assert.deepEqual(await page.evaluate(() => [previewCreated.length, previewRevoked.length]), [1, 1]);
     await page.locator('input[type=file][multiple]').setInputFiles({ name: 'bad.gif', mimeType: 'image/gif', buffer: png });

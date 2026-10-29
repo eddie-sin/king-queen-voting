@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 const { pipeline } = require("node:stream/promises");
-const Election = require("../model/electionModel");
+const Controls = require("../model/eventControlsModel");
 const MemoryPhoto = require("../model/memoryPhotosModel");
 const Like = require("../model/memoryPhotoLikesModel");
 const storage = require("../utils/memoryPhotoStorage");
@@ -8,7 +8,7 @@ const AppError = require("../utils/appError");
 const catchAsync = require("../utils/catchAsync");
 
 const requireEnabled = async () => {
-  const election = await Election.findById("election").select("memoryPhotosEnabled").lean();
+  const election = await Controls.findById("event").select("memoryPhotosEnabled").lean();
   if (election?.memoryPhotosEnabled !== true) throw new AppError("Memory Photo is disabled.", 403);
 };
 
@@ -40,7 +40,7 @@ exports.listApproved = catchAsync(async (req, res) => {
   }
   const page = pageNumber(req.query.page, 1, 1000, "page");
   const limit = pageNumber(req.query.limit, 20, 50, "limit");
-  const photos = await MemoryPhoto.find({ status: "APPROVED" }).select("_id createdAt")
+  const photos = await MemoryPhoto.find({ status: "APPROVED", archived: { $ne: true }, deletedAt: { $exists: false } }).select("_id createdAt")
     .sort({ createdAt: -1, _id: -1 }).skip((page - 1) * limit).limit(limit + 1).lean();
   const pagePhotos = photos.slice(0, limit);
   const counts = pagePhotos.length ? await Like.aggregate([
@@ -60,7 +60,7 @@ exports.getApprovedImage = catchAsync(async (req, res) => {
   if (!mongoose.isObjectIdOrHexString(req.params.id)) {
     throw new AppError("A valid Memory Photo ID is required.", 400);
   }
-  const filter = { _id: req.params.id, status: "APPROVED" };
+  const filter = { _id: req.params.id, status: "APPROVED", archived: { $ne: true }, deletedAt: { $exists: false } };
   const photo = await MemoryPhoto.findOne(filter).select("imageKey").lean();
   // Use the same response for absent, pending and rejected records.
   if (!photo) throw new AppError("Memory Photo not found.", 404);

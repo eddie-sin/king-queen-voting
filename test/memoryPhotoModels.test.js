@@ -94,8 +94,8 @@ test("MemoryPhoto and likes reference the existing User, Admin, and MemoryPhoto 
   assert.equal(MemoryPhoto.schema.path("reviewedBy").options.ref, "Admin");
   assert.equal(MemoryPhotoLike.schema.path("photoId").options.ref, "MemoryPhoto");
   assert.equal(MemoryPhotoLike.schema.path("userId").options.ref, "User");
-  const owner = await User.create({ email: "model-owner@example.com", passwordHash: "test-only-hash" });
-  const admin = await Admin.create({ username: "model-reviewer", passwordHash: "test-only-hash" });
+  const owner = await User.create({ email: "modelowner@gmail.com", emailKey: "modelowner@gmail.com", emailVerifiedAt: new Date(), passwordHash: "test-only-hash" });
+  const admin = await Admin.create({ username: "model-reviewer", passwordHash: "test-only-hash", role: "memory_admin" });
   const reviewedAt = new Date("2026-10-18T00:00:00Z");
   const photo = await MemoryPhoto.create({
     owner: owner._id, imageKey: "private/reviewed.png", status: "APPROVED",
@@ -115,7 +115,7 @@ test("MemoryPhoto and likes reference the existing User, Admin, and MemoryPhoto 
 test("MemoryPhoto indexes support owner history and moderation without expiring rejected submissions", async () => {
   const indexes = await MemoryPhoto.collection.indexes();
   assert(indexes.some((index) => JSON.stringify(index.key) === JSON.stringify({ owner: 1, createdAt: -1 })));
-  assert(indexes.some((index) => JSON.stringify(index.key) === JSON.stringify({ status: 1, createdAt: -1 })));
+  assert(indexes.some((index) => JSON.stringify(index.key) === JSON.stringify({ status: 1, archived: 1, createdAt: -1 })));
   assert(indexes.every((index) => index.expireAfterSeconds === undefined && index.partialFilterExpression === undefined));
   const owner = objectId();
   for (const status of ["PENDING", "APPROVED", "REJECTED"]) {

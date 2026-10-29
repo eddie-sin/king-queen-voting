@@ -11,13 +11,15 @@ try {
   const base = `http://127.0.0.1:${server.httpServer.address().port}`, png = await readFile('../postman/fixtures/memory-photo.png');
   async function setup(state = {}, width = 1440) {
     const context = await browser.newContext({ viewport: { width, height: 1000 }, reducedMotion: 'reduce' });
-    if (!state.anonymous) await context.addInitScript(() => localStorage.setItem('thadingyut_voter_session', JSON.stringify({ token: 'student-a', user: { id: 'a' } })));
+    state.account = state.anonymous ? null : (state.account || 'student-a');
     const page = await context.newPage(), batches = [], mutations = [], errors = [];
+    await page.addInitScript(() => localStorage.setItem('festival-language', 'en'));
     const liked = { 'student-a': new Set([id(1)]), 'student-b': new Set() }, counts = new Map();
     page.on('pageerror', error => errors.push(error.message));
     await page.route('**/api/**', async route => {
       const req = route.request(), url = new URL(req.url()), path = url.pathname;
-      const auth = req.headers().authorization?.replace('Bearer ', '');
+      const auth = state.account;
+      assert.equal(req.headers().authorization, undefined);
       const ok = data => route.fulfill({ json: { status: 'success', data } });
       const fail = status => route.fulfill({ status, json: { status: 'fail' } });
       if (path.endsWith('/like-status')) {
@@ -41,15 +43,19 @@ try {
         return ok({ photoId, liked: value, likeCount: counts.get(photoId) });
       }
       if (path.endsWith('/memory-photos')) {
-        assert.equal(auth, undefined); if (state.disabled) return fail(403);
+        assert.equal(req.headers().authorization, undefined); if (state.disabled) return fail(403);
         const n = Number(url.searchParams.get('page'));
         const photos = Array.from({ length: n === 1 ? 20 : 1 }, (_, i) => ({ id: id(n === 1 ? i + 1 : 21), createdAt: '2026-10-22T10:00:00Z', likeCount: counts.get(id(i + 1)) ?? 5 }));
         return route.fulfill({ json: { status: 'success', results: photos.length, pagination: { page: n, limit: 20, hasMore: n === 1 }, data: { photos } } });
       }
       if (path.endsWith('/image')) return route.fulfill({ contentType: 'image/png', body: png });
-      if (path.endsWith('/auth/login')) return ok({ token: 'student-a', user: { id: 'a', email: 'a@example.test' } });
-      if (path.endsWith('/auth/me')) return ok({ user: { id: 'a', email: 'a@example.test' } });
-      if (path.endsWith('/settings')) return ok({ schedule: { registrationClosesAt: '2099-01-01T00:00:00Z', votingOpensAt: '2099-01-02T00:00:00Z', votingClosesAt: '2099-01-03T00:00:00Z', resultsPublishedAt: '2099-01-04T00:00:00Z', timezone: 'Asia/Yangon' } });
+      if (path.endsWith('/auth/config')) return ok({ csrfToken: 'likes-fixture-csrf', googleClientId: null });
+      if (path.endsWith('/auth/pending')) return ok({ flow: null });
+      if (path.endsWith('/auth/login')) { state.account = 'student-a'; return ok({ sessionKey: 'student-a', user: { id: 'a', email: 'a@gmail.com' } }); }
+      if (path.endsWith('/auth/me')) return state.account ? ok({ sessionKey: state.account, user: { id: state.account, email: `${state.account}@gmail.com`, round: 1 } }) : fail(401);
+      if (path.endsWith('/voting/my-votes')) return ok({ votes: [], round: 1, window: 1 });
+      if (path.endsWith('/lantern-voting')) return ok({ open: false, announced: false, window: 0, winner: null });
+      if (path.endsWith('/settings')) return ok({ controls: { registrationOpen: true, votingStatus: 'closed', announcementOpen: false, memoryPhotosEnabled: true, round: 1, window: 1, revision: 0, candidateManagementLocked: false } });
       if (path.endsWith('/candidates')) return ok({ candidates: [] });
       if (path.endsWith('/images')) return ok({ images: [] });
       throw Error(`Unexpected API: ${path}`);
@@ -58,8 +64,9 @@ try {
     return { page, context, batches, mutations, errors };
   }
   const heart = (page, index = 0) => page.locator('.mp-print .mp-heart').nth(index);
-  async function switchAccount(page, token) {
-    await page.evaluate(token => { token ? localStorage.setItem('thadingyut_voter_session', JSON.stringify({ token, user: { id: token } })) : localStorage.removeItem('thadingyut_voter_session'); window.dispatchEvent(new Event('storage')); }, token);
+  async function switchAccount(state, page, token) {
+    state.account = token;
+    await page.evaluate(() => window.dispatchEvent(new StorageEvent('storage', { key: 'festival-account-change' })));
   }
   for (const width of [1440, 390]) {
     const state = { mutationWait: 200 }, { page, context, batches, mutations, errors } = await setup(state, width);
@@ -83,10 +90,10 @@ try {
     assert.deepEqual(batches.at(-1).ids, [id(21)]);
     await page.getByRole('button', { name: 'Previous', exact: true }).click();
     await page.getByRole('button', { name: 'Unlike memory · 37 likes', exact: true }).waitFor();
-    await switchAccount(page, 'student-b');
+    await switchAccount(state, page, 'student-b');
     await page.getByRole('button', { name: 'Like memory · 37 likes', exact: true }).waitFor();
     assert.equal(batches.at(-1).auth, 'student-b');
-    await switchAccount(page, null); await page.getByRole('button', { name: 'Sign in to like memory · 37 likes', exact: true }).waitFor();
+    await switchAccount(state, page, null); await page.getByRole('button', { name: 'Sign in to like memory · 37 likes', exact: true }).waitFor();
     assert.equal(await heart(page).getAttribute('aria-pressed'), null); assert.deepEqual(errors, []); await context.close();
   }
   for (const failure of ['network', 401, 403]) {
@@ -108,7 +115,7 @@ try {
     const state = { batchWait: 350 }, { page, context, batches } = await setup(state);
     await heart(page).waitFor(); assert(await heart(page).isDisabled());
     await page.getByRole('button', { name: 'Next', exact: true }).click();
-    await switchAccount(page, 'student-b');
+    await switchAccount(state, page, 'student-b');
     await page.getByRole('button', { name: 'Like memory · 5 likes', exact: true }).waitFor();
     assert.deepEqual(batches.at(-1).ids, [id(21)]); assert.equal(batches.at(-1).auth, 'student-b');
     assert.equal(await page.locator('.mp-print').count(), 1); await context.close();
@@ -116,7 +123,7 @@ try {
   {
     const state = { mutationWait: 400 }, { page, context } = await setup(state);
     await page.getByRole('button', { name: 'Unlike memory · 5 likes', exact: true }).waitFor(); await heart(page).click();
-    await switchAccount(page, 'student-b');
+    await switchAccount(state, page, 'student-b');
     await page.getByRole('button', { name: 'Like memory · 5 likes', exact: true }).first().waitFor();
     await page.waitForTimeout(450); assert.equal(await heart(page).getAttribute('aria-pressed'), 'false');
     assert.equal(await heart(page).textContent(), '5'); await context.close();
@@ -127,9 +134,9 @@ try {
     await heart(page).click(); await page.waitForURL('**/#account');
     await page.getByRole('button', { name: 'Sign in', exact: true }).first().click();
     const dialog = page.getByRole('dialog'); await dialog.waitFor();
-    await dialog.getByLabel('Email', { exact: false }).fill('a@example.test');
+    await dialog.getByLabel('Gmail address', { exact: true }).fill('a@gmail.com');
     await dialog.getByLabel('Password', { exact: true }).fill('generated-fixture-password');
-    await dialog.locator('form').getByRole('button', { name: 'Login', exact: true }).click();
+    await dialog.locator('form').getByRole('button', { name: 'Sign in', exact: true }).click();
     await page.waitForURL('**/#memory-gallery'); await page.getByRole('button', { name: 'Unlike memory · 5 likes', exact: true }).waitFor();
     await context.close();
   }

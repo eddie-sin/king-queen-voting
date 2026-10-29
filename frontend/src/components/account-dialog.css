@@ -1,0 +1,880 @@
+/* Redesigned Thadingyut Festival Authentication Dialog Styles
+   Theme: Midnight Navy (#05152c, #0a1625), Imperial Gold (#edc77d, #f4d58f), Royal Cream (#fff1d4)
+*/
+
+.festival-dialog.account-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(490px, calc(100vw - 28px));
+  max-height: calc(100svh - 32px);
+  padding: 36px 32px 30px;
+  background: radial-gradient(ellipse 90% 50% at 50% 0%, rgba(26, 58, 98, 0.45) 0%, rgba(10, 24, 45, 0.98) 75%), #071527;
+  border: 1px solid rgba(237, 199, 125, 0.35);
+  border-radius: 20px;
+  box-shadow: 0 24px 80px rgba(1, 7, 16, 0.85), 0 0 35px rgba(237, 199, 125, 0.12), inset 0 1px 0 rgba(255, 241, 212, 0.2);
+  color: var(--cream, #fff1d4);
+  position: relative;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(237, 199, 125, 0.3) transparent;
+}
+
+.festival-dialog.account-dialog::-webkit-scrollbar {
+  width: 6px;
+}
+.festival-dialog.account-dialog::-webkit-scrollbar-thumb {
+  background: rgba(237, 199, 125, 0.3);
+  border-radius: 999px;
+}
+
+/* Visually hide default dialog title for screen readers while retaining aria-labelledby binding */
+.festival-dialog.account-dialog > .dialog-title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  padding: 0;
+  margin: 0;
+  border: 0;
+}
+
+/* Close button (44x44px touch target) */
+.festival-dialog.account-dialog .close-button {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(8, 24, 46, 0.65);
+  border: 1px solid rgba(212, 181, 118, 0.25);
+  color: var(--gold, #edc77d);
+  font-size: 24px;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  z-index: 10;
+}
+.festival-dialog.account-dialog .close-button:hover {
+  background: rgba(237, 199, 125, 0.18);
+  border-color: var(--gold, #edc77d);
+  color: #ffffff;
+  transform: rotate(90deg) scale(1.05);
+}
+
+/* Header Area with Centered Medallion */
+.auth-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-bottom: 22px;
+  width: 100%;
+}
+
+.auth-medallion-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+.auth-medallion {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle at 35% 30%, rgba(244, 213, 143, 0.25), rgba(7, 21, 38, 0.95));
+  border: 1px solid rgba(237, 199, 125, 0.5);
+  box-shadow: 0 0 24px rgba(237, 199, 125, 0.25), inset 0 0 12px rgba(237, 199, 125, 0.15);
+  color: var(--gold, #edc77d);
+  transition: transform 0.3s ease;
+}
+.auth-medallion svg {
+  width: 30px;
+  height: 30px;
+  filter: drop-shadow(0 0 6px rgba(237, 199, 125, 0.4));
+}
+.auth-medallion:hover {
+  transform: scale(1.05);
+}
+
+.auth-eyebrow {
+  display: inline-block;
+  font-family: var(--ui, 'DM Sans', sans-serif);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 2.2px;
+  text-transform: uppercase;
+  color: var(--gold, #edc77d);
+  margin-bottom: 8px;
+  opacity: 0.95;
+}
+
+.auth-visual-title {
+  font-family: var(--display, 'Cormorant Garamond', Georgia, serif);
+  font-size: 36px;
+  font-weight: 400;
+  line-height: 1.12;
+  letter-spacing: -0.5px;
+  margin: 0 0 8px;
+  color: #fff6e5;
+  text-align: center;
+}
+.auth-visual-title em {
+  font-style: italic;
+  color: var(--gold, #edc77d);
+}
+
+.auth-subtitle {
+  font-family: var(--ui, 'DM Sans', sans-serif);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--muted, #9bb4cf);
+  max-width: 380px;
+  margin: 0 auto;
+}
+
+/* Legacy dialog elements reset */
+.festival-dialog.account-dialog .dialog-ornament,
+.festival-dialog.account-dialog .dialog-intro {
+  display: none;
+}
+
+/* Segmented Tabs (Sign In / Register) */
+.festival-dialog.account-dialog .auth-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  background: rgba(4, 15, 30, 0.85);
+  border: 1px solid rgba(212, 181, 118, 0.28);
+  border-radius: 999px;
+  padding: 4px;
+  margin: 0 0 20px;
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.45);
+}
+
+.festival-dialog.account-dialog .auth-tabs button {
+  min-height: 40px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: transparent;
+  font-family: var(--ui, 'DM Sans', sans-serif);
+  font-size: 13px;
+  font-weight: 500;
+  color: #9bb4cf;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.2, 0, 0, 1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.festival-dialog.account-dialog .auth-tabs button:hover:not([aria-pressed="true"]) {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.festival-dialog.account-dialog .auth-tabs button[aria-pressed="true"],
+.festival-dialog.account-dialog .auth-tabs button.is-active {
+  background: linear-gradient(110deg, #f4d58f, #dcac58);
+  color: #112035;
+  font-weight: 600;
+  box-shadow: 0 3px 14px rgba(237, 199, 125, 0.35);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Registration Status Banner */
+.auth-status-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  margin-bottom: 18px;
+  font-size: 12px;
+  line-height: 1.4;
+  border: 1px solid rgba(212, 181, 118, 0.25);
+  background: rgba(8, 25, 48, 0.55);
+}
+.auth-status-card.is-open {
+  border-color: rgba(94, 219, 153, 0.35);
+  background: rgba(9, 38, 28, 0.45);
+  color: #bdf6d5;
+}
+.auth-status-card.is-closed {
+  border-color: rgba(247, 180, 113, 0.35);
+  background: rgba(43, 26, 12, 0.45);
+  color: #ffd8b3;
+}
+.auth-status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.auth-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.auth-status-card.is-open .auth-status-dot {
+  background: #38d689;
+  box-shadow: 0 0 10px #38d689;
+}
+.auth-status-card.is-closed .auth-status-dot {
+  background: #f7a048;
+  box-shadow: 0 0 10px #f7a048;
+}
+.auth-status-card .btn-refresh {
+  padding: 4px 10px;
+  font-size: 11px;
+  min-height: 28px;
+  border-radius: 6px;
+  border: 1px solid rgba(237, 199, 125, 0.4);
+  background: rgba(237, 199, 125, 0.12);
+  color: var(--gold, #edc77d);
+  cursor: pointer;
+}
+
+/* Google Sign-In Container */
+.auth-google-wrapper {
+  margin: 0 0 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.auth-google-wrapper .google-sign-in {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+.auth-google-wrapper .google-sign-in > div {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+.auth-google-wrapper .google-sign-in iframe {
+  color-scheme: normal !important;
+  border-radius: 999px !important;
+}
+
+/* Custom styled fallback/test Google button */
+.auth-google-wrapper .google-sign-in button {
+  width: 100%;
+  max-width: 320px;
+  min-height: 44px;
+  border-radius: 999px;
+  border: 1px solid rgba(212, 181, 118, 0.35);
+  background: rgba(10, 26, 49, 0.85);
+  color: #fff1d4;
+  font-family: var(--ui, 'DM Sans', sans-serif);
+  font-size: 13px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+}
+.auth-google-wrapper .google-sign-in button:hover {
+  background: rgba(18, 42, 75, 0.95);
+  border-color: var(--gold, #edc77d);
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+/* Luxury Divider */
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 16px 0 6px;
+  width: 100%;
+}
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(212, 181, 118, 0.35), transparent);
+}
+.auth-divider span {
+  font-family: var(--ui, 'DM Sans', sans-serif);
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #8da4be;
+  white-space: nowrap;
+}
+
+/* Form Groups & Inputs */
+.festival-dialog.account-dialog form {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.auth-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  position: relative;
+}
+
+.auth-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.auth-label-row label {
+  margin: 0;
+  font-family: var(--ui, 'DM Sans', sans-serif);
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff1d4;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.auth-field-badge {
+  font-size: 10px;
+  letter-spacing: 0.8px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(237, 199, 125, 0.12);
+  border: 1px solid rgba(237, 199, 125, 0.28);
+  color: var(--gold, #edc77d);
+}
+
+.auth-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  border-radius: 10px;
+  background: rgba(5, 16, 32, 0.88);
+  border: 1px solid rgba(212, 181, 118, 0.32);
+  transition: all 0.22s ease;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.35);
+}
+.auth-input-wrapper:focus-within {
+  border-color: var(--gold, #edc77d);
+  box-shadow: 0 0 16px rgba(237, 199, 125, 0.22), inset 0 1px 2px rgba(0, 0, 0, 0.2);
+  background: rgba(7, 21, 41, 0.95);
+}
+
+.auth-input-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  color: #8fa7c3;
+  pointer-events: none;
+  transition: color 0.2s ease;
+  z-index: 2;
+}
+.auth-input-wrapper:focus-within .auth-input-icon {
+  color: var(--gold, #edc77d);
+}
+
+.auth-input-wrapper input {
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 44px 12px 44px !important;
+  background: transparent;
+  border: none !important;
+  border-radius: 10px;
+  color: #fff6e5;
+  font-family: var(--ui, 'DM Sans', sans-serif);
+  font-size: 14px;
+}
+.auth-input-wrapper input:focus {
+  outline: none;
+}
+.auth-input-wrapper input::placeholder {
+  color: #6983a0;
+  font-size: 13px;
+}
+
+/* Visibility eye toggle button */
+.auth-eye-toggle {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: none;
+  color: #8da4be;
+  border-radius: 6px;
+  padding: 0;
+  cursor: pointer;
+  transition: color 0.2s, background-color 0.2s;
+  z-index: 2;
+}
+.auth-eye-toggle:hover {
+  color: var(--gold, #edc77d);
+  background: rgba(237, 199, 125, 0.1);
+}
+.auth-eye-toggle svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* Checkbox toggle */
+.festival-dialog.account-dialog .show-password {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #9bb4cf;
+  margin: 6px 0 0;
+  cursor: pointer;
+  user-select: none;
+}
+.festival-dialog.account-dialog .show-password input[type="checkbox"] {
+  accent-color: var(--gold, #edc77d);
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+/* ──────────────────────────────────────────────────────────
+   FEATURE: CREATE STRONG PASSWORD GENERATOR & STRENGTH METER
+   ────────────────────────────────────────────────────────── */
+.auth-password-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.auth-generator-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.btn-strong-generator {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 14px;
+  min-height: 34px;
+  border-radius: 8px;
+  border: 1px solid rgba(237, 199, 125, 0.45);
+  background: linear-gradient(135deg, rgba(237, 199, 125, 0.18), rgba(212, 181, 118, 0.08));
+  color: var(--gold, #edc77d);
+  font-family: var(--ui, 'DM Sans', sans-serif);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.22s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+.btn-strong-generator:hover {
+  background: linear-gradient(135deg, rgba(237, 199, 125, 0.3), rgba(212, 181, 118, 0.15));
+  border-color: #f7dfa7;
+  color: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(237, 199, 125, 0.25);
+}
+.btn-strong-generator svg {
+  width: 14px;
+  height: 14px;
+  color: var(--gold, #edc77d);
+  filter: drop-shadow(0 0 4px rgba(237, 199, 125, 0.6));
+}
+
+.btn-copy-password {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  min-height: 32px;
+  border-radius: 8px;
+  border: 1px solid rgba(212, 181, 118, 0.3);
+  background: rgba(9, 26, 48, 0.7);
+  color: #bed0e6;
+  font-family: var(--ui, 'DM Sans', sans-serif);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.btn-copy-password:hover {
+  border-color: var(--gold, #edc77d);
+  color: #ffffff;
+  background: rgba(237, 199, 125, 0.12);
+}
+.btn-copy-password.is-copied {
+  border-color: #49d78e;
+  background: rgba(73, 215, 142, 0.15);
+  color: #79f5b2;
+}
+
+/* Password Strength Indicator */
+.auth-strength-meter {
+  background: rgba(5, 15, 30, 0.6);
+  border: 1px solid rgba(212, 181, 118, 0.18);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.auth-strength-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+}
+.auth-strength-title {
+  color: #8da4be;
+}
+.auth-strength-label {
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: capitalize;
+}
+.auth-strength-label.lvl-0 { color: #f58476; }
+.auth-strength-label.lvl-1 { color: #f7a048; }
+.auth-strength-label.lvl-2 { color: #edd27b; }
+.auth-strength-label.lvl-3 { color: #62e5a3; }
+
+.auth-strength-bars {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
+  height: 4px;
+}
+.auth-strength-bar {
+  height: 100%;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease;
+}
+.auth-strength-bar.is-active.lvl-0 { background: #f58476; box-shadow: 0 0 6px rgba(245, 132, 118, 0.5); }
+.auth-strength-bar.is-active.lvl-1 { background: #f7a048; box-shadow: 0 0 6px rgba(247, 160, 72, 0.5); }
+.auth-strength-bar.is-active.lvl-2 { background: #edd27b; box-shadow: 0 0 6px rgba(237, 210, 123, 0.5); }
+.auth-strength-bar.is-active.lvl-3 { background: #47dc93; box-shadow: 0 0 6px rgba(71, 220, 147, 0.5); }
+
+/* Strength requirement tags */
+.auth-strength-rules {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+.auth-rule-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #7991ad;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  transition: all 0.2s ease;
+}
+.auth-rule-pill.is-met {
+  color: #94efc2;
+  background: rgba(71, 220, 147, 0.1);
+  border-color: rgba(71, 220, 147, 0.25);
+}
+
+/* Inline Forgot Password Link */
+.auth-forgot-link {
+  background: transparent;
+  border: none;
+  color: var(--gold, #edc77d);
+  font-family: var(--ui, 'DM Sans', sans-serif);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: color 0.18s ease;
+}
+.auth-forgot-link:hover {
+  color: #ffffff;
+}
+
+/* ──────────────────────────────────────────────────────────
+   OTP VERIFICATION VIEW & EMAIL CODE STYLING
+   ────────────────────────────────────────────────────────── */
+.auth-otp-card {
+  background: radial-gradient(circle at 50% 0%, rgba(26, 56, 92, 0.6), rgba(8, 22, 42, 0.85));
+  border: 1px solid rgba(212, 181, 118, 0.3);
+  border-radius: 14px;
+  padding: 20px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.auth-otp-icon-wrap {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(237, 199, 125, 0.15);
+  border: 1px solid rgba(237, 199, 125, 0.4);
+  color: var(--gold, #edc77d);
+  position: relative;
+}
+.auth-otp-icon-wrap svg,
+.auth-otp-mail-icon {
+  width: 24px;
+  height: 24px;
+  position: static !important;
+  transform: none !important;
+  color: var(--gold, #edc77d);
+}
+.auth-otp-destination {
+  display: inline-block;
+  font-size: 13px;
+  color: var(--cream, #fff1d4);
+  padding: 4px 14px;
+  border-radius: 999px;
+  background: rgba(5, 17, 34, 0.7);
+  border: 1px solid rgba(237, 199, 125, 0.35);
+  font-weight: 600;
+  word-break: break-all;
+}
+.auth-otp-guide {
+  font-size: 12px;
+  color: var(--muted, #9bb4cf);
+  line-height: 1.5;
+  margin: 0;
+}
+.auth-otp-delivery-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #7ef5b8;
+  background: rgba(60, 219, 142, 0.12);
+  border: 1px solid rgba(60, 219, 142, 0.3);
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+
+/* 6-Digit Verification Code Input */
+.auth-code-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+}
+.auth-code-wrapper label {
+  font-family: var(--ui, 'DM Sans', sans-serif);
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff1d4;
+  margin: 0;
+}
+.auth-code-input-wrap {
+  width: 100%;
+  max-width: 280px;
+  position: relative;
+}
+.auth-code-input-wrap input {
+  font-family: 'DM Sans', monospace, sans-serif;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: 12px;
+  text-align: center;
+  min-height: 60px;
+  border-radius: 12px;
+  border: 1px solid rgba(237, 199, 125, 0.45);
+  background: rgba(4, 15, 30, 0.9);
+  color: #fae4b2;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4), inset 0 2px 4px rgba(0, 0, 0, 0.5);
+  padding-left: 20px;
+}
+.auth-code-input-wrap input:focus {
+  border-color: var(--gold, #edc77d);
+  box-shadow: 0 0 22px rgba(237, 199, 125, 0.35);
+}
+
+.auth-expiry-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #8da4be;
+}
+.auth-expiry-pill svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* Submit & Secondary Action Buttons */
+.auth-submit-btn {
+  margin-top: 6px !important;
+  width: 100%;
+  min-height: 48px;
+  border-radius: 10px;
+  background: linear-gradient(110deg, #f4d58f 0%, #d8a44b 100%);
+  color: #111d2e;
+  font-family: var(--ui, 'DM Sans', sans-serif);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  border: 1px solid #fae2a8;
+  box-shadow: 0 6px 20px rgba(216, 164, 75, 0.28);
+  transition: all 0.22s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.auth-submit-btn:not(:disabled):hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 26px rgba(237, 199, 125, 0.38);
+  background: linear-gradient(110deg, #ffe09e 0%, #e2ae55 100%);
+}
+.auth-submit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Secondary Button Row */
+.auth-secondary-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  margin-top: 14px;
+}
+.auth-secondary-actions.is-dual {
+  grid-template-columns: 1fr 1fr;
+}
+.auth-secondary-actions .btn {
+  min-height: 42px;
+  font-size: 12px;
+  border-radius: 9px;
+  border: 1px solid rgba(212, 181, 118, 0.28);
+  background: rgba(8, 24, 46, 0.5);
+  color: var(--gold, #edc77d);
+  transition: all 0.2s ease;
+}
+.auth-secondary-actions .btn:not(:disabled):hover {
+  background: rgba(237, 199, 125, 0.12);
+  border-color: var(--gold, #edc77d);
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+/* Error & Notice Banners */
+.auth-error-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 14px;
+  border-radius: 9px;
+  background: rgba(56, 18, 18, 0.55);
+  border: 1px solid rgba(245, 120, 105, 0.4);
+  color: #ffd4cc;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.auth-error-box svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: #f78476;
+}
+
+.auth-notice-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 14px;
+  border-radius: 9px;
+  background: rgba(16, 43, 30, 0.55);
+  border: 1px solid rgba(75, 219, 147, 0.4);
+  color: #d1f7e3;
+  font-size: 12px;
+  line-height: 1.45;
+  margin-bottom: 14px;
+}
+
+/* Footer & Privacy */
+.auth-footer {
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(212, 181, 118, 0.16);
+  text-align: center;
+  font-size: 11px;
+  color: #8da4be;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.auth-footer a {
+  color: var(--gold, #edc77d);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: color 0.18s ease;
+}
+.auth-footer a:hover {
+  color: #ffffff;
+}
+
+/* Responsive adjustments */
+@media (max-width: 480px) {
+  .festival-dialog.account-dialog {
+    padding: 28px 20px 24px;
+    width: calc(100vw - 20px);
+    border-radius: 16px;
+  }
+  .auth-visual-title {
+    font-size: 28px;
+  }
+  .auth-medallion {
+    width: 48px;
+    height: 48px;
+  }
+  .auth-medallion svg {
+    width: 24px;
+    height: 24px;
+  }
+  .auth-secondary-actions.is-dual {
+    grid-template-columns: 1fr;
+  }
+  .auth-code-input-wrap input {
+    font-size: 26px;
+    letter-spacing: 8px;
+  }
+}

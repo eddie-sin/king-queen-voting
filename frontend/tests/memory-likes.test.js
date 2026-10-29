@@ -2,11 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createApi } from '../src/api.js';
 import { parseLikeStates, parseLikeMutation } from '../src/memory/likes.js';
+import './auth-fixture.js';
 const id = 'a'.repeat(24), other = 'b'.repeat(24);
-test('like adapter batches current page with JWT and sends bodyless POST/DELETE', async () => {
+test('like adapter uses cookies and CSRF for bodyless POST/DELETE', async () => {
   const calls = [];
   const api = createApi({ fetchImpl: async (url, options) => {
-    calls.push([url, options.method]); assert.equal(options.headers.Authorization, 'Bearer student');
+    calls.push([url, options.method]); assert.equal(options.headers.Authorization, undefined);
+    assert.equal(options.credentials,'same-origin');
+    if(options.method!=='GET')assert.equal(options.headers['X-CSRF-Token'],'fixture-csrf');
     assert.equal(options.body, undefined); assert.equal(options.headers['Content-Type'], undefined);
     assert.equal(options.cache, 'no-store');
     return new Response(JSON.stringify(options.method === 'GET' ? { status: 'success', results: 1, data: { photos: [{ photoId: id, liked: true }] } } : { status: 'success', data: { photoId: id, liked: options.method === 'POST', likeCount: 7 } }));
@@ -32,7 +35,12 @@ test('like requests validate auth/IDs and preserve failure/uncertainty without r
   await assert.rejects(api.setMemoryPhotoLike('student', 'bad', true)); assert.equal(calls, 0);
   await assert.rejects(api.setMemoryPhotoLike('student', id, true), error => error.interrupted); assert.equal(calls, 1);
   for (const status of [401, 403, 404, 500]) {
-    const failed = createApi({ fetchImpl: async () => new Response(JSON.stringify({ status: 'fail' }), { status }) });
+    const failed = createApi({ fetchImpl: async (url) => {
+      if (url.endsWith('/auth/config')) {
+        return new Response(JSON.stringify({ status: 'success', data: { csrfToken: 'fixture-csrf', refreshAfter: 60000 } }));
+      }
+      return new Response(JSON.stringify({ status: 'fail' }), { status });
+    } });
     await assert.rejects(failed.setMemoryPhotoLike('student', id, true), error => error.status === status);
   }
 });

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { readStoredSession, writeStoredSession } from '../hooks/useFestival.js';
 
-export function useMemoryLikes(api, ids, onResult, refresh) {
+export function useMemoryLikes(api, ids, onResult, refresh, refreshKey = 0) {
   const [token, setToken] = useState(() => readStoredSession()?.token || null);
   const [state, setState] = useState({ key: '', token: null, entries: {} });
   const [notice, setNotice] = useState('');
@@ -29,7 +29,7 @@ export function useMemoryLikes(api, ids, onResult, refresh) {
       else setNotice(error.status === 403 ? 'Likes are unavailable for this account or the feature is closed.' : 'Heart states could not be loaded. Please try again.');
     });
     return () => { controller.abort(); generation.current++; operations.current.forEach(value => value.abort()); operations.current.clear(); };
-  }, [api, key, token, retry]);
+  }, [api, key, token, retry, refreshKey]);
   const entries = state.key === key && state.token === tokenNow && token === tokenNow ? state.entries : {};
   async function toggle(id) {
     const entry = entries[id];

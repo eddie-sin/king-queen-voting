@@ -23,7 +23,7 @@ TEAM
 - UI/UX Designer
 
 # Pwint Phyu Soe (F)
-- UI/UX Designer
+- UI/UX DesignerI
 
 # Hnin Thiri (F)
 - Backend Developer 

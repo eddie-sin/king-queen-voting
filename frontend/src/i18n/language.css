@@ -1,0 +1,115 @@
+/* Compact Burmese copy shares the English layout, with room for stacked marks
+   and clear separation between headings, subtitles and adjacent labels. */
+.language-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 84px;
+  height: 44px;
+  padding: 6px 10px;
+  flex-shrink: 0;
+  border: 1px solid #edc77d66;
+  border-radius: 24px;
+  background: #0c2038;
+  color: #f0d9ac;
+  font: 500 12px/1 'DM Sans', 'Myanmar Text', 'Noto Sans Myanmar', sans-serif;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.language-toggle:hover { background: #19334e; border-color: #edc77d; }
+.language-toggle:focus-visible { outline: 2px solid #edc77d; outline-offset: 3px; }
+html:lang(my) {
+  --font-ui: 'DM Sans', 'Myanmar Text', 'Noto Sans Myanmar', Pyidaungsu, sans-serif;
+  --font-display: 'Cormorant Garamond', 'Myanmar Text', 'Noto Sans Myanmar', Pyidaungsu, serif;
+  --ui: var(--font-ui);
+  --display: var(--font-display);
+  --text-page-h1: clamp(31.2px, 3.9vw, 49.4px);
+  --text-section-h2: clamp(23.4px, 2.6vw, 35.1px);
+  --text-card-h3: clamp(15.6px, 1.625vw, 19.5px);
+  --text-body: 13px;
+  --text-control: 12px;
+  --text-eyebrow: 9px;
+  --text-fine: 10px;
+}
+html:lang(my) .festival-app { font-family: var(--ui); }
+html:lang(my) :is(span, small, strong, em, a, button, p, dt, dd, label) { letter-spacing: 0; }
+html:lang(my) :is(h1, h2, h3, h4, .eyebrow, .mp-eyebrow, .nav-tab, .account-label, .mp-tabs a) { letter-spacing: 0; }
+html:lang(my) :is(h1, h2, h3) em { font-style: normal; }
+html:lang(my) .source-app p { line-height: 1.85; }
+html:lang(my) .source-heading h1 { line-height: 1.6; }
+html:lang(my) :is(.source-note a, .mp-small-note a, .mp-local-note a, .auth-footer a) { white-space: nowrap; }
+html:lang(my) .placeholder-card h2 { line-height: 1.65; }
+html:lang(my) .source-app :is(.btn, .text-button, .mp-button, .nav-tab, .account-button, .mp-tabs a) {
+  font-family: var(--ui);
+  white-space: nowrap;
+  line-height: 1.35;
+}
+html:lang(my) .source-app .brand { font-size: 21px; line-height: 1; letter-spacing: 0; }
+html:lang(my) .source-app .brand small { font-size: 7px; line-height: 1; letter-spacing: 0; }
+html:lang(my) .brand-copy { display: grid; row-gap: 8px; }
+html:lang(my) .source-app .brand-title { display: block; line-height: 1.45; }
+html:lang(my) .source-app .brand small { margin-top: 0; line-height: 1.6; }
+html:lang(my) .source-heading > p { margin-top: 20px; }
+html:lang(my) .source-app :is(.eyebrow, .mp-eyebrow, .auth-eyebrow) { line-height: 1.7; }
+html:lang(my) .auth-header .auth-eyebrow { margin-bottom: 12px; }
+html:lang(my) .auth-visual-title { margin-bottom: 12px; }
+html:lang(my) .auth-label-row { margin-bottom: 10px; }
+html:lang(my) .mp-demo .mp-local-note strong { display: block; margin-bottom: 6px; line-height: 1.65; }
+html:lang(my) .mp-demo .mp-review-explanation strong { display: block; margin-bottom: 6px; line-height: 1.65; }
+html:lang(my) .mp-demo .mp-submission-copy { gap: 6px; }
+html:lang(my) .mp-demo .mp-submission-card .mp-status { line-height: 1.65; }
+html:lang(my) .home-hero h1 { font-size: clamp(33.8px, 3.965vw, 57.2px); line-height: 1.6; }
+html:lang(my) .home-block h2 { font-size: clamp(23.4px, 2.665vw, 36.4px); line-height: 1.65; }
+html:lang(my) .home-details dd { font: 400 18px/1.6 var(--ui); }
+html:lang(my) .home-location h3 { font-size: 13px; line-height: 1.6; }
+html:lang(my) .home-small { font-size: 9px; }
+html:lang(my) .source-app .site-footer .brand { font-size: 12px; line-height: 1; }
+html:lang(my) .profile-copy .nickname { line-height: 1.45; }
+html:lang(my) .royal-copy h3 { font-size: calc(var(--text-section-h2) * .9); line-height: 1.5; }
+html:lang(my) .dev-intro h1 { font-size: clamp(31.2px, 3.705vw, 53.3px); line-height: 1.5; }
+html:lang(my) .dev-team-orb strong { font-size: clamp(8px, .8vw, 10px); line-height: 1.4; }
+html:lang(my) .dev-team-heading h2 { font-size: 37px; line-height: 1.5; }
+html:lang(my) .dev-solo h2 { font-size: clamp(26px, 3.25vw, 42.25px); line-height: 1.5; }
+html:lang(my) .dev-roles span { font-size: 9px; white-space: nowrap; }
+html:lang(my) .dev-instruction { letter-spacing: 0; }
+html:lang(my) .mp-demo :is(h1, h2, h3) { font-family: var(--display); line-height: 1.55; }
+html:lang(my) .mp-demo .mp-hero h1 { font-size: clamp(24.7px, 4.55vw, 53.9px); }
+html:lang(my) .mp-demo .mp-my-heading h1 { font-size: calc(var(--text-hero) * .65); }
+html:lang(my) .mp-demo .mp-upload-story h1 { font-size: clamp(24.7px, 3.9vw, 52px); }
+html:lang(my) .mp-demo .mp-upload-story > p:not(.mp-eyebrow):not(.mp-small-note),
+html:lang(my) .mp-demo :is(.mp-lead, .mp-my-heading > p:last-child) { font: 400 15px/1.85 var(--ui); }
+html:lang(my) .mp-seal b { font: 500 14px/1.5 var(--ui); }
+html:lang(my) .mp-demo .mp-footer > span:nth-child(2) { font: 400 12px/20px var(--ui); }
+html:lang(my) .mp-demo .mp-signature { font: 400 13px/24px var(--ui); }
+html:lang(my) .mp-demo .mp-wordmark { font: 400 18px/34px var(--display); }
+html:lang(my) .mp-demo .mp-slot-choose em { font: 400 12px/1.8 var(--ui); }
+html:lang(my) .wish-world .free-sky-heading h2 { font-size: clamp(24.7px, 3.25vw, 42.25px); line-height: 1.5; }
+html:lang(my) .auth-visual-title { font-size: 24px; line-height: 1.5; }
+@media (max-width: 1000px) {
+  html:lang(my) .dev-intro h1 { font-size: 39px; }
+  html:lang(my) .dev-team-heading h2 { font-size: 29px; }
+}
+@media (max-width: 760px) {
+  html:lang(my) .home-hero h1 { font-size: 35px; }
+  html:lang(my) .mp-demo .mp-upload-story h1 { font-size: clamp(22.1px, 5.2vw, 35.1px); }
+}
+@media (max-width: 600px) {
+  .language-toggle { width: 62px; font-size: 11px; }
+  .language-toggle > span { display: none; }
+  html:lang(my) .source-heading h1 { font-size: clamp(26px, 7.15vw, 36.4px); }
+  html:lang(my) .auth-visual-title { font-size: 20.8px; }
+  html:lang(my) .mp-demo .mp-hero h1 { font-size: clamp(24.7px, 7.8vw, 35.1px); }
+  html:lang(my) .mp-demo .mp-my-heading h1 { font-size: 26px; }
+  html:lang(my) .mp-demo .mp-wordmark { font-size: 16px; line-height: 29px; }
+  html:lang(my) .source-app .brand { font-size: 18px; }
+  html:lang(my) .source-app .brand small { font-size: 6px; }
+  html:lang(my) .dev-intro h1 { font-size: 31.2px; }
+  html:lang(my) .dev-team-orb strong { font-size: 7px; }
+  html:lang(my) .dev-solo h2 { font-size: 30px; }
+  html:lang(my) .dev-team-heading h2 { font-size: 27px; }
+  html:lang(my) .wish-world .free-sky-heading h2 { font-size: 26.65px; }
+}
+@media (max-width: 380px) {
+  html:lang(my) .home-hero h1 { font-size: 29.9px; }
+}

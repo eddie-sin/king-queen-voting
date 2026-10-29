@@ -1,72 +1,65 @@
-const { test } = require("node:test");
-const assert = require("node:assert/strict");
-const crypto = require("node:crypto");
-const { selectFinalists } = require("../utils/finalists");
-const { hashVotingKey } = require("../utils/votingKey");
-const { parseMyanmarTime, toMyanmarTime } = require("../utils/schedule");
-const { checkPeriod } = require("../utils/election");
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const EventControls = require('../model/eventControlsModel');
+const Ballot = require('../model/ballotsModel');
+const { awards } = require('../utils/voteTotals');
+const { can, ROLE_PERMISSIONS } = require('../utils/permissions');
 
-test("the same key is bound to a different hash for each account", () => {
-  const key = crypto.randomBytes(32).toString("hex");
-  assert.equal(hashVotingKey("a", key), crypto.createHash("sha256").update(`a:${key}`).digest("hex"));
-  assert.notEqual(hashVotingKey("a", key), hashVotingKey("b", key));
+test('v2 event controls start closed and keep announcements incompatible with open voting', async () => {
+  const controls = new EventControls();
+  assert.equal(controls.schemaVersion, 2);
+  assert.equal(controls.registrationOpen, false);
+  assert.equal(controls.votingStatus, 'closed');
+  assert.equal(controls.announcementOpen, false);
+  assert.equal(controls.round, 1);
+  assert.equal(controls.window, 0);
+  controls.votingStatus = 'open'; controls.announcementOpen = true;
+  await assert.rejects(controls.validate(), { name: 'ValidationError' });
 });
 
-test("Myanmar dates preserve the fixed offset and include the full closing minute", () => {
-  const close = parseMyanmarTime("2026-11-02T23:59+06:30", "votingClosesAt");
-  assert.equal(close.toISOString(), "2026-11-02T17:29:59.999Z");
-  assert.equal(toMyanmarTime(close), "2026-11-02T23:59:59.999+06:30");
-  assert.equal(parseMyanmarTime("2026-10-28T09:00+06:30", "votingOpensAt").toISOString(), "2026-10-28T02:30:00.000Z");
+test('ballot schema enforces one candidate, contest and round with a unique final-vote index', async () => {
+  const indexes = Ballot.schema.indexes();
+  assert(indexes.some(([keys, options]) => keys.round === 1 && keys.user === 1 && keys.contest === 1 && options.unique === true));
+  await assert.rejects(new Ballot({ contest: 'king', round: 1 }).validate(), { name: 'ValidationError' });
+  await assert.rejects(new Ballot({ user: '507f1f77bcf86cd799439011', candidate: '507f191e810c19729de860ea', contest: 'prince', round: 1 }).validate(), { name: 'ValidationError' });
+  await assert.rejects(new Ballot({ user: '507f1f77bcf86cd799439011', candidate: '507f191e810c19729de860ea', contest: 'queen', round: 0 }).validate(), { name: 'ValidationError' });
 });
 
-test("schedule input rejects other timezones and impossible calendar values", () => {
-  for (const input of ["2026-10-28T09:00Z", "2026-10-28T09:00+07:00", "2026-02-30T09:00+06:30", "2026-10-28T25:00+06:30", 42]) {
-    assert.throws(() => parseMyanmarTime(input, "votingOpensAt"), { statusCode: 400 });
-  }
+test('ADMIN receives every voting capability while VOTING_ADMIN needs each explicit grant', () => {
+  const root = { role: 'admin', status: 'active', permissions: [] };
+  const delegated = { role: 'voting_admin', status: 'active', permissions: ['votes.read', 'voting.open'] };
+  for (const permission of ROLE_PERMISSIONS.voting_admin) assert.equal(can(root, permission), true);
+  assert.equal(can(delegated, 'candidates.read'), true);
+  assert.equal(can(delegated, 'votes.read'), true);
+  assert.equal(can(delegated, 'voting.open'), true);
+  assert.equal(can(delegated, 'voting.close'), false);
+  assert.equal(can({ ...delegated, status: 'disabled' }, 'votes.read'), false);
+  assert.equal(can({ role: 'memory_admin', status: 'active', permissions: ['memory.open'] }, 'votes.read'), false);
 });
 
-test("voting and registration enforce exact inclusive deadlines", () => {
-  const election = { votingOpensAt: new Date(1000), votingClosesAt: new Date(2000), registrationClosesAt: new Date(3000), resultsPublishedAt: new Date(4000) };
-  assert.throws(() => checkPeriod(election, "voting", new Date(999)), { statusCode: 403 });
-  checkPeriod(election, "voting", new Date(1000));
-  checkPeriod(election, "voting", new Date(2000));
-  assert.throws(() => checkPeriod(election, "voting", new Date(2001)), { statusCode: 403 });
-  checkPeriod(election, "registration", new Date(3000));
-  assert.throws(() => checkPeriod(election, "registration", new Date(3001)), { statusCode: 403 });
-  assert.throws(() => checkPeriod(election, "publish", new Date(3999)), { statusCode: 403 });
-  checkPeriod(election, "publish", new Date(4000));
+test('results omit zero-vote candidates and calculate both ranked titles deterministically', () => {
+  const rows = [
+    { candidate: { category: 'king', fullName: 'King A' }, votes: 5 },
+    { candidate: { category: 'king', fullName: 'King B' }, votes: 2 },
+    { candidate: { category: 'king', fullName: 'King Zero' }, votes: 0 },
+    { candidate: { category: 'queen', fullName: 'Queen A' }, votes: 4 },
+    { candidate: { category: 'queen', fullName: 'Queen B' }, votes: 1 },
+  ];
+  const result = awards(rows);
+  assert.deepEqual(result.kings.map(row => [row.candidate.fullName, row.votes, row.title]), [['King A', 5, 'Mrs Thadingyut'], ['King B', 2, 'Prince']]);
+  assert.deepEqual(result.queens.map(row => [row.candidate.fullName, row.votes, row.title]), [['Queen A', 4, 'Miss Thadingyut'], ['Queen B', 1, 'Princess']]);
 });
 
-test("only the cutoff tie is randomized, including multiple remaining slots", () => {
-  const entries = [20, 19, 18, 5, 5, 5, 5, 1].map((votes, candidate) => ({ candidate, votes }));
-  const result = selectFinalists(entries, 5, () => 0);
-  assert.equal(result.length, 5);
-  assert.deepEqual(result.slice(0, 3).map((entry) => entry.votes), [20, 19, 18]);
-  assert(result.slice(0, 3).every((entry) => !entry.selectedByTieBreak));
-  assert(result.slice(3).every((entry) => entry.votes === 5 && entry.selectedByTieBreak));
-  assert.equal(new Set(result.map((entry) => entry.candidate)).size, 5);
-  assert.deepEqual(entries.map((entry) => entry.votes), [20, 19, 18, 5, 5, 5, 5, 1]);
+test('ties affecting either title position block announcement calculations', () => {
+  const candidate = (category, name) => ({ category, fullName: name });
+  for (const rows of [
+    [{ candidate: candidate('king', 'A'), votes: 2 }, { candidate: candidate('king', 'B'), votes: 2 }],
+    [{ candidate: candidate('queen', 'A'), votes: 3 }, { candidate: candidate('queen', 'B'), votes: 2 }, { candidate: candidate('queen', 'C'), votes: 2 }],
+  ]) assert.throws(() => awards(rows), { statusCode: 409 });
 });
 
-test("all tied candidates can be chosen, with equal permutations for a three-way cutoff", () => {
-  const entries = [20, 19, 18, 17, 5, 5, 5].map((votes, candidate) => ({ candidate, votes }));
-  const wins = new Map();
-  for (let first = 0; first < 3; first++) {
-    for (let second = 0; second < 2; second++) {
-      const draws = [first, second];
-      const result = selectFinalists(entries, 5, () => draws.shift());
-      const winner = result[4].candidate;
-      wins.set(winner, (wins.get(winner) || 0) + 1);
-    }
-  }
-  assert.deepEqual([...wins.values()], [2, 2, 2]);
-});
-
-test("no random draw occurs when ties fit entirely above the cutoff", () => {
-  const entries = [10, 10, 8, 7, 6, 1].map((votes, candidate) => ({ candidate, votes }));
-  const result = selectFinalists(entries, 5, () => { throw Error("Unexpected draw"); });
-  assert.deepEqual(result.map((entry) => entry.votes), [10, 10, 8, 7, 6]);
-  assert(result.every((entry) => !entry.selectedByTieBreak));
-  assert.equal(selectFinalists([]).length, 0);
-  assert.equal(selectFinalists(entries.slice(0, 2)).length, 2);
+test('a clear winner with a tie below the two title positions remains announceable', () => {
+  const rows = [5, 4, 1, 1].map((votes, index) => ({ candidate: { category: 'king', fullName: `King ${index}` }, votes }));
+  assert.deepEqual(awards(rows).kings.map(row => row.votes), [5, 4]);
+  assert.deepEqual(awards([]), { kings: [], queens: [] });
 });

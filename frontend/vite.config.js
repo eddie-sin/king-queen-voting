@@ -18,5 +18,5 @@ function backendTarget() {
 export default defineConfig(() => {
   const target = backendTarget();
   const proxy = { '/api': target, '/uploads': target };
-  return { esbuild: { jsx: 'automatic' }, server: { proxy }, preview: { proxy } };
+  return { esbuild: { jsx: 'automatic' }, server: { proxy, port:5173, strictPort:true }, preview: { proxy } };
 });

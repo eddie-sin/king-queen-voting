@@ -19,7 +19,8 @@ process.env.MEMORY_PHOTO_UPLOAD_DIR = path.join(directory, "private");
 const app = require("../app");
 const User = require("../model/usersModel");
 const Admin = require("../model/adminsModel");
-const Election = require("../model/electionModel");
+const Controls = require("../model/eventControlsModel");
+const { createUser, studentToken, headers: authHeaders } = require("./helpers/accounts.cjs");
 const MemoryPhoto = require("../model/memoryPhotosModel");
 const Quota = require("../model/memoryPhotoQuotasModel");
 const storage = require("../utils/memoryPhotoStorage");
@@ -35,7 +36,7 @@ let otherToken;
 let userToken;
 let png;
 
-const signAdmin = (account) => jwt.sign({ adminId: account._id.toString(), role: "admin" }, process.env.JWT_SECRET);
+const signAdmin = (account) => jwt.sign({ adminId: account._id.toString(), role: "admin", v: 0 }, process.env.JWT_SECRET);
 const freePort = async () => {
   const listener = net.createServer();
   await new Promise((resolve, reject) => {
@@ -52,7 +53,7 @@ before(async () => {
   await fs.mkdir(databasePath);
   const port = await freePort();
   mongo = spawn(process.env.MONGOD_BINARY || "mongod", [
-    "--bind_ip", "127.0.0.1", "--port", String(port), "--dbpath", databasePath,
+    "--replSet", "isolatedTests", "--bind_ip", "127.0.0.1", "--port", String(port), "--dbpath", databasePath,
     "--logpath", path.join(databasePath, "mongod.log"),
   ], { stdio: "ignore" });
   let spawnError;
@@ -70,9 +71,10 @@ before(async () => {
         await new Promise((resolve) => setTimeout(resolve, 100));
       }
     }
+    await require("./helpers/replica.cjs").initialize(client, port);
   } finally { await client.close(); }
   await mongoose.connect(`mongodb://127.0.0.1:${port}/memory_photo_moderation_test`);
-  await Promise.all([User.init(), Admin.init(), Election.init(), MemoryPhoto.init(), Quota.init()]);
+  await Promise.all([...Object.values(mongoose.models).map(model => model.init()), Admin.init(), Controls.init(), MemoryPhoto.init(), Quota.init()]);
   png = await sharp({ create: { width: 4, height: 4, channels: 3, background: "blue" } }).png().toBuffer();
   server = app.listen(0, "127.0.0.1");
   await new Promise((resolve) => server.once("listening", resolve));
@@ -80,18 +82,17 @@ before(async () => {
 }, { timeout: 30000 });
 
 beforeEach(async () => {
-  await Promise.all([User.deleteMany({}), Admin.deleteMany({}), Election.deleteMany({}), MemoryPhoto.deleteMany({}), Quota.deleteMany({})]);
+  await Promise.all([User.deleteMany({}), Admin.deleteMany({}), Controls.deleteMany({}), MemoryPhoto.deleteMany({}), Quota.deleteMany({})]);
   await fs.rm(process.env.MEMORY_PHOTO_UPLOAD_DIR, { recursive: true, force: true });
-  owner = await User.create({ email: "student@example.com", passwordHash: "test-only-hash" });
+  owner = await createUser({ email: "student@gmail.com", passwordHash: "test-only-hash" });
   [admin, otherAdmin] = await Admin.create([
-    { username: "reviewer-one", passwordHash: "test-only-hash" },
-    { username: "reviewer-two", passwordHash: "test-only-hash" },
+    { username: "reviewer-one", passwordHash: "test-only-hash", role: "admin" },
+    { username: "reviewer-two", passwordHash: "test-only-hash", role: "admin" },
   ]);
   adminToken = signAdmin(admin);
   otherToken = signAdmin(otherAdmin);
-  userToken = jwt.sign({ userId: owner._id.toString(), role: "user" }, process.env.JWT_SECRET);
-  await Election.create({ registrationClosesAt: new Date("2026-11-06"), votingOpensAt: new Date("2026-10-28"),
-    votingClosesAt: new Date("2026-11-02"), resultsPublishedAt: new Date("2026-11-03"), memoryPhotosEnabled: false });
+  userToken = await studentToken(owner);
+  await Controls.create({ _id: "event", memoryPhotosEnabled: false });
 });
 
 after(async () => {
@@ -103,7 +104,7 @@ after(async () => {
 
 const request = async (method, endpoint, body, token = adminToken) => {
   const response = await fetch(`${base}/api/v1${endpoint}`, {
-    method, headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    method, headers: { "Content-Type": "application/json", ...(authHeaders(token)) },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   return { status: response.status, body: await response.json() };
@@ -111,32 +112,33 @@ const request = async (method, endpoint, body, token = adminToken) => {
 const photo = async (overrides = {}) => MemoryPhoto.create({ owner: owner._id,
   imageKey: await storage.uploadImage({ buffer: png, mimetype: "image/png" }), ...overrides });
 const imageUrl = (id) => `${base}/api/v1/admin/memory-photos/${id}/image`;
-const imageRequest = (id, token = adminToken) => fetch(imageUrl(id), { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+const imageRequest = (id, token = adminToken) => fetch(imageUrl(id), { headers: authHeaders(token) });
 const review = (id, status, token = adminToken) => request("PATCH", `/admin/memory-photos/${id}/review`, { status }, token);
 
-test("pending queue is newest first, excludes reviewed photos and never reveals storage keys", async () => {
+test("moderation lists pending and approved photos newest first, hiding rejected records and storage keys", async () => {
   const oldest = await photo({ createdAt: new Date("2026-01-01") });
-  await photo({ status: "APPROVED" });
-  await photo({ status: "REJECTED" });
+  const approved = await photo({ status: "APPROVED" });
+  const rejected = await photo({ status: "REJECTED" });
   const newest = await photo({ createdAt: new Date("2026-01-03") });
   const middle = await photo({ createdAt: new Date("2026-01-02") });
   const response = await request("GET", "/admin/memory-photos?status=REJECTED");
   assert.equal(response.status, 200);
-  assert.equal(response.body.results, 3);
-  assert.deepEqual(response.body.data.photos.map((entry) => entry.id), [newest, middle, oldest].map((entry) => String(entry._id)));
+  assert.equal(response.body.results, 4);
+  assert.deepEqual(response.body.data.photos.map((entry) => entry.id), [approved, newest, middle, oldest].map((entry) => String(entry._id)));
   for (const entry of response.body.data.photos) {
-    assert.equal(entry.status, "PENDING");
+    assert(["PENDING", "APPROVED"].includes(entry.status));
     assert.deepEqual(Object.keys(entry).sort(), ["createdAt", "id", "owner", "status"]);
   }
   assert(!JSON.stringify(response.body).includes("memory-photos/"));
-  await MemoryPhoto.updateMany({}, { status: "APPROVED" });
+  await MemoryPhoto.updateMany({ status: "PENDING" }, { status: "APPROVED" });
   const empty = await request("GET", "/admin/memory-photos");
-  assert.equal(empty.body.results, 0);
-  assert.deepEqual(empty.body.data.photos, []);
+  assert.equal(empty.body.results, 4);
+  assert.equal((await MemoryPhoto.findById(rejected._id)).status, "REJECTED");
+  assert(empty.body.data.photos.every(entry => entry.status === "APPROVED"));
 });
 
-test("admins retrieve private images with no-store and nosniff even while the feature is disabled", async () => {
-  for (const status of ["PENDING", "REJECTED", "APPROVED"]) {
+test("admins retrieve pending and approved images while disabled, but rejected images are inaccessible", async () => {
+  for (const status of ["PENDING", "APPROVED"]) {
     const saved = await photo({ status });
     const response = await imageRequest(saved._id);
     assert.equal(response.status, 200);
@@ -148,6 +150,12 @@ test("admins retrieve private images with no-store and nosniff even while the fe
     assert.deepEqual(Buffer.from(await response.arrayBuffer()), png);
     assert.equal((await fetch(`${base}/uploads/${saved.imageKey}`)).status, 404);
   }
+});
+
+test("rejected records never expose their private bytes even if legacy storage remains", async () => {
+  const saved = await photo({ status: "REJECTED" });
+  assert.equal((await imageRequest(saved._id)).status, 404);
+  assert.equal((await storage.getImage(saved.imageKey)).contentType, "image/png");
 });
 
 test("production-style private streams are delivered without issuing URLs", async () => {
@@ -167,14 +175,14 @@ test("production-style private streams are delivered without issuing URLs", asyn
 
 test("all moderation operations reject anonymous, invalid, expired, ordinary and disabled admin tokens", async () => {
   const saved = await photo();
-  const expired = jwt.sign({ adminId: String(admin._id), role: "admin" }, process.env.JWT_SECRET, { expiresIn: -1 });
+  const expired = jwt.sign({ adminId: String(admin._id), role: "admin", v: 0 }, process.env.JWT_SECRET, { expiresIn: -1 });
   const operations = [
     (token) => request("GET", "/admin/memory-photos", undefined, token),
     (token) => request("GET", `/admin/memory-photos/${saved._id}/image`, undefined, token),
     (token) => review(saved._id, "APPROVED", token),
   ];
   for (const operation of operations) {
-    for (const [token, status] of [[null, 401], ["invalid", 401], [expired, 401], [userToken, 403]]) {
+    for (const [token, status] of [[null, 401], ["invalid", 401], [expired, 401], [userToken, 401]]) {
       assert.equal((await operation(token)).status, status);
     }
   }
@@ -190,10 +198,10 @@ test("ordinary students cannot retrieve pending or rejected image content throug
     const saved = await photo({ status });
     for (const token of [null, userToken]) {
       const denied = await imageRequest(saved._id, token);
-      assert.equal(denied.status, token ? 403 : 401);
+      assert.equal(denied.status, 401);
       assert(!JSON.stringify(await denied.json()).includes(saved.imageKey));
       const publicResponse = await fetch(`${base}/api/v1/memory-photos/${saved._id}/image`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: authHeaders(token),
       });
       // Public routes are gated while the feature is disabled for this test.
       assert.equal(publicResponse.status, 403);
@@ -235,7 +243,15 @@ test("approval and rejection save the authenticated reviewer and server timestam
     assert(Date.parse(reviewed.reviewedAt) >= before && Date.parse(reviewed.reviewedAt) <= after);
     assert.equal(reviewed.imageKey, undefined);
     const loaded = await MemoryPhoto.findById(saved._id);
-    assert.equal(loaded.imageKey, saved.imageKey);
+    if (status === "REJECTED") {
+      assert.equal(loaded.imageKey, undefined);
+      assert(loaded.storageDeletedAt instanceof Date);
+      await assert.rejects(storage.getImage(saved.imageKey), error => error.statusCode === 404);
+      assert.equal((await imageRequest(saved._id)).status, 404);
+    } else {
+      assert.equal(loaded.imageKey, saved.imageKey);
+      assert.equal((await storage.getImage(saved.imageKey)).contentType, "image/png");
+    }
     assert.equal(String(loaded.owner), String(owner._id));
     assert.equal(+loaded.createdAt, +saved.createdAt);
     assert.equal(String(loaded.reviewedBy), reviewed.reviewedBy);
@@ -248,7 +264,7 @@ test("approval and rejection save the authenticated reviewer and server timestam
     assert.equal(unchanged.reviewedAt.toISOString(), reviewed.reviewedAt);
     assert.equal(unchanged.status, status);
   }
-  assert.equal((await request("GET", "/admin/memory-photos")).body.results, 0);
+  assert.equal((await request("GET", "/admin/memory-photos")).body.results, 1);
 });
 
 test("simultaneous conflicting reviews have one atomic winner and preserve its full decision", async () => {
@@ -265,28 +281,30 @@ test("simultaneous conflicting reviews have one atomic winner and preserve its f
   assert.equal(winner.reviewedBy, String(winner.status === "APPROVED" ? admin._id : otherAdmin._id));
 });
 
-test("reviewing three real submissions while disabled leaves rejected photos counted in lifetime quota", async () => {
-  await Election.updateOne({}, { memoryPhotosEnabled: true });
+test("rejecting three submissions while disabled removes bytes and frees their active slots", async () => {
+  await Controls.updateOne({}, { memoryPhotosEnabled: true });
   const ids = [];
   for (let index = 0; index < 3; index++) {
     const form = new FormData();
     form.append("images", new Blob([png], { type: "image/png" }), "student.png");
     const response = await fetch(`${base}/api/v1/memory-photos`, { method: "POST",
-      headers: { Authorization: `Bearer ${userToken}` }, body: form });
+      headers: authHeaders(userToken), body: form });
     assert.equal(response.status, 201);
     ids.push((await response.json()).data.photo.id);
   }
-  const before = await Quota.findById(owner._id).lean();
-  await Election.updateOne({}, { memoryPhotosEnabled: false });
+  assert.equal((await Quota.findById(owner._id)).slots.length, 3);
+  await Controls.updateOne({}, { memoryPhotosEnabled: false });
   assert.equal((await request("GET", "/admin/memory-photos")).body.results, 3);
   for (const id of ids) assert.equal((await review(id, "REJECTED")).status, 200);
-  assert.deepEqual(await Quota.findById(owner._id).lean(), before);
+  assert.deepEqual((await Quota.findById(owner._id)).slots, []);
+  assert.equal((await request("GET", "/admin/memory-photos")).body.results, 0);
+  for (const id of ids) assert.equal((await MemoryPhoto.findById(id)).imageKey, undefined);
   assert.equal(await MemoryPhoto.countDocuments({ owner: owner._id, status: "REJECTED" }), 3);
-  await Election.updateOne({}, { memoryPhotosEnabled: true });
+  await Controls.updateOne({}, { memoryPhotosEnabled: true });
   const form = new FormData();
   form.append("images", new Blob([png], { type: "image/png" }), "extra.png");
   assert.equal((await fetch(`${base}/api/v1/memory-photos`, { method: "POST",
-    headers: { Authorization: `Bearer ${userToken}` }, body: form })).status, 409);
+    headers: authHeaders(userToken), body: form })).status, 201);
 });
 
 test("missing private objects return 404 and storage failures do not disclose private details", async () => {

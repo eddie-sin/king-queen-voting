@@ -1,6 +1,5 @@
 export const CONTESTS = ['king', 'queen'];
 export const titleCase = value => value === 'queen' ? 'Queen' : 'King';
-export const validKey = value => /^[a-f0-9]{64}$/.test(value);
 const safeImageUrl = value => typeof value === 'string' && (/^\/(?!\/)/.test(value) || /^https?:\/\//i.test(value));
 
 // Render only the public fields. Contact numbers never enter presentation data.
@@ -39,41 +38,25 @@ export function savedChoices(votes) {
   return result;
 }
 
-export function scheduleState(schedule, now = Date.now()) {
-  const parse = v => typeof v === 'string' && v ? Date.parse(v) : NaN;
-  const registration = parse(schedule?.registrationClosesAt);
-  const opens = parse(schedule?.votingOpensAt);
-  const closes = parse(schedule?.votingClosesAt);
-  const override = schedule?.votingOverride;
-  const validVoting = Number.isFinite(opens) && Number.isFinite(closes) && closes > opens;
+export function eventState(controls) {
   return {
-    registration: Number.isFinite(registration) ? (now <= registration ? 'open' : 'closed') : 'unknown',
-    voting: !validVoting ? 'unknown' : override === 'open' ? 'open' : override === 'closed' ? 'closed' : now < opens ? 'upcoming' : now > closes ? 'closed' : 'open',
+    registration: typeof controls?.registrationOpen === 'boolean' ? controls.registrationOpen ? 'open' : 'closed' : 'unknown',
+    voting: ['open', 'closed', 'closing'].includes(controls?.votingStatus) ? controls.votingStatus : 'unknown',
   };
 }
-
-export function myanmarTime(date) {
-  if (!date || !Number.isFinite(Date.parse(date))) return 'Awaiting schedule';
-  return new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Yangon', day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }).format(new Date(date)) + ' MMT';
+export function announcementState(controls) {
+  if (typeof controls?.announcementOpen !== 'boolean') return 'unknown';
+  return controls.announcementOpen && controls.votingStatus === 'closed' ? 'announced' : 'waiting';
 }
-
-// Finalists are announced only after voting has ended and the published time has passed.
-// The server enforces the same rule; this only chooses which stage to render.
-export function finalistsState(schedule, now = Date.now()) {
-  const published = typeof schedule?.resultsPublishedAt === 'string' ? Date.parse(schedule.resultsPublishedAt) : NaN;
-  if (!Number.isFinite(published)) return 'unknown';
-  if (now < published || scheduleState(schedule, now).voting !== 'closed') return 'waiting';
-  return 'announced';
-}
-
-// Public finalists show five equal people per contest: no votes, ranks or tie-break flags,
-// and an alphabetical order so the server's vote order never hints at placement.
-export function publicFinalists(results) {
-  if (!results || typeof results !== 'object') throw new Error('Finalist results are unavailable.');
-  const pick = list => (Array.isArray(list) ? list : [])
-    .map(entry => publicCandidate(entry?.candidate))
-    .filter(candidate => candidate?._id)
-    .map(({ _id, fullName, nickname, batchNumber, images, category }) => ({ _id, fullName, nickname, batchNumber, images, category }))
-    .sort((a, b) => a.fullName.localeCompare(b.fullName, 'en', { sensitivity: 'base' }));
-  return { king: pick(results.kings), queen: pick(results.queens) };
+export function publicResults(results) {
+  if (!results || !Number.isSafeInteger(results.round) || !Number.isSafeInteger(results.revision)) throw new Error('Results are unavailable.');
+  const pick = list => {
+    if (!Array.isArray(list)) throw new Error('Results are incomplete.');
+    return list.map(entry => {
+      const candidate = publicCandidate(entry?.candidate);
+      if (!candidate?._id || !Number.isSafeInteger(entry.votes) || entry.votes < 0) throw new Error('Results are incomplete.');
+      return { ...candidate, votes: entry.votes, title: typeof entry.title==='string'?entry.title:'' };
+    }).sort((a, b) => b.votes - a.votes || a.fullName.localeCompare(b.fullName) || a._id.localeCompare(b._id));
+  };
+  return { king: pick(results.kings), queen: pick(results.queens), round: results.round, revision: results.revision };
 }

@@ -4,13 +4,16 @@ import { createServer } from 'vite';
 
 const server = await createServer({ configFile: 'vite.config.js', mode: 'fixtures', server: { host: '127.0.0.1', port: 0 } });
 await server.listen();
-const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
+const browser = await chromium.launch({ headless: true,
+  ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } : {}),
+  args: ['--no-sandbox'] });
 const base = `http://127.0.0.1:${server.httpServer.address().port}`;
 
 try {
   for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
     const context = await browser.newContext({ viewport });
     const page = await context.newPage();
+    await page.addInitScript(() => localStorage.setItem('festival-language', 'en'));
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.goto(`${base}/#wishes`);

@@ -21,6 +21,7 @@ try {
     const context = await browser.newContext({ viewport: { width, height: 950 }, reducedMotion: 'reduce' });
     if (signedIn) await context.addInitScript(value => localStorage.setItem('thadingyut_voter_session', JSON.stringify(value)), session);
     const page = await context.newPage();
+    await page.addInitScript(() => localStorage.setItem('festival-language', 'en'));
     const requests = [], images = [], errors = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.route('**/api/**', async route => {
@@ -108,7 +109,7 @@ try {
   reports.push('Empty history and reserved/deleted-history capacity use backend counts, never visible-card counts');
   {
     const { page, context } = await setup({ imageError: true });
-    await page.getByText('This image needs a moment.').waitFor();
+    await page.getByText('This photo could not be loaded.').waitFor();
     assert.equal(await page.locator('.mp-my-page img[src*="memory-photo/"]').count(), 0);
     await context.close();
   }

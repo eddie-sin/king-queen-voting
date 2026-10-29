@@ -1,3 +1,4 @@
+import { useT } from '../i18n/Language.jsx';
 export function Crown({ className = '' }) {
   return <svg className={className} viewBox="0 0 64 56" fill="none" aria-hidden="true"><path d="m8 18 12 10L32 9l12 19 12-10-6 27H14L8 18Z" stroke="currentColor" strokeWidth="1.4"/><path d="M16 49h32M20 37h24" stroke="currentColor"/><circle cx="8" cy="15" r="2" fill="currentColor"/><circle cx="32" cy="6" r="2" fill="currentColor"/><circle cx="56" cy="15" r="2" fill="currentColor"/></svg>;
 }
@@ -5,7 +6,8 @@ export function UserIcon({ className = '' }) {
   return <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></svg>;
 }
 export function Brand() {
-  return <span className="brand"><span className="brand-mark" aria-hidden="true">♧</span><span>THADINGYUT<small>FESTIVAL OF LIGHTS</small></span></span>;
+  const t = useT();
+  return <span className="brand"><span className="brand-mark" aria-hidden="true">♧</span><span className="brand-copy"><span className="brand-title">{t("THADINGYUT")}</span><small>{t("FESTIVAL OF LIGHTS")}</small></span></span>;
 }
 export function Sky() {
   return <div className="festival-sky" aria-hidden="true">

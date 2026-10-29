@@ -1,3 +1,4 @@
+import { useT } from '../i18n/Language.jsx';
 import { useEffect, useRef, useState } from 'react';
 
 const tracks = [
@@ -8,6 +9,7 @@ const tracks = [
 const equalizerHeights = [7, 12, 17, 9, 19, 13, 8, 16, 20, 10, 15, 7];
 
 export default function MusicPlayer() {
+  const t = useT();
   const audioRef = useRef(null);
   const wantsPlayback = useRef(true);
   const [trackIndex, setTrackIndex] = useState(0);
@@ -46,7 +48,7 @@ export default function MusicPlayer() {
     }
   }
 
-  return <aside className="music-player" aria-label="Festival music player">
+  return <aside className="music-player" aria-label={t("Festival music player")}>
     <audio
       ref={audioRef}
       src={track.src}
@@ -61,7 +63,7 @@ export default function MusicPlayer() {
         {equalizerHeights.map((height, index) => <i key={index} style={{ height: `${height}px`, animationDelay: `${-index * 0.13}s`, animationDuration: `${0.6 + (index % 4) * 0.12}s` }}/>) }
       </span>
       <div className="music-player-controls">
-        <button className="music-player-button music-player-play" type="button" onClick={togglePlayback} aria-label={playing ? 'Pause music' : 'Play music'} title={playing ? 'Pause' : 'Play'}>{playing ? 'Ⅱ' : '▶'}</button>
+        <button className="music-player-button music-player-play" type="button" onClick={togglePlayback} aria-label={t(playing ? 'Pause music' : 'Play music')} title={t(playing ? 'Pause' : 'Play')}>{t(playing ? 'Ⅱ' : '▶')}</button>
       </div>
     </div>
   </aside>;

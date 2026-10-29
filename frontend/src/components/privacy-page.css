@@ -1,0 +1,36 @@
+/* Privacy policy view — Thadingyut Design System v1.0 */
+.privacy-page {
+  max-width: 850px;
+  margin: 0 auto;
+  padding: 0 var(--page-gutter) var(--space-16);
+  color: var(--cream);
+}
+
+.privacy-copy {
+  padding: var(--space-3) 0 var(--space-6);
+}
+
+.privacy-copy h2 {
+  font-size: var(--text-section-h2);
+  color: var(--gold);
+  margin: var(--space-6) 0 var(--space-3);
+}
+
+.privacy-copy p {
+  font-size: var(--text-body);
+  line-height: 1.85;
+  color: #c0ccdc;
+  margin-bottom: var(--space-4);
+}
+
+.privacy-copy a {
+  color: var(--gold);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  overflow-wrap: anywhere;
+  transition: color var(--motion-fast) ease;
+}
+
+.privacy-copy a:hover {
+  color: var(--cream);
+}

@@ -6,7 +6,8 @@ import { join } from 'node:path';
 const server=await createServer({mode:'fixtures',server:{host:'127.0.0.1',port:0}});await server.listen();
 const browser=await chromium.launch({headless:true, channel: process.env.PLAYWRIGHT_CHANNEL || "msedge"});
 try {
-const page=await browser.newPage({viewport:{width:1440,height:1000}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
+const page=await browser.newPage({viewport:{width:1440,height:1000}});
+await page.addInitScript(() => localStorage.setItem('festival-language', 'en'));const errors=[];page.on('pageerror',e=>errors.push(e.message));
 await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/#home`);
 await page.getByRole('link',{name:'Meet the developers'}).click();await page.locator('.dev-portrait').first().waitFor();
 assert.equal(await page.locator('.dev-portrait').count(),11);assert.equal(await page.locator('.site-nav a[href="#developers"]').count(),0);

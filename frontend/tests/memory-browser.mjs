@@ -16,6 +16,7 @@ try {
   for (const viewport of [{ width: 1440, height: 1000 }, { width: 1024, height: 1000 }, { width: 768, height: 1000 }, { width: 390, height: 844 }, { width: 320, height: 700 }]) {
     const context = await browser.newContext({ viewport, reducedMotion: 'reduce' });
     const page = await context.newPage();
+    await page.addInitScript(() => localStorage.setItem('festival-language', 'en'));
     const errors = [], apiRequests = [], missing = [];
     page.on('pageerror', error => errors.push(error.message));
     page.on('response', response => { if (response.status() >= 400 && response.url().includes('/memory-photo/')) missing.push(response.url()); });
@@ -68,6 +69,7 @@ try {
   }
   const animated = await browser.newContext({ reducedMotion: 'no-preference' });
   const motionPage = await animated.newPage();
+  await motionPage.addInitScript(() => localStorage.setItem('festival-language', 'en'));
   const unexpected = [];
   await motionPage.route('**/api/**', route => { unexpected.push(route.request().url()); return route.abort(); });
   await motionPage.goto(`${base}/#my-memories-demo`);

@@ -33,3 +33,6 @@ frontend/test-artifacts/
 
 # Public fixture-mode flags shipped with the React handoff (no credentials)
 !frontend/.env.fixtures
+
+# Local Python release-check cache
+__pycache__/
