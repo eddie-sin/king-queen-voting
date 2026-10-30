@@ -8,7 +8,7 @@ const { S3Client, PutObjectCommand, DeleteObjectCommand } = require("@aws-sdk/cl
 const directory = require("node:fs").mkdtempSync(path.join(os.tmpdir(), "king-queen-storage-test-"));
 process.env.LOCAL_UPLOAD_DIR = directory;
 const storage = require("../utils/imageStorage");
-const file = { buffer: Buffer.from("test-image-content"), mimetype: "image/png" };
+const file = { buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64'), mimetype: "image/png" };
 
 after(() => fs.rm(directory, { recursive: true, force: true }));
 
@@ -22,7 +22,7 @@ test("development saves image files locally without S3 configuration or calls", 
     const url = await storage.uploadImage(file, "candidates");
     assert.match(url, /^\/uploads\/candidates\/[a-f0-9-]+\.png$/);
     const bytes = await fs.readFile(path.join(directory, url.slice("/uploads/".length)));
-    assert.deepEqual(bytes, file.buffer);
+    assert.deepEqual(await require('sharp')(bytes).raw().toBuffer(), await require('sharp')(file.buffer).raw().toBuffer());
     const second = await storage.uploadImage(file, "candidates");
     assert.notEqual(url, second);
   } finally { S3Client.prototype.send = originalSend; }
@@ -43,7 +43,7 @@ test("production writes to S3 and returns its public URL without saving locally"
     assert(commands[0] instanceof PutObjectCommand);
     assert.equal(commands[0].input.Bucket, "test-voting-images");
     assert.equal(commands[0].input.ContentType, "image/png");
-    assert.deepEqual(commands[0].input.Body, file.buffer);
+    assert.deepEqual(await require('sharp')(commands[0].input.Body).raw().toBuffer(),await require('sharp')(file.buffer).raw().toBuffer());
     assert.deepEqual(await fs.readdir(directory, { recursive: true }), before);
 
     process.env.AWS_S3_PUBLIC_URL = "https://images.example.com/";

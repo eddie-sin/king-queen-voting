@@ -6,6 +6,7 @@ const challenges = require("../utils/accounts/challenges");
 const { gmail, settings } = require("../utils/accounts/config");
 const google = require("../utils/accounts/google");
 const passwords = require("../utils/passwords");
+const { transaction } = require('../utils/transactions');
 const { withControls, getControls } = require("../utils/eventControls");
 const catchAsync = require("../utils/catchAsync");
 const AppError = require("../utils/appError");
@@ -113,9 +114,12 @@ exports.register = catchAsync(async (req, res) => {
 exports.login = catchAsync(async (req, res) => {
   only(req, ["email", "password"]);
   const { emailKey } = gmail(req.body.email);
-  const attemptKey = `password-attempt:${security.digest(emailKey)}`;
+  const attemptKey = `password-attempt:${security.digest(`${emailKey}:${req.ip}`)}`;
   // Inbox-scoped and durable across restarts; shared Wi-Fi is not a single account.
-  await withControls(async ({session}) => challenges.hit(attemptKey, 20, new Date(Date.now()+15*60000), session));
+  await transaction(async session => {
+    await challenges.hit(attemptKey, 20, new Date(Date.now()+15*60000), session);
+    await challenges.hit(`password-account:${security.digest(emailKey)}`, 300, new Date(Date.now()+15*60000), session);
+  });
   const user = await User.findOne({ emailKey }).select("+passwordHash");
   dummyHash ||= passwords.hash("unused-login-placeholder").catch((error) => {
     dummyHash = null;
@@ -131,7 +135,7 @@ exports.login = catchAsync(async (req, res) => {
       "Invalid email or password. You may also use Google or password recovery.",
       401,
     );
-  const result = await withControls(async ({ session }) => {
+  const result = await transaction(async session => {
     const current = await User.findOne({
       _id: user._id,
       tokenVersion: user.tokenVersion,
@@ -278,7 +282,7 @@ exports.verifyRegistration = catchAsync(async (req, res) => {
 });
 exports.verifyLink = catchAsync(async (req, res) => {
   only(req, ["flowId", "code"]);
-  const result = await withControls(async ({ session }) => {
+  const result = await transaction(async session => {
     const checked = await challenges.check(req, "link", session);
     if (checked.failure) return checked;
     const { flow } = checked;
@@ -312,7 +316,7 @@ exports.verifyLink = catchAsync(async (req, res) => {
 exports.recovery = catchAsync(async (req, res) => {
   only(req, ["email", "operationId"]);
   const identity = gmail(req.body.email);
-  const flow = await withControls(async ({ session }) => {
+  const flow = await transaction(async session => {
     const user = await User.findOne({
       emailKey: identity.emailKey,
       status: "active",
@@ -336,7 +340,7 @@ exports.recovery = catchAsync(async (req, res) => {
 });
 exports.verifyRecovery = catchAsync(async (req, res) => {
   only(req, ["flowId", "code"]);
-  const result = await withControls(async ({ session }) => {
+  const result = await transaction(async session => {
     const checked = await challenges.check(req, "recovery", session);
     if (checked.failure) return checked;
     const { flow } = checked;
@@ -376,7 +380,7 @@ exports.completeRecovery = catchAsync(async (req, res) => {
     throw new AppError("Invalid reset request.", 400);
   passwords.validatePassword(req.body.password);
   const passwordHash = await passwords.hash(req.body.password);
-  await withControls(async ({ session }) => {
+  await transaction(async session => {
     const flow = await Flow.findOne({
       _id: req.body.resetId,
       browser: req.authBrowser,

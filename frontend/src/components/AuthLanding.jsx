@@ -31,6 +31,7 @@ export default function AuthLanding({ api, registrationStatus, onOpenLogin, onOp
               <button type="button" role="tab" aria-selected={mode === 'login'} className={mode === 'login' ? 'is-active' : ''} onClick={() => { setMode('login'); onOpenLogin?.(); }}>Sign in <span>ဝင်ရောက်မယ်</span></button>
               <button type="button" role="tab" aria-selected={mode === 'register'} className={mode === 'register' ? 'is-active' : ''} onClick={() => { setMode('register'); onOpenRegister?.(); }}>Sign up <span>အကောင့်ဖွင့်မယ်</span></button>
             </div>
+            <p className="auth-landing-note"><a href="#privacy">Privacy and account information</a></p>
             <p className="auth-landing-note">Gmail/password, verification codes and Google sign-in are available through the secure account flow.</p>
           </div>
         </section>

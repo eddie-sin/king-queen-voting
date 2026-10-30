@@ -65,7 +65,7 @@ test('Lantern creation validates image and metadata, stores a local image, edits
   assert.equal(created.title, 'Festival Light'); assert.equal(created.section, 'lantern');
   assert.match(created.url, /^\/uploads\/gallery\/lantern\/[A-Za-z0-9_-]+\.png$/);
   const image = await fixture.asset(created.url);
-  assert.equal(image.status, 200); assert.equal(image.headers.get('content-type'), 'image/png'); assert.deepEqual(image.bytes, PNG);
+  assert.equal(image.status, 200); assert.equal(image.headers.get('content-type'), 'image/png'); assert.deepEqual(await require('sharp')(image.bytes).raw().toBuffer(),await require('sharp')(PNG).raw().toBuffer());
   const edited = await fixture.request('PATCH', `/images/${created._id}`, { token: admin.token, body: { title: 'Paper Star', description: '' } });
   assert.equal(edited.status, 200); assert.equal(edited.body.data.image.title, 'Paper Star'); assert.equal(edited.body.data.image.description, '');
   const noOp = await fixture.request('PATCH', `/images/${created._id}`, { token: admin.token, body: {} });

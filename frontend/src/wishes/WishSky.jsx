@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Dialog } from '../components/Dialog.jsx';
+import { wishLength, validWishText } from './wishText.js';
 import { useWishSky } from './useWishSky.js';
 import FireworkStation from './FireworkStation.jsx';
 import WishSkyTour from './WishSkyTour.jsx';
@@ -53,6 +54,8 @@ function ReleasedWish({release,launching,onArrive,onRead}){
 }
 export default function WishSky({api,session,onRequireLogin,accountOpen,paused}){
  const {capacity,reduced}=useSkyPreferences();const model=useWishSky(api,session,capacity);
+ const moderationSeen=useRef(null);
+ useEffect(()=>{if(moderationSeen.current!==null&&moderationSeen.current!==model.moderationRevision)setReading(null);moderationSeen.current=model.moderationRevision;},[model.moderationRevision]);
  const [compose,setCompose]=useState(false),[requested,setRequested]=useState(false),[reading,setReading]=useState(null),[draft,setDraft]=useState(''),[name,setName]=useState(''),[formError,setFormError]=useState('');
  const [tourOpen,setTourOpen]=useState(()=>{try{return localStorage.getItem('wish-sky-tour-v1')!=='done';}catch{return true;}});
  const [flightPaths,setFlightPaths]=useState(()=>Array.from({length:24},()=>makeFlightPath()));
@@ -85,13 +88,16 @@ export default function WishSky({api,session,onRequireLogin,accountOpen,paused})
   {reading&&<Dialog title="A little light, just for you" className="wish-reading-dialog" onClose={()=>setReading(null)}><div className="wish-reading"><WishLantern/><p className="wish-message">{reading.wish.message}</p>{reading.wish.name&&<p className="wish-signature">— <strong>{reading.wish.name}</strong></p>}{reading.wish.id!=='tour-sample'&&<WishReaction wish={reading.wish} onReact={async(wish,active)=>{const updated=await model.react(wish,active);setReading(previous=>previous?.wish.id===wish.id?{...previous,wish:updated}:previous);}}/>}</div></Dialog>}
   {compose&&<Dialog title="Send a little hope." className="wish-compose-dialog" locked={model.busy} onClose={()=>setCompose(false)}><form className="wish-form" onSubmit={async e=>{e.preventDefault();setFormError('');try{const wish=await model.submit(draft.trim(),name.trim());if(wish){setCompose(false);setDraft('');setName('');}}catch(error){setFormError(error.message);}}}>
     <div className="eyebrow">YOUR LANTERN STARTS HERE</div><label htmlFor="wish-message">Your wish</label><textarea id="wish-message" value={draft} rows={4} required placeholder="What would you like to send into the sky?" onChange={e=>setDraft(e.target.value)} disabled={model.busy||!session}/>
+    <p className="wish-form-note" aria-live="polite">{wishLength(draft.trim())}/280 characters · up to 8 lines</p>
+    {draft && !validWishText(draft) && <p role="alert">Keep your wish within 280 characters, 8 lines and 8 KB.</p>}
     <label htmlFor="wish-name">Your name <span className="optional-label">(optional)</span></label><input id="wish-name" value={name} maxLength={60} placeholder="Leave blank to stay anonymous" onChange={e=>setName(e.target.value)} disabled={model.busy||!session}/>
     <p className="wish-form-note">Everyone can read your wish. Your name appears only if you add it.</p>
+    {model.postingOpen===false&&<p role="status">New wishes are paused. You can keep your draft and read the sky.</p>}
     {remaining===0&&<p role="status">You have released all three wishes.</p>}
     {model.quotaError&&<p className="inline-error" role="alert">{model.quotaError}</p>}
     {formError&&<p className="inline-error" role="alert">{formError}</p>}
     {model.uncertain&&<div className="wish-uncertain"><p>Your release may have succeeded. {remaining===undefined?'Check your allowance.':`${remaining} wishes remain.`} Check the sky before sending the same wish again.</p><button type="button" className="btn secondary" disabled={model.busy} onClick={model.acknowledgeUncertain}>I understand — check remaining wishes</button></div>}
-    <button className="btn primary" type="submit" disabled={!session||model.busy||!remaining||model.uncertain||!draft.trim()}>{model.busy?'Releasing your lantern…':'Release my lantern'}</button>
+    <button className="btn primary" type="submit" disabled={!session||model.busy||!remaining||model.uncertain||!validWishText(draft)||model.postingOpen===false}>{model.busy?'Releasing your lantern…':'Release my lantern'}</button>
     {remaining===undefined&&<button type="button" className="text-button" onClick={model.loadQuota}>Check remaining wishes</button>}
   </form></Dialog>}
  </div>;

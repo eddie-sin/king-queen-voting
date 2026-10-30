@@ -530,7 +530,7 @@ async function cooldown(email) {
     const failed = await c.request("/auth/pending");
     assert.equal(failed.delivery, "failed");
     assert.match(failed.deliveryMessage, /allowance/);
-    await Limit.updateOne({_id:`password-attempt:${security.digest("eddie@gmail.com")}`},{$set:{count:20,until:new Date(Date.now()+900000)}},{upsert:true});
+    await Limit.updateOne({_id:`password-attempt:${security.digest("eddie@gmail.com:127.0.0.1")}`},{$set:{count:20,until:new Date(Date.now()+900000)}},{upsert:true});
     await a.request("/auth/login",{email:"ed.die+alias@gmail.com",password:"newpassword123"},429);
     // Returning Google identity still signs in during email/quota exhaustion.
     start = await a.request("/auth/google/start",{});

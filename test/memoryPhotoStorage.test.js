@@ -11,7 +11,7 @@ process.env.LOCAL_UPLOAD_DIR = path.join(directory, "public");
 process.env.MEMORY_PHOTO_UPLOAD_DIR = path.join(directory, "private");
 const storage = require("../utils/memoryPhotoStorage");
 const publicStorage = require("../utils/imageStorage");
-const file = { buffer: Buffer.from("test-image-bytes"), mimetype: "image/png" };
+const file = { buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64'), mimetype: "image/png" };
 const keyPattern = /^memory-photos\/[0-9a-f-]+\.png$/;
 
 after(() => fs.rm(directory, { recursive: true, force: true }));
@@ -48,7 +48,7 @@ test("existing public uploads remain accessible while private images cannot be f
   try {
     const response = await fetch(`${base}${publicUrl}`);
     assert.equal(response.status, 200);
-    assert.deepEqual(Buffer.from(await response.arrayBuffer()), file.buffer);
+    assert.deepEqual(await require('sharp')(Buffer.from(await response.arrayBuffer())).raw().toBuffer(),await require('sharp')(file.buffer).raw().toBuffer());
     for (const url of [`/uploads/${key}`, `/uploads/private/${key}`, `/private-memory-photos/${key}`,
       `/uploads/%2e%2e%2fprivate%2f${key}`]) {
       const hidden = await fetch(`${base}${url}`);
@@ -239,7 +239,7 @@ test("development can use a shared S3 prefix while public images stay local", as
     for (const folder of ["candidates", "gallery/memory", "gallery/lantern"]) {
       const url = await publicStorage.uploadImage(file, folder);
       assert(url.startsWith(`/uploads/${folder}/`));
-      assert.deepEqual(await fs.readFile(path.join(directory, "public", url.slice("/uploads/".length))), file.buffer);
+      assert.deepEqual(await require("sharp")(await fs.readFile(path.join(directory,"public",url.slice("/uploads/".length)))).raw().toBuffer(),await require("sharp")(file.buffer).raw().toBuffer());
     }
     assert.equal(commands.length, calls);
     process.env.NODE_ENV = "production";

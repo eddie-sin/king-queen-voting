@@ -64,7 +64,7 @@ let server, vite, browser;
     page.on("pageerror", (e) => errors.push(e.message));
     await page.goto(origin);
     await page
-      .getByRole("button", { name: "Sign in", exact: true })
+      .getByRole("tab", { name: /^Sign in/ })
       .first()
       .click();
     await page.getByRole("button", {name:"Retry Google",exact:true}).waitFor();
@@ -132,11 +132,11 @@ let server, vite, browser;
       .first()
       .click();
     await page
-      .getByRole("button", { name: "Sign in", exact: true })
+      .getByRole("tab", { name: /^Sign in/ })
       .first()
       .waitFor();
     await page
-      .getByRole("button", { name: "Sign in", exact: true })
+      .getByRole("tab", { name: /^Sign in/ })
       .first()
       .click();
     await page
@@ -200,7 +200,7 @@ let server, vite, browser;
       .click();
     await page.getByRole("button", { name: "Sign out", exact: true }).click();
     await page
-      .getByRole("button", { name: "Sign in", exact: true })
+      .getByRole("tab", { name: /^Sign in/ })
       .first()
       .waitFor();
     assert.ok(!(await context.cookies()).some((c) => c.name === "kq_session"));

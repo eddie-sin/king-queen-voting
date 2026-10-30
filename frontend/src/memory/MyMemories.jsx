@@ -136,7 +136,7 @@ function ArchivedMemory({
         </div>
       )}
       <div className="mp-print-bottom mp-archive-actions">
-        <span className="mp-status mp-archived-status">Archived · private</span>
+        <span className="mp-status mp-archived-status">Archived · hidden from gallery</span>
         <button className="mp-button mp-outline" onClick={onUnarchive}>
           Unarchive
         </button>
@@ -355,7 +355,7 @@ export default function MyMemories({ api }) {
             <time dateTime={viewer.createdAt}>{dateLabel(viewer.createdAt)}</time>
             <span>
               {viewer.status === 'ARCHIVED'
-                ? 'Archived · private'
+                ? 'Archived · hidden from gallery'
                 : 'Approved Memory Photo'}
             </span>
           </div>
@@ -406,7 +406,7 @@ export default function MyMemories({ api }) {
                     confirm.kind === 'delete'
                       ? 'Memory permanently deleted.'
                       : confirm.kind === 'archive'
-                        ? 'Memory archived privately.'
+                        ? 'Memory hidden from the public gallery. Authorised moderators retain access.'
                         : 'Memory restored to the public gallery.',
                   );
                   setConfirm(null);

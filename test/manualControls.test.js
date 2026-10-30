@@ -11,7 +11,7 @@ const app=require('../app'), Controls=require('../model/eventControlsModel'), Ba
 const {seed}=require('../utils/seed');
 let mongo,server,base,admin,user,token;
 async function request(path,body,expected=200,auth=admin) {
- const response=await fetch(base+path,{method:body?'POST':'GET',headers:{'Content-Type':'application/json',...(auth===token?headers(token):auth?{Authorization:`Bearer ${auth}`}:{})},...(body?{body:JSON.stringify(body)}:{})});
+ const response=await fetch(base+path,{method:body?'POST':'GET',headers:{...(body instanceof FormData?{}:{'Content-Type':'application/json'}),...(auth===token?headers(token):auth?{Authorization:`Bearer ${auth}`}:{})},...(body?{body:body instanceof FormData?body:JSON.stringify(body)}:{})});
  const data=await response.json();assert.equal(response.status,expected,`${path}: ${JSON.stringify(data)}`);return data.data;
 }
 async function command(action,extra={}) {return request('/admin/controls/'+action,{revision:(await Controls.findById('event')).revision,operationId:crypto.randomUUID(),...extra});}
@@ -40,7 +40,8 @@ test('cookie students retain one immutable vote per category across manual closu
 });
 test('public candidate views omit private contacts and cookie students cannot mutate staff galleries',async()=>{
  await command('voting.close');
- const created=await request('/candidates',{fullName:'Private Contact',category:'queen',images:['https://example.test/public.png'],contactNumber:'0999999999'},201);
+ const form=new FormData();form.append('data',JSON.stringify({fullName:'Private Contact',category:'queen',contactNumber:'0999999999'}));form.append('images',new Blob([Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64')],{type:'image/png'}),'photo.png');
+ const created=await request('/candidates',form,201);
  const id=created.candidate._id;
  const publicRows=await request('/candidates',undefined,200,null);
  assert(!JSON.stringify(publicRows).includes('0999999999'));
