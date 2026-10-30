@@ -37,8 +37,8 @@ async function request(method, endpoint, token, body, expected = 200) {
   const response = await fetch(base + '/api/v1' + endpoint, { method,
     headers: { ...(typeof token === 'string' ? { Authorization: `Bearer ${token}` } : {}),
       ...(student ? { Cookie: token.cookie, Origin: process.env.AUTH_ORIGIN, 'X-CSRF-Token': token.csrf } : {}),
-      ...(body ? { 'Content-Type': 'application/json' } : {}) },
-    ...(body ? { body: JSON.stringify(body) } : {}) });
+      ...(body && !(body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}) },
+    ...(body ? { body: body instanceof FormData?body:JSON.stringify(body) } : {}) });
   assert.equal(response.status, expected, `${method} ${endpoint}`);
   return response.json();
 }
@@ -51,7 +51,7 @@ const onlyControls = data => {
   assert.deepEqual(Object.keys(data), ['controls'], 'No private count or alternate count field may be returned');
   assert.deepEqual(Object.keys(data.controls).sort(), [
     'announcementOpen', 'candidateManagementLocked', 'lanternAnnouncementOpen', 'lanternVotingOpen', 'lanternWindow',
-    'memoryPhotosEnabled', 'registrationOpen', 'revision', 'round', 'votingStatus', 'window',
+    'memoryPhotosEnabled', 'registrationOpen', 'revision', 'round', 'votingStatus', 'window', 'wishPostingOpen',
   ], 'Public controls must not contain nested private totals');
   assert.equal(typeof data.controls.votingStatus, 'string');
 };
@@ -123,8 +123,7 @@ before(async () => {
   await mongoose.connection.collection('users').insertOne({ _id: studentId, email: 'privacystudent@gmail.com', emailKey: 'privacystudent@gmail.com', emailVerifiedAt: new Date(), status: 'active', tokenVersion: 0, createdAt: new Date(), updatedAt: new Date() });
   await mongoose.connection.collection('studentsessions').insertOne({ _id: crypto.createHash('sha256').update(raw).digest('hex'), user: studentId, version: 0, expiresAt: new Date(Date.now() + 3600000) });
   tokens.student = { cookie: `kq_session=${raw}; kq_browser=${browser}.${expiry}.${mac(`browser:${browser}:${expiry}`)}`, csrf: mac(`csrf:${browser}`) };
-  for (const category of ['king', 'queen']) candidates.push((await request('POST', '/candidates', tokens.admin,
-    { fullName: `Privacy ${category}`, category, images: [`/test-fixtures/${category}.png`] }, 201)).data.candidate);
+  for (const category of ['king','queen']) {const form=new FormData();form.append('data',JSON.stringify({fullName:`Privacy ${category}`,category}));form.append('images',new Blob([Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64')],{type:'image/png'}),'photo.png');candidates.push((await request('POST','/candidates',tokens.admin,form,201)).data.candidate);}
   await castBothCategories();
 }, { timeout: 60000 });
 

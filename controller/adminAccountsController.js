@@ -9,7 +9,7 @@ function fields(body, create) {
   if (!body || Array.isArray(body) || !Object.keys(body).length || Object.keys(body).some(k => !['username', 'password', 'permissions', 'status', 'role'].includes(k))) throw new AppError('Only username, password, permissions and status are editable.', 400);
   const updates = {};
   if (create || body.username !== undefined) updates.username = passwords.username(body.username);
-  if (create || body.password !== undefined) passwords.validatePassword(body.password);
+  if (create || body.password !== undefined) passwords.validateStaffPassword(body.password);
   if (body.status !== undefined) {
     if (!['active', 'disabled'].includes(body.status)) throw new AppError('Invalid account status.', 400);
     updates.status = body.status;

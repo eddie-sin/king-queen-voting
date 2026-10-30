@@ -8,7 +8,7 @@ export const wishBackendConfig = {
   },
   mapList: payload => ({ wishes: payload.data.wishes, nextCursor: payload.data.nextCursor, total: payload.data.total }),
   allowanceRequest: () => ({ path: '/wishes/mine' }),
-  mapAllowance: payload => ({ used: payload.data.used }),
+  mapAllowance: payload => ({ used: payload.data.used, isOpen: payload.data.isOpen }),
   myWishesRequest: () => ({ path: '/wishes/mine/wishes', mine: true }),
   mapMyWishes: payload => payload.data.wishes,
   createRequest: (message, name) => ({ path: '/wishes', method: 'POST', body: { message, ...(name ? { name } : {}) } }),

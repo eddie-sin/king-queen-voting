@@ -32,6 +32,13 @@ try {
   page.on('response', response => { if (response.url().includes('/api/v1/') && response.status() >= 500) serverErrors.push([response.status(), response.url()]); });
   const base = `http://localhost:${port}`;
   await page.goto(`${base}/#wishes`);
+    await page.getByRole('tab',{name:/^Sign in/}).click();
+    const initialLogin=page.locator('dialog.account-dialog');
+    await initialLogin.getByLabel('Gmail address').fill(email);
+    await initialLogin.getByLabel('Password',{exact:true}).fill(fixture.password);
+    await initialLogin.locator('form').getByRole('button',{name:'Sign in',exact:true}).click();
+    await initialLogin.waitFor({state:'detached'});
+
   await page.getByRole('heading', { name: 'Read a wish' }).waitFor();
   await page.getByRole('button', { name: 'Read sample wish' }).waitFor();
   await page.getByRole('button', { name: 'Read sample wish' }).locator('.wish-lantern-shape').click();
@@ -39,18 +46,7 @@ try {
   await page.keyboard.press('Escape');
   await page.getByRole('heading', { name: 'Play or pause' }).waitFor();
   await page.getByText('3/3', { exact: true }).waitFor();
-  await page.getByRole('button', { name: 'Release a wish' }).click();
-  assert.equal(await page.locator('.wish-tour-card').count(), 0);
-  const login = page.locator('dialog.account-dialog');
-  await login.getByLabel('Gmail address').fill(email);
-  await login.getByLabel('Password', { exact: true }).fill(fixture.password);
-  const loginResponse = page.waitForResponse(response => new URL(response.url()).pathname === '/api/v1/auth/login');
-  await login.locator('form').getByRole('button', { name: 'Sign in', exact: true }).click();
-  const signedIn = await loginResponse;
-  assert.equal(signedIn.status(), 200, `Wish live login returned ${signedIn.status()}`);
-  await page.waitForTimeout(100);
-  if (await login.getByRole('alert').count()) throw Error(`Wish live login failed: ${await login.getByRole('alert').innerText()}`);
-  await login.waitFor({ state: 'detached' });
+  await page.getByRole('button', {name:'Skip tutorial'}).click();
   if (!await page.getByRole('heading', { name: 'Send a little hope.' }).count()) await page.getByRole('button', { name: 'Release a wish' }).click();
   await page.getByRole('heading', { name: 'Send a little hope.' }).waitFor();
   await page.keyboard.press('Escape');

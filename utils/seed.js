@@ -33,7 +33,7 @@ exports.seed = async () => {
   }));
   if (!(await Admin.exists({ role: 'admin' }))) {
     const username = passwords.username(process.env.ADMIN_USERNAME);
-    passwords.validatePassword(process.env.ADMIN_PASSWORD);
+    passwords.validateStaffPassword(process.env.ADMIN_PASSWORD);
     const existing = await Admin.exists({ username });
     if (existing) throw new Error('Configured administrator username is already in use by another staff account.');
     await Admin.create({ username, passwordHash: await passwords.hash(process.env.ADMIN_PASSWORD), role: 'admin' });

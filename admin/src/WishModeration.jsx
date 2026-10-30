@@ -1,0 +1,10 @@
+import {useEffect,useState} from 'react';
+import {request} from './api.js';
+export default function WishModeration({token,controls,onSaved,report,notify}) {
+ const [rows,setRows]=useState([]),[cursor,setCursor]=useState(null),[busy,setBusy]=useState(false);
+ async function load(next=null){setBusy(true);try{const d=await request('/admin/wishes'+(next?'?cursor='+encodeURIComponent(next):''),{token});setRows(old=>next?[...old,...d.wishes]:d.wishes);setCursor(d.nextCursor);}catch(e){report(e);}finally{setBusy(false);}}
+ useEffect(()=>{load();},[token]);
+ async function hide(w){setBusy(true);try{await request('/admin/wishes/'+w.id,{token,method:'PATCH',body:{hidden:!w.hidden}});setRows(old=>old.map(x=>x.id===w.id?{...x,hidden:!w.hidden}:x));notify(w.hidden?'Wish restored.':'Wish hidden. Open displays refresh within 30 seconds or on focus.');}catch(e){report(e);}finally{setBusy(false);}}
+ async function toggle(){setBusy(true);try{const d=await request('/admin/controls/wishes.'+(controls?.wishPostingOpen===false?'open':'close'),{token,method:'POST',body:{revision:controls.revision,operationId:crypto.randomUUID()}});onSaved(d);notify('Wish posting control updated. Existing wishes are preserved.');}catch(e){report(e);}finally{setBusy(false);}}
+ return <section><h1>Wish Sky moderation</h1><p>Wishes publish immediately. Hide abuse here; hidden wishes still count towards the account limit.</p><button className="button secondary" disabled={busy||!controls} onClick={toggle}>{controls?.wishPostingOpen===false?'Resume new wishes':'Pause new wishes'}</button> <button className="button secondary" disabled={busy} onClick={()=>load()}>Refresh wishes</button><div className="control-grid">{rows.map(w=><article className="control-card" key={w.id}><p style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{w.message}</p>{w.name&&<p>— {w.name}</p>}<p>{w.hidden?'Hidden from public':'Public'}</p><button className="button secondary" disabled={busy} onClick={()=>hide(w)}>{w.hidden?'Restore wish':'Hide wish'}</button></article>)}</div>{cursor&&<button className="button secondary" disabled={busy} onClick={()=>load(cursor)}>Load more wishes</button>}</section>;
+}

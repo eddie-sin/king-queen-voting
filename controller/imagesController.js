@@ -19,6 +19,10 @@ const lanternMetadata = (body) => {
 };
 
 exports.getImages = catchAsync(async (req, res) => {
+  if (Object.keys(req.query).some(k => k !== 'section') || req.query.section !== undefined &&
+      (typeof req.query.section !== 'string' || !Image.schema.path('section').enumValues.includes(req.query.section))) {
+    throw new AppError('Choose a valid gallery section.', 400);
+  }
   const filter = req.query.section ? { section: req.query.section } : {};
   const images = await Image.find(filter).sort("-createdAt");
 
@@ -44,7 +48,11 @@ exports.createImages = catchAsync(async (req, res, next) => {
   }
 
   guard(await getControls());
-  const uploads = await Promise.allSettled(req.files.map(file => uploadImage(file, `gallery/${req.body.section}`)));
+  const uploads = [];
+  for (const file of req.files) {
+    try { uploads.push({status:'fulfilled', value:await uploadImage(file, `gallery/${req.body.section}`)}); }
+    catch (reason) { uploads.push({status:'rejected', reason}); break; }
+  }
   const urls = uploads.filter(item=>item.status==='fulfilled').map(item=>item.value);
   const cleanup=()=>Promise.allSettled(urls.map(url=>deleteImage(url,`gallery/${req.body.section}`)));
   if(uploads.some(item=>item.status==='rejected')) { await cleanup(); throw new AppError('Image upload failed. Please retry.',503); }

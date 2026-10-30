@@ -89,14 +89,25 @@ exports.deleteOwn = catchAsync(async (req, res) => {
   res.status(200).json({ status: "success", data: { deleted: true, id: photo._id } });
 });
 
+exports.checkQuota = catchAsync(async (req, res, next) => {
+  const usage = await MemoryPhotoQuota.findById(req.userId).select('slots').lean();
+  if (usage?.slots?.length >= 3) {
+    // Reconcile terminal records, never release unresolved reservations by age.
+    await quota.recoverCancelled(req.userId); await quota.reconcileReleased(req.userId);
+    const current = await MemoryPhotoQuota.findById(req.userId).select('slots').lean();
+    if (current?.slots?.length >= 3) throw new AppError('You already have 3 active Memory Photos.', 409);
+  }
+  next();
+});
+
 exports.submitPhoto = catchAsync(async (req, res) => {
   if (req.files?.length !== 1) throw new AppError("Please upload exactly one image using the images field.", 400);
   if (Object.keys(req.body || {}).length) throw new AppError("Only an image may be submitted.", 400);
-  const file = await validateImage(req.files[0]);
   const photoId = new mongoose.Types.ObjectId();
   let imageKey;
   try {
     await quota.reserve(req.userId, photoId);
+    const file = await validateImage(req.files[0]);
     imageKey = await storage.uploadImage(file);
     // Do not accept a submission if an admin disabled the feature during upload.
     await requireEnabled();
@@ -126,7 +137,7 @@ exports.submitPhoto = catchAsync(async (req, res) => {
       console.error("Memory Photo persistence needs reconciliation; quota retained.");
     }
     // Never include storage errors, private keys or database documents in API errors.
-    if (error instanceof AppError && [403, 409].includes(error.statusCode)) throw error;
+    if (error instanceof AppError && [400, 403, 409].includes(error.statusCode)) throw error;
     throw new AppError("Could not accept the Memory Photo submission. Please retry.", 503);
   }
 });

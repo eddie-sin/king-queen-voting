@@ -26,6 +26,7 @@ try {
     await page.route('**/api/v1/**', route => {
       const path = new URL(route.request().url()).pathname;
       const ok = data => route.fulfill({ json: { status: 'success', data } });
+      if (path.endsWith('/wishes/status')) return ok({wishSky:{isOpen:true,moderationRevision:0}});
       if (path.endsWith('/config')) return ok({ csrfToken: 'wish-browser-csrf', googleClientId: null });
       if (path.endsWith('/pending')) return ok({ flow: null });
       if (path.endsWith('/login')) { signedIn = true; return ok({ sessionKey: 'wish-browser-session', user: { id: 'wish-user', email: 'demo@gmail.com', round: 1 } }); }
@@ -56,6 +57,13 @@ try {
       throw Error(`Unexpected API request: ${path}`);
     });
     await page.goto(`${base}/#wishes`);
+    await page.getByRole('tab',{name:/^Sign in/}).click();
+    const initialLogin=page.locator('dialog.account-dialog');
+    await initialLogin.getByLabel('Gmail address').fill('demo@gmail.com');
+    await initialLogin.getByLabel('Password',{exact:true}).fill('festival123');
+    await initialLogin.locator('form').getByRole('button',{name:'Sign in',exact:true}).click();
+    await initialLogin.waitFor({state:'detached'});
+
     await page.locator('.floating-wish').first().waitFor();
     await page.getByRole('heading', { name: 'Read a wish' }).waitFor();
     const spotlight = await page.locator('.wish-tour-spotlight').boundingBox();
@@ -170,19 +178,12 @@ try {
     await page.keyboard.press('Escape');
     assert.equal(await firstWish.evaluate(element => document.activeElement === element), true);
     await page.getByRole('button', { name: 'Release a wish' }).click();
-    const login = page.locator('dialog.account-dialog');
-    await login.getByLabel('Gmail address').fill('demo@gmail.com');
-    await login.getByLabel('Password', { exact: true }).fill('festival123');
-    await login.locator('form').getByRole('button', { name: 'Sign in', exact: true }).click();
-    await page.waitForTimeout(200);
-    if (await login.getByRole('alert').count()) throw Error(`Wish fixture login failed: ${await login.getByRole('alert').innerText()}`);
-    await login.waitFor({ state: 'detached' });
-    if (!await page.getByRole('heading', { name: 'Send a little hope.' }).count()) await page.getByRole('button', { name: 'Release a wish' }).click();
+  if (!await page.getByRole('heading', { name: 'Send a little hope.' }).count()) await page.getByRole('button', { name: 'Release a wish' }).click();
     await page.getByRole('heading', { name: 'Send a little hope.' }).waitFor();
     for (let index = 1; index <= 3; index++) {
-      await page.getByLabel('Your wish', { exact: true }).fill(index === 1 ? 'a'.repeat(600) : `Wish ${index}`);
+      await page.getByLabel('Your wish', { exact: true }).fill(index === 1 ? 'a'.repeat(280) : `Wish ${index}`);
       if (index === 1) await page.getByLabel('Your name').fill('Aye');
-      if (index === 1) assert.equal((await page.getByLabel('Your wish', { exact: true }).inputValue()).length, 600);
+      if (index === 1) assert.equal((await page.getByLabel('Your wish', { exact: true }).inputValue()).length, 280);
       await page.getByRole('button', { name: 'Release my lantern' }).click();
       await page.getByRole('dialog').waitFor({ state: 'hidden' });
       await page.getByText(`${3 - index}/3`, { exact: true }).waitFor();
@@ -268,7 +269,7 @@ try {
     await page.getByRole('article', { name: 'Your wish 1', exact: true }).waitFor();
     assert.equal(await page.locator('.my-wish-card').count(), 3);
     assert.equal(await page.locator('.my-wish-message').first().innerText(), 'Wish 3');
-    assert.equal(await page.locator('.my-wish-message').last().innerText(), 'a'.repeat(600));
+    assert.equal(await page.locator('.my-wish-message').last().innerText(), 'a'.repeat(280));
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     assert.equal(await page.evaluate(() => localStorage.getItem('wish-sky-tour-v1')), 'done');
     await page.getByRole('link', { name: 'See tutorial', exact: true }).click();
@@ -289,8 +290,7 @@ try {
     await page.getByRole('link', { name: 'Back to account', exact: true }).click();
     await page.getByRole('button', { name: 'Sign out', exact: true }).click();
     await page.evaluate(() => { location.hash = 'my-wishes'; });
-    await page.getByRole('heading', { name: 'My wishes.' }).waitFor();
-    await page.getByText('Sign in to revisit the wishes you’ve released.').waitFor();
+    await page.getByRole('tab',{name:/^Sign in/}).waitFor();
     assert.equal(await page.locator('.my-wish-card').count(), 0, 'Signing out must clear the account wishes');
     assert.deepEqual(errors, []);
     await context.close();
