@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { createFireworkAudio } from './fireworkAudio.js';
 
+const flight = .9;
 const colors = ['#ffe5a3', '#ff9d7d', '#8bd8ef', '#e9b6f2', '#b8f2c9'];
 const random = (min, max) => min + Math.random() * (max - min);
 const pick = values => values[Math.floor(Math.random() * values.length)];
@@ -62,7 +64,7 @@ function FireworkShow({ shows }) {
       canvas.height = Math.round(height * ratio);
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
     };
-    const prepareShow = show => ({ ...show, started: performance.now(), bursts: show.bursts.map(burst => ({ ...burst, particles: Array.from({ length: 210 }, (_, index) => {
+    const prepareShow = show => ({ ...show, bursts: show.bursts.map(burst => ({ ...burst, particles: Array.from({ length: 210 }, (_, index) => {
       const point = shapePoint(burst.shape, (index < 160 ? index / 160 : Math.random()) * Math.PI * 2);
       const scatter = burst.shape === 'chrysanthemum' ? random(.3, 1) : index < 160 ? random(.96, 1.04) : random(.15, .85);
       return { x: point.x * scatter, y: point.y * scatter, radius: random(.6, 1.5), color: Math.random() < .8 ? burst.color : '#fff1c0', flicker: random(0, Math.PI * 2), life: random(2.1, 3.5), driftX: random(-4, 4), driftY: random(-2, 3) };
@@ -86,7 +88,6 @@ function FireworkShow({ shows }) {
         for (const burst of show.bursts) {
           const age = motion.matches ? 1 : elapsed - burst.delay;
           if (age < 0) continue;
-          const flight = .9;
           if (!motion.matches && age < flight) {
             const progress = age / flight;
             const rocket = t => ({ x: show.origin.x * width + (burst.x - show.origin.x) * width * t, y: show.origin.y * height + (burst.y - show.origin.y) * height * (1 - (1 - t) ** 2) });
@@ -144,12 +145,19 @@ export default function FireworkStation() {
   const station = useRef(null);
   const sequence = useRef(0);
   const timers = useRef(new Map());
+  const audio = useRef(null);
   useEffect(() => {
     const pending = timers.current;
-    return () => { pending.forEach(clearTimeout); pending.clear(); };
+    try { audio.current = createFireworkAudio(); } catch { /* Fireworks still work without audio support. */ }
+    return () => {
+      pending.forEach(clearTimeout); pending.clear();
+      audio.current?.dispose(); audio.current = null;
+    };
   }, []);
 
-  function launch() {
+  async function launch() {
+    const player = audio.current;
+    const ready = player?.prepare();
     const bounds = station.current.getBoundingClientRect();
     const shapes = ['flower', 'butterfly', 'heart', 'star', 'saturn', 'spiral', 'clover', 'sunburst'];
     const burstCount = matchMedia('(max-width: 580px)').matches ? 2 : 4;
@@ -160,7 +168,10 @@ export default function FireworkStation() {
       y: random(.2, .65),
       color: pick(colors), delay: index * random(.28, .48), size: random(.18, .23), wind: random(-4, 4),
     }));
-    const show = { id: ++sequence.current, bursts, origin: { x: (bounds.left + bounds.width / 2) / innerWidth, y: (bounds.top + bounds.height / 2) / innerHeight } };
+    const decoded = ready?.then ? await ready : ready;
+    if (!station.current) return;
+    const show = { id: ++sequence.current, started: performance.now(), bursts, origin: { x: (bounds.left + bounds.width / 2) / innerWidth, y: (bounds.top + bounds.height / 2) / innerHeight } };
+    player?.launch(decoded, flight, matchMedia('(prefers-reduced-motion: reduce)').matches);
     setShows(previous => [...previous, show]);
     timers.current.set(show.id, setTimeout(() => {
       timers.current.delete(show.id);
