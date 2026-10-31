@@ -91,16 +91,20 @@ try {
       assert.equal(await page.locator('.wish-tour-card').count(), 0, 'The skipped tour should stay dismissed');
     }
     assert.equal(await page.locator('.wish-tour-card').count(), 0);
+    await page.getByRole('button', { name: 'Launch fireworks' }).waitFor();
     assert.equal(await page.locator('.sky-actions .firework-station').count(), 0);
     assert.equal(await page.locator('.firework-station .firework-stick:visible').count(), viewport.width < 580 ? 2 : 5);
     await page.getByRole('button', { name: 'Launch fireworks' }).click();
     await page.locator('.firework-canvas').waitFor({ state: 'attached' });
+    const originalCanvas = await page.locator('.firework-canvas').elementHandle();
     assert.equal(await page.locator('.firework-display').evaluate(element => Math.round(element.getBoundingClientRect().width)), viewport.width);
     const firstBursts = JSON.parse(await page.locator('.firework-canvas').getAttribute('data-bursts'));
     const ordinary = ['round', 'chrysanthemum', 'willow'];
-    assert.equal(firstBursts.length, 4);
-    assert.ok(firstBursts.filter(burst => ordinary.includes(burst.shape)).length >= 3, 'Ordinary fireworks should dominate the show');
-    assert.ok(firstBursts.every(burst => [...ordinary, 'butterfly', 'flower', 'heart', 'star'].includes(burst.shape)));
+    const specialShapes = ['flower', 'butterfly', 'heart', 'star', 'saturn', 'spiral', 'clover', 'sunburst'];
+    const burstCount = viewport.width <= 580 ? 2 : 4;
+    assert.equal(firstBursts.length, burstCount);
+    assert.ok(firstBursts.filter(burst => ordinary.includes(burst.shape)).length >= burstCount - 1, 'Each launch should have at most one special shape');
+    assert.ok(firstBursts.every(burst => [...ordinary, ...specialShapes].includes(burst.shape)));
     await page.waitForTimeout(1800);
     assert.deepEqual(errors, [], 'The firework renderer should run without browser errors');
     const pixels = () => page.locator('.firework-canvas').evaluate(canvas => {
@@ -116,7 +120,35 @@ try {
     }
     await page.getByRole('button', { name: 'Launch fireworks' }).click();
     const nextBursts = JSON.parse(await page.locator('.firework-canvas').getAttribute('data-bursts'));
-    assert.notDeepEqual(nextBursts.map(burst => [burst.x, burst.y]), firstBursts.map(burst => [burst.x, burst.y]), 'Each launch should change burst positions');
+    assert.equal(nextBursts.length, burstCount * 2, 'Another launch should add bursts to the existing show');
+    assert.deepEqual(nextBursts.slice(0, burstCount), firstBursts, 'Earlier fireworks should remain in the sky');
+    assert.notDeepEqual(nextBursts.slice(burstCount).map(burst => [burst.x, burst.y]), firstBursts.map(burst => [burst.x, burst.y]), 'Each launch should change burst positions');
+    await page.getByRole('button', { name: 'Launch fireworks' }).evaluate((button, specialShapes) => {
+      const originalRandom = Math.random;
+      try {
+        for (let index = 0; index < 8; index++) {
+          // Select every special shape deterministically, then let particle randomness run normally.
+          const choices = [.3, 0, (index + .5) / specialShapes.length];
+          Math.random = () => choices.length ? choices.shift() : originalRandom();
+          button.click();
+        }
+      } finally { Math.random = originalRandom; }
+    }, specialShapes);
+    const rapidBursts = JSON.parse(await page.locator('.firework-canvas').getAttribute('data-bursts'));
+    assert.equal(rapidBursts.length, burstCount * 10, 'Rapid clicks should all add fireworks');
+    assert.deepEqual(specialShapes.map((_, index) => rapidBursts[(index + 2) * burstCount].shape), specialShapes, 'Every special shape should be available in overlapping launches');
+    await page.waitForTimeout(1000);
+    assert.ok(await pixels() > 150, 'Overlapping launches with new shapes should draw visible sparks');
+    assert.deepEqual(errors, [], 'All new shapes should render without browser errors');
+    assert.equal(await originalCanvas.evaluate(canvas => canvas === document.querySelector('.firework-canvas')), true, 'New launches should reuse the canvas without remounting the renderer');
+    await page.waitForFunction(expected => {
+      const canvas = document.querySelector('.firework-canvas');
+      return canvas && JSON.parse(canvas.dataset.bursts).length === expected;
+    }, burstCount * 9, { timeout: 7000 });
+    const remainingBursts = JSON.parse(await page.locator('.firework-canvas').getAttribute('data-bursts'));
+    assert.deepEqual(remainingBursts.slice(0, burstCount), nextBursts.slice(burstCount), 'The oldest launch should expire independently while newer fireworks remain');
+    await page.locator('.firework-display').waitFor({ state: 'detached', timeout: 7000 });
+    await originalCanvas.dispose();
     if (viewport.width < 580) assert.equal(await page.getByRole('heading', { name: /A sky full of/ }).isVisible(), false);
     assert.equal(await page.locator('.floating-wish').count(), viewport.width < 580 ? 8 : 24);
     assert.equal(await page.locator('.floating-wish .wish-lantern-shape').first().evaluate(element => parseFloat(getComputedStyle(element).width)), 60);
