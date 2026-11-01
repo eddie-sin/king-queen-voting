@@ -17,6 +17,7 @@ exports.submitVote = catchAsync(async (req, res) => {
   res.once('close', disconnected);
   let saved;
   try {
+    admission.synchronize(await getControls());
     saved = await admission.admit(() => withControls(async ({ session, controls }) => {
       const user = await User.findOne({ _id: req.userId, status: 'active', emailVerifiedAt: { $exists: true }, tokenVersion: req.user.tokenVersion }).session(session);
       if (!user) throw new AppError('Your account is no longer permitted to vote.', 403);

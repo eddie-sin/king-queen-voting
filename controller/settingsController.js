@@ -41,10 +41,10 @@ exports.command = catchAsync(async (req, res) => {
     if (previous && !(action === 'voting.close' && before.votingStatus === 'closing' && previous.details?.window === before.window)) {
       if (String(previous.actor) !== String(req.admin._id) || previous.action !== action) throw new AppError('This operation ID was already used.', 409);
       const current = await staffMutation(req, permission, async ({ controls }) => publicControls(controls));
-      if (action === 'voting.open' && current.votingStatus === 'open' && current.window === previous.details?.window) admission.open();
+      if (action === 'voting.open' && current.votingStatus === 'open' && current.window === previous.details?.window) admission.open(current);
       return res.json({ status: 'success', data: await settingsResponse(req, current, { clearedBallots: previous.details?.clearedBallots || 0 }) });
     }
-    if (action === 'voting.close') admission.close();
+    if (action === 'voting.close') admission.close(before);
     const result = await staffMutation(req, permission, async ({ controls, session, actor }) => {
       const existing = await Action.findOne({ operationId }).session(session);
       if (existing) {
@@ -100,15 +100,15 @@ exports.command = catchAsync(async (req, res) => {
       });
     }
     const current = await getControls();
-    if (current.votingStatus === 'open') admission.open();
-    else admission.close();
+    if (current.votingStatus === 'open') admission.open(current);
+    else admission.close(current);
     res.json({ status: 'success', data: await settingsResponse(req, publicControls(current), result) });
   } catch (error) {
     // A rejected command has no committed transition. Restore admission only
     // for a confirmed validation/authorization failure, never an uncertain commit.
     if (action === 'voting.close' && error.isOperational && error.statusCode < 500) {
       const current = await getControls();
-      if (current.votingStatus === 'open') admission.open();
+      if (current.votingStatus === 'open') admission.open(current);
     }
     throw error;
   } finally { commandBusy = false; }
