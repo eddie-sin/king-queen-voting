@@ -15,13 +15,17 @@ exports.lanterns=async session=>{
  const counts=new Map(totals.map(row=>[String(row._id),row.votes]));
  return images.map(lantern=>({lantern,votes:counts.get(String(lantern._id))||0})).sort((a,b)=>b.votes-a.votes||String(a.lantern._id).localeCompare(String(b.lantern._id)));
 };
-exports.awards=rows=>{
- const choose=category=>{
-  const list=rows.filter(row=>row.candidate.category===category&&row.votes>0);
-  for(let rank=0;rank<Math.min(2,list.length);rank++){
-   if(list[rank+1]?.votes===list[rank].votes)throw new AppError(`The ${category} title positions are tied. Resolve the tie before announcement.`,409);
-  }
-  return list.slice(0,2).map((row,index)=>({...row,title:category==='queen'?(index===0?'Miss Thadingyut':'Princess'):(index===0?'Mrs Thadingyut':'Prince')}));
- };
- return {kings:choose('king'),queens:choose('queen')};
+const {planAwards}=require('./awardSelection.mjs');
+exports.selectAwards=(rows, request={mode:'default',picks:{}})=>{
+ const plan=planAwards(rows,request.mode,request.picks);
+ if(!plan.ready)throw new AppError('Choose each title holder. Tied positions need an explicit choice.',409);
+ return {mode:request.mode,picks:plan.selection};
+};
+exports.awards=(rows,selection)=>{
+ const selected=selection?.picks ? selection : exports.selectAwards(rows);
+ const plan=planAwards(rows,'manual',selected.picks);
+ if(!plan.ready)throw new AppError('Announced title holders are unavailable. Ask an organiser to review the announcement.',409);
+ const result={kings:[],queens:[]};
+ for(const slot of plan.slots)if(slot.selected)result[slot.category==='king'?'kings':'queens'].push({...slot.selected,title:slot.title});
+ return result;
 };

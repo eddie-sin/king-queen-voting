@@ -8,7 +8,7 @@ const LABELS = {
   'lantern.open':'Open Lantern voting','lantern.close':'Close Lantern voting','lantern.announce':'Announce Lantern winner','lantern.hide':'Hide Lantern announcement',
   'candidates.create': 'Create candidates', 'candidates.update': 'Update candidates', 'candidates.delete': 'Delete candidates',
   'voting.open': 'Open voting', 'voting.close': 'Close voting', 'votes.clear': 'Clear all votes',
-  'announcement.open': 'Open announcement', 'announcement.close': 'Close announcement',
+  'announcement.open': 'Review vote results and publish title holders (voting closed)', 'announcement.close': 'Close announcement',
   'registration.open': 'Open registration', 'registration.close': 'Close registration',
 };
 const blank = () => ({ username: '', password: '', status: 'active', permissions: [], role: 'voting_admin' });

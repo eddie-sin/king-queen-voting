@@ -1,0 +1,74 @@
+// Browser -> local API -> disposable database only. Never loads production config.
+const assert = require('node:assert/strict'), path = require('node:path'), net = require('node:net');
+(async () => {
+ const port = await new Promise((resolve, reject) => { const server = net.createServer(); server.on('error', reject); server.listen(0, 'localhost', () => { const value = server.address().port; server.close(() => resolve(value)); }); });
+ process.env.TEST_V2_ORIGIN = `http://localhost:${port}`;
+ const f = await require('../test/fixtures/v2Fixture.cjs').createV2Fixture(); let admin, site, browser;
+ try {
+  await f.reset(); const { ObjectId } = require('mongoose').Types;
+  const docs = [['king', 'Aung', 9], ['king', 'Zaw', 9], ['king', 'Htet', 4], ['queen', 'May', 8], ['queen', 'Su', 3], ['queen', 'Thiri', 3]].map(([category, fullName, votes]) => ({ _id: new ObjectId(), category, fullName, votes, isActive: true, images: [], batchNumber: '12' }));
+  await f.db.collection('candidates').insertMany(docs.map(({votes, ...candidate}) => candidate));
+  await f.db.collection('ballots').insertMany(docs.flatMap(c => Array.from({length: c.votes}, () => ({ _id: new ObjectId(), user: new ObjectId(), candidate: c._id, contest: c.category, round: 1 }))));
+  const staff = await f.staff('voting_admin', ['announcement.open', 'announcement.close'], 'browser-announcer');
+  const student = await f.student('announcement-browser@gmail.com');
+  const { createServer } = await import('../admin/node_modules/vite/dist/node/index.js');
+  admin = await createServer({ root: path.resolve(__dirname, '../admin'), server: { host: '127.0.0.1', port: 0, proxy: { '/api': { target: f.baseUrl, changeOrigin: true } } } }); await admin.listen();
+  const { createServer: createPublic } = await import('../frontend/node_modules/vite/dist/node/index.js');
+  site = await createPublic({ root: path.resolve(__dirname, '../frontend'), server: { host: 'localhost', port, strictPort: true, proxy: { '/api': { target: f.baseUrl, changeOrigin: true } } } }); await site.listen();
+  browser = await require('../frontend/node_modules/playwright').chromium.launch(process.env.CI ? {headless: true} : { channel: 'chrome', headless: true });
+  const page = await browser.newPage({ viewport: { width: 1280, height: 1000 }, reducedMotion: 'reduce' }), errors = [];
+  page.on('pageerror', e => errors.push(e.message));
+  await page.goto('http://127.0.0.1:' + admin.httpServer.address().port);
+  await page.getByLabel('Admin username').fill('browser-announcer'); await page.getByLabel('Password', {exact: true}).fill(f.password); await page.getByRole('button', {name: 'Enter admin workspace →'}).click();
+  await page.getByRole('button', {name: 'Event controls', exact: true}).click();
+  assert.equal(await page.getByRole('button', {name: 'Vote totals', exact: true}).count(), 0, 'Announcers need not have broad count access');
+  await page.getByRole('button', {name: 'Open announcement', exact: true}).click();
+  let dialog = page.getByRole('dialog');
+  try { await dialog.getByLabel('King title holder', {exact: true}).waitFor({timeout:12000}); } catch (e) { console.log('ANNOUNCEMENT DIALOG', await page.locator('body').innerText()); console.log('BROWSER ERRORS', errors); throw e; }
+  assert.equal(await dialog.getByRole('button', {name: 'Next: Thadingyut titles'}).isEnabled(), false, 'Top tie requires an explicit decision');
+  await dialog.getByLabel('King title holder', {exact: true}).selectOption(String(docs[1]._id));
+  await dialog.getByRole('button', {name: 'Next: Thadingyut titles'}).click();
+  assert.equal(await dialog.getByRole('button', {name: 'Review announcement'}).isEnabled(), false, 'Second-place tie also requires an explicit decision');
+  await dialog.getByLabel('Miss Thadingyut title holder', {exact: true}).selectOption(String(docs[5]._id));
+  await dialog.getByRole('button', {name: 'Review announcement'}).click();
+  // A change elsewhere requires a refreshed review, never publishing stale picks.
+  await f.command('registration.open'); await dialog.getByRole('button', {name: 'Publish announcement'}).click();
+  await dialog.getByRole('alert').waitFor(); assert.match(await dialog.getByRole('alert').innerText(), /Controls changed/);
+  await dialog.getByRole('button', {name: 'Reload results and choose again'}).click();
+  await dialog.getByLabel('King title holder', {exact: true}).waitFor();
+  assert.equal(await dialog.getByLabel('King title holder', {exact: true}).inputValue(), '');
+  await dialog.getByLabel('King title holder', {exact: true}).selectOption(String(docs[1]._id));
+  await dialog.getByRole('button', {name: 'Next: Thadingyut titles'}).click();
+  await dialog.getByLabel('Miss Thadingyut title holder', {exact: true}).selectOption(String(docs[5]._id)); await dialog.getByRole('button', {name: 'Review announcement'}).click();
+  await dialog.getByRole('button', {name: 'Publish announcement'}).click(); await dialog.waitFor({state: 'detached'});
+  let result = await f.request('GET', '/results'); assert.equal(result.body.data.results.kings[0].candidate.fullName, 'Zaw');
+  await page.getByRole('button', {name: 'Close announcement', exact: true}).click();
+  await page.getByRole('button', {name: 'Open announcement', exact: true}).click();
+  dialog = page.getByRole('dialog'); await dialog.getByLabel('King title holder', {exact: true}).waitFor();
+  assert.equal(await dialog.getByLabel('King title holder', {exact: true}).inputValue(), '', 'Closing resets last tie choices');
+  await dialog.getByRole('radio', {name: /^Choose manually/}).check();
+  await dialog.getByLabel('King title holder', {exact: true}).selectOption(String(docs[2]._id));
+  await dialog.getByLabel('Queen title holder', {exact: true}).selectOption(String(docs[5]._id));
+  await dialog.getByRole('button', {name: 'Next: Thadingyut titles'}).click();
+  assert.equal(await dialog.getByLabel('Mrs Thadingyut title holder', {exact: true}).locator('option').filter({hasText: 'Htet'}).count(), 0, 'A person can only hold one title');
+  await dialog.getByLabel('Mrs Thadingyut title holder', {exact: true}).selectOption(String(docs[0]._id)); await dialog.getByLabel('Miss Thadingyut title holder', {exact: true}).selectOption(String(docs[3]._id));
+  await page.setViewportSize({width: 390, height: 844}); assert.equal(await dialog.evaluate(el => el.scrollWidth <= el.clientWidth), true);
+  await dialog.getByRole('button', {name: 'Review announcement'}).click();
+  if (process.env.ANNOUNCEMENT_SCREENSHOTS) await page.screenshot({path: path.join(process.env.ANNOUNCEMENT_SCREENSHOTS, 'announcement-admin-mobile.png'), fullPage: true});
+  await dialog.getByRole('button', {name: 'Publish announcement'}).click(); await dialog.waitFor({state: 'detached'});
+  result = await f.request('GET', '/results'); assert.deepEqual(result.body.data.results.kings.map(r => [r.candidate.fullName, r.votes]), [['Htet',4],['Aung',9]]);
+  const voter = await browser.newPage({viewport: {width: 1280, height: 1000}, reducedMotion: 'reduce'}); voter.on('pageerror', e => errors.push(e.message));
+  await voter.goto(`http://localhost:${port}/#results`); await voter.getByRole('tab', {name: /^Sign in/}).click();
+  const login = voter.locator('dialog.account-dialog'); await login.getByLabel('Gmail address').fill(student.user.email); await login.getByLabel('Password', {exact: true}).fill(f.password); await login.locator('form').getByRole('button', {name: 'Sign in', exact: true}).click(); await login.waitFor({state: 'detached'});
+  await voter.goto(`http://localhost:${port}/#results`); await voter.getByRole('heading', {name: 'Our King & Queen'}).waitFor();
+  assert.deepEqual(await voter.locator('.official-award-card h3').allTextContents(), ['Htet','Thiri','Aung','May']);
+  assert.equal(await voter.getByText('4 recorded votes', {exact: true}).count(), 1);
+  if (process.env.ANNOUNCEMENT_SCREENSHOTS) await voter.screenshot({path: path.join(process.env.ANNOUNCEMENT_SCREENSHOTS, 'announcement-results-desktop.png'), fullPage: true});
+  await voter.setViewportSize({width: 390, height: 844}); assert.equal(await voter.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  if (process.env.ANNOUNCEMENT_SCREENSHOTS) await voter.screenshot({path: path.join(process.env.ANNOUNCEMENT_SCREENSHOTS, 'announcement-results-mobile.png'), fullPage: true});
+  await page.setViewportSize({width: 1280, height: 1000}); await page.getByRole('button', {name: 'Close announcement', exact: true}).click(); await voter.reload();
+  await voter.getByRole('heading', {name: 'Announcement is closed'}).waitFor(); assert.equal(await voter.locator('.official-award-card').count(), 0);
+  assert.deepEqual(errors, []);
+  console.log('Announcement browser passed: restricted announcer, primary/secondary ties, stale review, default and manual publication, fresh selections after close, unchanged votes, desktop/mobile public awards and hidden results. Disposable local data only.');
+ } finally { await browser?.close(); await admin?.close(); await site?.close(); await f.close(); }
+})().catch(e => { console.error(e); process.exitCode = 1; });

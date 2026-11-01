@@ -6,7 +6,7 @@ const AppError = require('./appError');
 const { can } = require('./permissions');
 const { transaction } = require('./transactions');
 exports.getControls = async session => {
-  const controls = await Controls.findById('event').select('+fence').session(session || null);
+  const controls = await Controls.findById('event').select('+fence +announcedAwards').session(session || null);
   if (!controls || controls.schemaVersion !== 2) throw new AppError('Event controls are not initialized for this version.', 503);
   return controls;
 };

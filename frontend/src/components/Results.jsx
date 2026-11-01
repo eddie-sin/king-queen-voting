@@ -15,7 +15,7 @@ export function ResultsPage({
         <h1>
           The <em>results.</em>
         </h1>
-        <p>Celebrating our title holders and their recorded votes.</p>
+        <p>Four titles. One celebration of our festival community.</p><nav className="award-category-links" aria-label="King and Queen pages"><a href="#king">King candidates</a><a href="#queen">Queen candidates</a><a href="#results" aria-current="page">Results</a></nav>
       </div>
       {stage !== 'announced' ? (
         <div className="empty-state">
@@ -31,48 +31,22 @@ export function ResultsPage({
           </button>
         </div>
       ) : load === 'ready' && results ? (
-        ['king', 'queen'].map(contest => (
-          <div className="source-section results-contest-section" key={contest}>
-            <h2 className="results-contest-heading">
-              {contest === 'king' ? 'King' : 'Queen'} title holders
-            </h2>
-            {!results[contest].length ? (
-              <p>No title has been awarded in this category.</p>
-            ) : (
-              <div className="gallery">
-                {results[contest].map(person => (
-                  <article className="candidate-card" key={person._id}>
-                    {person.images[0] && (
-                      <img
-                        src={person.images[0]}
-                        alt={person.fullName}
-                        loading="lazy"
-                        style={{
-                          width: '100%',
-                          aspectRatio: '4/5',
-                          objectFit: 'cover',
-                        }}
-                      />
-                    )}
-                    <div className="candidate-copy">
-                      <p className="eyebrow">{person.title}</p>
-                      <h3>{person.fullName}</h3>
-                      <p className="meta">
-                        {person.batchNumber && `Batch ${person.batchNumber} · `}
-                        {person.isActive ? '' : 'Inactive candidate'}
-                      </p>
-                      <strong className="result-votes">
-                        {person.votes} {person.votes === 1 ? 'vote' : 'votes'}
-                      </strong>
-                      {results[contest].filter(c => c.votes === person.votes).length >
-                        1 && <p className="fine-print">Tied at this total</p>}
-                    </div>
-                  </article>
-                ))}
-              </div>
-            )}
-          </div>
-        ))
+        <div className="official-awards">
+          {[0, 1].map(rank => <section className={`award-tier ${rank === 0 ? 'award-tier--royal' : ''}`} key={rank} aria-labelledby={`award-tier-${rank}`}>
+            <div className="award-tier-heading"><span className="eyebrow">{rank === 0 ? 'THE FESTIVAL CROWNS' : 'THADINGYUT HONOURS'}</span><h2 id={`award-tier-${rank}`}>{rank === 0 ? 'Our King & Queen' : 'Mrs & Miss Thadingyut'}</h2></div>
+            <div className="award-pair">{['king', 'queen'].map(contest => {
+              const person = results[contest][rank];
+              const title = rank === 0 ? contest === 'king' ? 'King' : 'Queen' : contest === 'king' ? 'Mrs Thadingyut' : 'Miss Thadingyut';
+              return <article className="official-award-card" key={contest}>
+                {person ? <>
+                  <div className="award-portrait">{person.images[0] ? <img src={person.images[0]} alt={person.fullName} loading={rank === 0 ? 'eager' : 'lazy'} /> : <Crown />}<span className="award-title">{person.title}</span></div>
+                  <div className="award-copy"><h3>{person.fullName}</h3>{person.batchNumber && <p className="meta">Batch {person.batchNumber}</p>}<p className="award-recorded-votes"><strong>{person.votes}</strong> {person.votes === 1 ? 'recorded vote' : 'recorded votes'}</p></div>
+                </> : <div className="award-unfilled"><Crown /><h3>{title}</h3><p>No title holder announced in this category.</p></div>}
+              </article>;
+            })}</div>
+          </section>)}
+          <p className="award-note">Official titles announced by the festival organisers. Vote totals show the votes recorded for each title holder.</p>
+        </div>
       ) : (
         <div className="empty-state" role="status">
           <p>{load === 'error' ? error : 'Loading the current totals…'}</p>

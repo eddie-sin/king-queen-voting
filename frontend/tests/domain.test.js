@@ -71,14 +71,14 @@ test("choices are independent and unavailable candidates still count as votes", 
   );
 });
 
-test("announced result projection validates totals and deterministic ranking", () => {
+test("announced result projection validates totals and preserves manual title order", () => {
   const candidate = (id, name, category) => ({ _id: id, fullName: name, category, images: ["/uploads/a.jpg"], isActive: true, contactNumber: "PRIVATE" });
   const result = publicResults({ round: 3, revision: 8,
     kings: [
-      { candidate: candidate("k2", "Zaw", "king"), votes: 2, title: "Prince" },
+      { candidate: candidate("k2", "Zaw", "king"), votes: 2, title: "King" },
       { candidate: candidate("k1", "Aung", "king"), votes: 5, title: "Mrs Thadingyut" },
     ], queens: [] });
-  assert.deepEqual(result.king.map(entry => [entry._id, entry.votes, entry.title]), [["k1", 5, "Mrs Thadingyut"], ["k2", 2, "Prince"]]);
+  assert.deepEqual(result.king.map(entry => [entry._id, entry.votes, entry.title]), [["k2", 2, "King"], ["k1", 5, "Mrs Thadingyut"]]);
   assert.equal(JSON.stringify(result).includes("PRIVATE"), false);
   assert.throws(() => publicResults(null));
   assert.throws(() => publicResults({ round: 1, revision: 1, kings: [{ candidate: candidate("k", "K", "king"), votes: -1 }], queens: [] }));

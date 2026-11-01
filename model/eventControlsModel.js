@@ -10,6 +10,11 @@ const schema = new mongoose.Schema({
   registrationOpen: { type: Boolean, default: false },
   votingStatus: { type: String, enum: ['closed', 'open', 'closing'], default: 'closed' },
   announcementOpen: { type: Boolean, default: false },
+  announcedAwards: { type: new mongoose.Schema({
+    round: Number, mode: { type: String, enum: ['default', 'manual'] },
+    picks: { king: String, queen: String, mrs: String, miss: String },
+    selectedBy: mongoose.Schema.Types.ObjectId, selectedAt: Date,
+  }, { _id: false }), select: false, default: undefined },
   memoryPhotosEnabled: { type: Boolean, default: false },
   round: { type: Number, default: 1, min: 1 },
   window: { type: Number, default: 0, min: 0 },
