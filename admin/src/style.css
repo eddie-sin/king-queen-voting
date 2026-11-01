@@ -160,4 +160,209 @@ button.photo-add{width:100%;font:inherit;padding:0}button.photo-add:focus-visibl
 @media(max-width:740px){.control-grid{grid-template-columns:minmax(0,1fr)}.control-card{padding:20px}.event-controls-page>.page-header{flex-direction:column}.event-controls-page>.page-header>.button{width:100%;margin:0}}
 @media(max-width:620px){.sidebar{flex-wrap:wrap;gap:12px}.side-nav{order:3;flex-basis:100%;margin:0;overflow-x:auto;padding-bottom:4px}.side-nav .side-link{flex-shrink:0}.side-nav .side-text{display:inline;font-size:11px;white-space:nowrap}.sidebar-bottom{margin-left:auto}}
 
-.show-password{display:flex!important;flex-direction:row!important;align-items:center;gap:9px;font-size:13px;margin:10px 0 18px}.show-password input{width:17px!important;height:17px;accent-color:#d6ae68}
+.show-password{display:flex!important;flex-direction:row!important;align-items:center;gap:9px;font-size:13px;margin:10px 0 12px}.show-password input{width:17px!important;height:17px;accent-color:#d6ae68}
+.pw-tools{display:flex;flex-direction:column;gap:10px;margin:0 0 18px}
+.pw-generator-row{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.btn-strong-generator{display:inline-flex;align-items:center;gap:7px;padding:8px 14px;min-height:36px;border-radius:8px;border:1px solid #d6ae6873;background:linear-gradient(135deg,#e7c5822e,#d6ae6814);color:#f4d99c;font-size:12px;font-weight:700;transition:background .2s,border-color .2s,color .2s,transform .2s;box-shadow:0 2px 8px #0004}
+.btn-strong-generator:hover:not(:disabled){background:linear-gradient(135deg,#e7c5824d,#d6ae6826);border-color:#f4d99c;color:#fff;transform:translateY(-1px)}
+.btn-strong-generator svg{width:15px;height:15px;color:#e7c582;flex-shrink:0}
+.btn-copy-password{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;min-height:34px;border-radius:8px;border:1px solid #394c67;background:#101f38;color:#c9d6e5;font-size:11.5px;font-weight:600;transition:background .2s,border-color .2s,color .2s}
+.btn-copy-password:hover:not(:disabled){border-color:#d6ae68;color:#fff;background:#1b2c45}
+.btn-copy-password.is-copied{border-color:#49d78e;background:#49d78e26;color:#88f3bc}
+.btn-copy-password svg{width:14px;height:14px;flex-shrink:0}
+.pw-strength-meter{background:#0c192d;border:1px solid #2b405a;border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.pw-strength-header{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:11.5px}
+.pw-strength-title{color:#91a3bc}
+.pw-strength-label{font-weight:700;letter-spacing:.3px}
+.pw-strength-label.lvl-0{color:#f58476}
+.pw-strength-label.lvl-1{color:#f7a048}
+.pw-strength-label.lvl-2{color:#edd27b}
+.pw-strength-label.lvl-3{color:#62e5a3}
+.pw-strength-bars{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;height:4px}
+.pw-strength-bar{height:100%;border-radius:999px;background:#ffffff1a;transition:background .25s,box-shadow .25s}
+.pw-strength-bar.is-active.lvl-0{background:#f58476;box-shadow:0 0 6px #f5847680}
+.pw-strength-bar.is-active.lvl-1{background:#f7a048;box-shadow:0 0 6px #f7a04880}
+.pw-strength-bar.is-active.lvl-2{background:#edd27b;box-shadow:0 0 6px #edd27b80}
+.pw-strength-bar.is-active.lvl-3{background:#47dc93;box-shadow:0 0 6px #47dc9380}
+.pw-strength-rules{display:flex;flex-wrap:wrap;gap:6px;margin-top:2px}
+.pw-rule-pill{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;padding:3px 8px;border-radius:5px;background:#ffffff0a;color:#8799b1;border:1px solid #ffffff12}
+.pw-rule-pill.is-met{color:#94efc2;background:#47dc931a;border-color:#47dc9340}
+
+/* ──────────────────────────────────────────────────────────
+   AESTHETIC FESTIVAL ADMIN LOADING SYSTEM
+   Dual orbital rings, inline button spinners, and card shimmers
+   ────────────────────────────────────────────────────────── */
+@keyframes admin-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes admin-spin-reverse {
+  to { transform: rotate(-360deg); }
+}
+@keyframes admin-pulse-glow {
+  0%, 100% { opacity: 0.65; transform: scale(0.96); filter: drop-shadow(0 0 4px #e7c58255); }
+  50% { opacity: 1; transform: scale(1.05); filter: drop-shadow(0 0 12px #e7c582aa); }
+}
+@keyframes admin-shimmer-sweep {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.admin-spinner {
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+  animation: admin-spin 0.75s linear infinite;
+}
+.admin-spinner-track {
+  opacity: 0.22;
+}
+.admin-spinner-arc {
+  opacity: 0.95;
+}
+.is-spinning svg,
+.icon-button.is-spinning svg {
+  animation: admin-spin 0.75s linear infinite;
+}
+
+.button.is-busy {
+  cursor: wait;
+}
+
+/* Section & Panel Royal Orbital Loader */
+.admin-loader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 60px 24px;
+  margin: auto;
+  gap: 16px;
+  position: relative;
+  min-height: 240px;
+}
+.admin-loader--compact {
+  padding: 28px 16px;
+  min-height: 140px;
+  gap: 10px;
+}
+.admin-loader-emblem {
+  position: relative;
+  width: 66px;
+  height: 66px;
+  display: grid;
+  place-items: center;
+}
+.admin-loader--compact .admin-loader-emblem {
+  width: 46px;
+  height: 46px;
+}
+.admin-loader-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.admin-loader-ring--outer {
+  border: 1.8px solid transparent;
+  border-top-color: #f4d99c;
+  border-right-color: #d6ae6880;
+  animation: admin-spin 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  box-shadow: 0 0 14px #e7c58233;
+}
+.admin-loader-ring--inner {
+  inset: 6px;
+  border: 1px dashed #d6ae6866;
+  animation: admin-spin-reverse 3s linear infinite;
+}
+.admin-loader--compact .admin-loader-ring--inner {
+  inset: 4px;
+}
+.admin-loader-core {
+  display: grid;
+  place-items: center;
+  color: #f4d99c;
+  animation: admin-pulse-glow 2.4s ease-in-out infinite;
+}
+.admin-loader-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  max-width: 420px;
+}
+.admin-loader-copy strong {
+  font-family: Cormorant, Georgia, serif;
+  font-size: 20px;
+  font-weight: 500;
+  color: #f3deb2;
+  letter-spacing: 0.3px;
+}
+.admin-loader--compact .admin-loader-copy strong {
+  font-size: 16px;
+}
+.admin-loader-copy span {
+  font-size: 11.5px;
+  color: #92a4bc;
+  line-height: 1.5;
+}
+.admin-loader-bar {
+  width: 140px;
+  height: 2px;
+  background: #1c324f;
+  border-radius: 999px;
+  overflow: hidden;
+  position: relative;
+}
+.admin-loader-bar i {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, #e7c582, transparent);
+  animation: admin-shimmer-sweep 1.6s ease-in-out infinite;
+}
+
+/* Control Card In-Progress Shimmer */
+.control-card.is-busy {
+  position: relative;
+  border-color: #d6ae6888 !important;
+  box-shadow: 0 0 25px #d6ae6826, 0 8px 30px #0006;
+}
+.control-card.is-busy::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2.5px;
+  background: linear-gradient(90deg, transparent, #f4d99c, transparent);
+  animation: admin-shimmer-sweep 1.4s ease-in-out infinite;
+}
+
+/* Memory Photo Private Image Loading Skeleton */
+.memory-review-media.is-loading {
+  background: linear-gradient(135deg, #0a182c, #10243e);
+  display: grid;
+  place-items: center;
+  position: relative;
+  overflow: hidden;
+}
+.memory-review-media.is-loading::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, #ffffff08, transparent);
+  animation: admin-shimmer-sweep 2s ease-in-out infinite;
+}
+.memory-media-skeleton {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  color: #e7c582;
+  position: relative;
+  z-index: 1;
+}
+.memory-media-skeleton .small {
+  color: #93a5bd;
+  font-size: 11px;
+}
