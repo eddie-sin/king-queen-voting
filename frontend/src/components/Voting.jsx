@@ -247,7 +247,7 @@ export function VoteConfirmation({ pending, busy, canConfirm, onConfirm, onClose
         You cannot change or remove this vote after submitting. Your other category is a
         separate choice.
       </p>
-      {!canConfirm && (
+      {!canConfirm && !busy && (
         <p className="inline-error" role="alert">
           Voting or your account status changed. Close this dialog and refresh.
         </p>

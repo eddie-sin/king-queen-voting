@@ -1,6 +1,10 @@
 const AppError = require('./appError');
 // One API process only. Never carry queued work across a close/reopen boundary.
 let blocked = true;
+let observedWindow = null;
+let observedRevision = -1;
+let locallyClosedWindow = null;
+const windowKey = controls => controls ? `${controls.round}:${controls.window}` : null;
 let active = 0;
 const waiting = [];
 const drained = new Set();
@@ -19,8 +23,28 @@ function pump() {
     });
   }
 }
-exports.open = () => { blocked = false; pump(); };
-exports.close = () => {
+exports.open = controls => {
+  if (controls) { observedWindow = windowKey(controls); observedRevision = Math.max(observedRevision, controls.revision ?? -1); }
+  locallyClosedWindow = null;
+  blocked = false; pump();
+};
+// Shared controls may be changed by another backend. Never reopen a window
+// whose local close/drain has already begun, even if its DB update is pending.
+exports.synchronize = controls => {
+  // Concurrent status reads can finish out of order. Ignore older snapshots.
+  if (Number.isSafeInteger(controls.revision) && controls.revision < observedRevision) return;
+  observedRevision = Math.max(observedRevision, controls.revision ?? -1);
+  const key = windowKey(controls);
+  observedWindow = key;
+  if (controls.votingStatus !== 'open' || controls.announcementOpen) {
+    exports.close(controls); return;
+  }
+  if (locallyClosedWindow === key) return;
+  blocked = false; pump();
+};
+exports.close = controls => {
+  if (controls) observedRevision = Math.max(observedRevision, controls.revision ?? -1);
+  locallyClosedWindow = windowKey(controls) || observedWindow;
   blocked = true;
   for (const item of waiting.splice(0)) { clearTimeout(item.timer); item.reject(unavailable()); }
 };
