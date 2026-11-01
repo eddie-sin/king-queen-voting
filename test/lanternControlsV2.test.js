@@ -176,6 +176,40 @@ test('private Lantern totals require lantern.votes.read and never expose voter i
   }
 });
 
+test('Lantern vote reset requires its grant, closed voting and a hidden announcement, then returns zero totals', async () => {
+  const denied = await lanternAdmin([]);
+  const resetter = await lanternAdmin(['lantern.votes.reset', 'lantern.votes.read']);
+  const [student] = await students(1);
+  const lantern = await createLantern();
+  assert.equal((await command('lantern.open')).status, 200);
+  const opened = await state();
+  assert.equal((await cast(student, lantern._id, opened.window)).status, 200);
+  assert.equal((await command('lantern.votes.reset', denied.token)).status, 403);
+  assert.equal((await command('lantern.votes.reset', resetter.token)).status, 409);
+  assert.equal((await command('lantern.close')).status, 200);
+  assert.equal((await command('lantern.announce')).status, 200);
+  assert.equal((await command('lantern.votes.reset', resetter.token)).status, 409);
+  assert.equal((await command('lantern.hide')).status, 200);
+  const response = await command('lantern.votes.reset', resetter.token);
+  assert.equal(response.status, 200);
+  assert.equal(response.body.data.lanternVotesRemoved, 1);
+  assert.equal(response.body.data.lanternVoteTotals.find(row => row.lantern._id === lantern._id).votes, 0);
+  assert.equal(await fixture.db.collection('lanternvotes').countDocuments({}), 0);
+  const audit = await fixture.db.collection('adminactions').findOne({ action: 'lantern.votes.reset', actorName: resetter.username });
+  assert.equal(audit.details.clearedBallots, 1);
+  const deleted = await fixture.request('DELETE', `/images/${lantern._id}`, { token: fixture.token });
+  assert.equal(deleted.status, 204, 'a closed, unannounced lantern is deletable after its votes are reset');
+});
+
+test('Lantern vote reset with zero votes is idempotent and leaves other event data intact', async () => {
+  const resetter = await lanternAdmin(['lantern.votes.reset']);
+  const response = await command('lantern.votes.reset', resetter.token);
+  assert.equal(response.status, 200);
+  assert.equal(response.body.data.lanternVotesRemoved, 0);
+  assert.equal(await fixture.db.collection('ballots').countDocuments({}), 0);
+  assert.equal((await state()).announced, false);
+});
+
 test('failed Lantern metadata transactions roll back both content and shared control fencing', async () => {
   const lantern = await createLantern(); const before = (await settings(fixture.token)).controls;
   await fixture.db.command({ collMod: 'images', validator: { fixtureMustNotExist: { $exists: true } }, validationLevel: 'strict' });

@@ -37,6 +37,14 @@ test('ADMIN receives every voting capability while VOTING_ADMIN needs each expli
   assert.equal(can({ role: 'memory_admin', status: 'active', permissions: ['memory.open'] }, 'votes.read'), false);
 });
 
+test('Lantern reset permission is role-scoped and denied until explicitly granted', () => {
+  assert(ROLE_PERMISSIONS.lantern_admin.includes('lantern.votes.reset'));
+  assert.equal(can({ role: 'lantern_admin', status: 'active', permissions: [] }, 'lantern.votes.reset'), false);
+  assert.equal(can({ role: 'lantern_admin', status: 'active', permissions: ['lantern.votes.reset'] }, 'lantern.votes.reset'), true);
+  assert.equal(can({ role: 'memory_admin', status: 'active', permissions: ['lantern.votes.reset'] }, 'lantern.votes.reset'), false);
+  assert.equal(can({ role: 'admin', status: 'active', permissions: [] }, 'lantern.votes.reset'), true);
+});
+
 test('results calculate both ranked titles deterministically', () => {
   const rows = [
     { candidate: { category: 'king', fullName: 'King A' }, votes: 5 },

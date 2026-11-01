@@ -1,5 +1,6 @@
 const Action = require('../model/adminActionsModel');
 const Ballot = require('../model/ballotsModel');
+const LanternVote = require('../model/lanternVotesModel');
 const AppError = require('../utils/appError');
 const catchAsync = require('../utils/catchAsync');
 const { getControls, publicControls, staffMutation, withControls, audit, authorizeStaff } = require('../utils/eventControls');
@@ -31,7 +32,7 @@ exports.announcementPreview = catchAsync(async (req, res) => {
   res.json({ status: 'success', data });
 });
 const sameSelection = (receipt, selection) => JSON.stringify(normalizeSelection(receipt.details?.selectionRequest)) === JSON.stringify(selection);
-const ACTIONS = ['registration.open', 'registration.close', 'voting.open', 'voting.close', 'announcement.open', 'announcement.close', 'votes.clear', 'memory.open', 'memory.close', 'lantern.open', 'lantern.close', 'lantern.announce', 'lantern.hide', 'wishes.open', 'wishes.close'];
+const ACTIONS = ['registration.open', 'registration.close', 'voting.open', 'voting.close', 'announcement.open', 'announcement.close', 'votes.clear', 'memory.open', 'memory.close', 'lantern.open', 'lantern.close', 'lantern.announce', 'lantern.hide', 'lantern.votes.reset', 'wishes.open', 'wishes.close'];
 let commandBusy = false;
 const settingsResponse = async (req, controls, result) => {
   const data = { controls };
@@ -40,6 +41,10 @@ const settingsResponse = async (req, controls, result) => {
   if (req.admin && can(await authorizeStaff(req.admin), 'votes.read')) {
     data.ballotCount = await Ballot.countDocuments({});
     if (result && Object.hasOwn(result, 'clearedBallots')) data.clearedBallots = result.clearedBallots;
+  }
+  if (result && Object.hasOwn(result, 'lanternVotesRemoved')) {
+    data.lanternVotesRemoved = result.lanternVotesRemoved;
+    data.lanternVoteTotals = result.lanternVoteTotals || [];
   }
   return data;
 };
@@ -70,7 +75,12 @@ exports.command = catchAsync(async (req, res) => {
       if (String(previous.actor) !== String(req.admin._id) || previous.action !== action) throw new AppError('This operation ID was already used.', 409);
       const current = await staffMutation(req, permission, async ({ controls }) => publicControls(controls));
       if (action === 'voting.open' && current.votingStatus === 'open' && current.window === previous.details?.window) admission.open(current);
-      return res.json({ status: 'success', data: await settingsResponse(req, current, { clearedBallots: previous.details?.clearedBallots || 0 }) });
+      const replay = { clearedBallots: previous.details?.clearedBallots || 0 };
+      if (action === 'lantern.votes.reset') {
+        replay.lanternVotesRemoved = replay.clearedBallots;
+        replay.lanternVoteTotals = await totals.lanterns();
+      }
+      return res.json({ status: 'success', data: await settingsResponse(req, current, replay) });
     }
     if (action === 'voting.close') admission.close(before);
     const result = await staffMutation(req, permission, async ({ controls, session, actor }) => {
@@ -112,6 +122,10 @@ exports.command = catchAsync(async (req, res) => {
           await require('./lanternVotingController').winner(session);
           controls.lanternAnnouncementOpen=true; break;
         case 'lantern.hide': controls.lanternAnnouncementOpen=false; break;
+        case 'lantern.votes.reset':
+          if (controls.lanternVotingOpen || controls.lanternAnnouncementOpen) throw new AppError('Close Lantern voting and hide the winner announcement before resetting votes.',409);
+          clearedBallots = (await LanternVote.deleteMany({}).session(session)).deletedCount;
+          break;
         case 'memory.open': controls.memoryPhotosEnabled = true; break;
         case 'memory.close': controls.memoryPhotosEnabled = false; break;
       }
@@ -129,6 +143,10 @@ exports.command = catchAsync(async (req, res) => {
       });
     }
     const current = await getControls();
+    if (action === 'lantern.votes.reset') {
+      result.lanternVotesRemoved = result.clearedBallots || 0;
+      result.lanternVoteTotals = await totals.lanterns();
+    }
     if (current.votingStatus === 'open') admission.open(current);
     else admission.close(current);
     res.json({ status: 'success', data: await settingsResponse(req, publicControls(current), result) });
