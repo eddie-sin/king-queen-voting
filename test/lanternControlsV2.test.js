@@ -197,6 +197,8 @@ test('Lantern vote reset requires its grant, closed voting and a hidden announce
   assert.equal(await fixture.db.collection('lanternvotes').countDocuments({}), 0);
   const audit = await fixture.db.collection('adminactions').findOne({ action: 'lantern.votes.reset', actorName: resetter.username });
   assert.equal(audit.details.clearedBallots, 1);
+  const deleted = await fixture.request('DELETE', `/images/${lantern._id}`, { token: fixture.token });
+  assert.equal(deleted.status, 204, 'a closed, unannounced lantern is deletable after its votes are reset');
 });
 
 test('Lantern vote reset with zero votes is idempotent and leaves other event data intact', async () => {
