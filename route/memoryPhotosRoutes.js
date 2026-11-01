@@ -1,4 +1,6 @@
 const express = require("express");
+const admitUpload = require("../middleware/uploadAdmission");
+const uploadHandler = require("../utils/uploadHandler");
 const authenticate = require("../middleware/authMiddleware");
 const { memoryPhotoImages } = require("../middleware/upload");
 const controller = require("../controller/memoryPhotosController");
@@ -18,7 +20,7 @@ router.patch("/:id/unarchive", authenticate, controller.requireEnabled, controll
 router.delete("/:id", authenticate, controller.requireEnabled, controller.deleteOwn);
 router.get("/", publicController.publicAccess, publicController.listApproved);
 router.get("/:id/image", publicController.publicAccess, publicController.getApprovedImage);
-router.post("/", authenticate, controller.requireEnabled, memoryPhotoImages, controller.submitPhoto);
+router.post("/", authenticate, controller.requireEnabled, admitUpload, controller.checkQuota, memoryPhotoImages, uploadHandler(controller.submitPhoto));
 router.route("/:id/like")
   .post(authenticate, publicController.publicAccess, likes.likePhoto)
   .delete(authenticate, publicController.publicAccess, likes.unlikePhoto);

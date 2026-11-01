@@ -17,6 +17,7 @@ exports.uploadImage = async (file, folder) => {
   if (!extensions[file.mimetype] || !Buffer.isBuffer(file.buffer)) {
     throw new AppError("Only JPG, PNG or WebP images are allowed.", 400);
   }
+  file = await require("./validateMemoryPhoto")(file);
   if (process.env.NODE_ENV === "production") return s3.uploadImage(file, folder);
 
   const filename = `${crypto.randomUUID()}.${extensions[file.mimetype]}`;

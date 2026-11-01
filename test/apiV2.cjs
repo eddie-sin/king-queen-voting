@@ -17,7 +17,7 @@ const candidateBody = (category = 'king', extra = {}) => ({
   images: ['https://example.test/candidate.png'], contactNumber: '09123456789', category, ...extra,
 });
 const createCandidate = async (category = 'king', extra = {}) => {
-  const response = await fixture.request('POST', '/candidates', { token: fixture.token, body: candidateBody(category, extra) });
+  const response = await fixture.request('POST', '/candidates', { token: fixture.token, body: candidateForm((({images,...fields})=>fields)(candidateBody(category,extra))) });
   assert.equal(response.status, 201, JSON.stringify(response.body));
   return response.body.data.candidate;
 };
@@ -77,7 +77,7 @@ test('candidate photos upload, reorder, replace and delete through transactional
   assert.equal(created.status, 201, JSON.stringify(created.body));
   const candidate = created.body.data.candidate; assert.equal(candidate.images.length, 2);
   for (const url of candidate.images) {
-    const asset = await fixture.asset(url); assert.equal(asset.status, 200); assert.deepEqual(asset.bytes, PNG);
+    const asset = await fixture.asset(url); assert.equal(asset.status, 200); assert.deepEqual(await require('sharp')(asset.bytes).raw().toBuffer(),await require('sharp')(PNG).raw().toBuffer());
     assert.equal(asset.headers.get('x-content-type-options'), 'nosniff');
   }
   const [first, second] = candidate.images;
@@ -156,7 +156,7 @@ test('gallery validation rejects missing files, invalid sections and missing rec
 
 test('Wish Sky is anonymous to read, student-only to write and atomically limited to three', async () => {
   const owner = await student(); const other = await student();
-  assert.deepEqual((await fixture.request('GET', '/wishes/mine', { token: owner.token })).body.data, { used: 0, remaining: 3 });
+  assert.deepEqual((await fixture.request('GET', '/wishes/mine', { token: owner.token })).body.data, { used: 0, remaining: 3, isOpen:true });
   assert.equal((await fixture.request('GET', '/wishes/mine')).status, 401);
   assert.equal((await fixture.request('POST', '/wishes', { body: { message: 'Hello' } })).status, 401);
   assert.equal((await fixture.request('POST', '/wishes', { token: fixture.token, body: { message: 'Hello' } })).status, 401);
@@ -169,7 +169,7 @@ test('Wish Sky is anonymous to read, student-only to write and atomically limite
   assert.equal(attempts.filter(response => response.status === 201).length, 3);
   assert.equal(attempts.filter(response => response.status === 409).length, 5);
   assert.equal(await fixture.db.collection('wishes').countDocuments({ user: new ObjectId(owner.user.id) }), 3);
-  assert.deepEqual((await fixture.request('GET', '/wishes/mine', { token: owner.token })).body.data, { used: 3, remaining: 0 });
+  assert.deepEqual((await fixture.request('GET', '/wishes/mine', { token: owner.token })).body.data, { used: 3, remaining: 0, isOpen:true });
   assert.equal((await fixture.request('POST', '/wishes', { token: other.token, body: { message: 'Another wish', name: '  Aye  ' } })).status, 201);
   const publicList = await fixture.request('GET', '/wishes');
   assert.equal(publicList.status, 200); assert.equal(publicList.body.results, 4);

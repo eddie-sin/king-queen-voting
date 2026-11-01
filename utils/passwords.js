@@ -51,6 +51,13 @@ exports.validatePassword = password => {
     throw new AppError('Password must be at least 8 characters and at most 72 UTF-8 bytes.', 400);
   }
 };
+exports.validateStaffPassword = password => {
+  exports.validatePassword(password);
+  const compact = password.toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (password.length < 15 || new Set(['passwordpassword','password123456789','adminadminadmin','123456789012345','qwertyuiopasdfgh','administrator123']).has(compact)) {
+    throw new AppError('Use a unique passphrase of at least 15 characters, or a password-manager generated password (at most 72 UTF-8 bytes).', 400);
+  }
+};
 exports.username = value => {
   if (typeof value !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,99}$/.test(value.trim())) {
     throw new AppError('Username must contain 1–100 letters, digits, dots, underscores or hyphens.', 400);

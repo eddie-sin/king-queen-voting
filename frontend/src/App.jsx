@@ -394,7 +394,7 @@ function FestivalApp({ api, wishApi, fixtureMode = false }) {
   if (shouldShowSessionCheckShell({ sessionReady: model.sessionReady, session: model.session, fixtureMode })) {
     return <div className="festival-app source-app"><Sky /><SiteHeader items={NAV_ITEMS} route={route} session={model.session} menuOpen={menuOpen} setMenuOpen={setMenuOpen} onLogin={() => setAccountMode('login')} onRegister={() => setAccountMode('register')} onSignOut={model.signOut} /><main id="main" className="auth-session-check" aria-live="polite">Checking your festival account…</main></div>;
   }
-  if (shouldShowGuestLanding({ sessionReady: model.sessionReady, session: model.session, fixtureMode })) {
+  if (route !== 'privacy' && shouldShowGuestLanding({ sessionReady: model.sessionReady, session: model.session, fixtureMode })) {
     return (
       <div className="festival-app source-app auth-route">
         <Sky />

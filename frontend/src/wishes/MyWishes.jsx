@@ -26,7 +26,7 @@ function SavedWishes({ api, token, onRequireLogin }) {
   return <div className="my-wishes-list">{result.wishes.map((wish, index) => <article key={wish.id} className="my-wish-card" aria-label={`Your wish ${index + 1}`}>
     <p className="my-wish-message">{wish.message}</p>
     {wish.name && <p className="wish-signature">— {wish.name}</p>}
-    <WishReaction wish={wish} onReact={react}/>
+    <>{wish.hidden?<p className="wish-form-note">Hidden from the public sky by the organisers. This still counts towards your three wishes.</p>:<WishReaction wish={wish} onReact={react}/>}</>
   </article>)}</div>;
 }
 

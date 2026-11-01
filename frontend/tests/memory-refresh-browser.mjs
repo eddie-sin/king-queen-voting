@@ -130,7 +130,7 @@ try {
         assert.equal(state.imageReads.length, imageReads);
         state.histories.a[0].status = 'ARCHIVED';
         await page.evaluate(() => window.dispatchEvent(new Event('focus')));
-        await page.getByText('Archived · private', { exact: true }).waitFor();
+        await page.getByText('Archived · hidden from gallery', { exact: true }).waitFor();
         assert.equal(await page.getByRole('dialog').count(), 0, 'A changed photo status must close the old viewer');
         state.enabled = false;
         await page.evaluate(() => window.dispatchEvent(new Event('focus')));
@@ -151,7 +151,7 @@ try {
       state.pending.shift()();
       await page.getByRole('button', { name: 'Open navigation menu', exact: true }).click();
       await page.getByRole('button', { name: 'Sign out', exact: true }).click();
-      await page.getByRole('link', { name: 'Sign in at the festival', exact: true }).waitFor();
+      await page.getByRole('tab', { name: /^Sign in/ }).waitFor();
       assert.equal(await page.locator('.mp-print, .mp-quota').count(), 0);
       assert.deepEqual(errors, []); await context.close();
     }

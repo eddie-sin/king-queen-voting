@@ -10,6 +10,7 @@
     "test": "node --test tests/*.test.js",
     "test:browser": "node tests/browser.mjs",
     "test:wishes": "node tests/wish-browser.mjs",
+    "test:fireworks": "node tests/firework-audio-browser.mjs",
     "test:wishes:live": "node tests/wish-live-browser.mjs",
     "test:music": "node tests/music-browser.mjs",
     "dev:fixtures": "vite --host 127.0.0.1 --mode fixtures",

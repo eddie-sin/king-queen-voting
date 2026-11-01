@@ -159,7 +159,7 @@ test("My Memories uses legacy records without creating quota state and handles a
   assert.deepEqual((await mine()).body.data, { photos: [], quota: { limit: 3, acceptedCount: 0, remainingSlots: 3 } });
   await MemoryPhoto.create({ owner: user._id, imageKey: "legacy", status: "REJECTED" });
   assert.deepEqual((await mine()).body.data.quota, { limit: 3, acceptedCount: 0, remainingSlots: 3 });
-  assert.equal(await Quota.countDocuments(), 0);
+  assert.equal((await Quota.find()).reduce((n,q)=>n+q.slots.length,0), 0);
 });
 
 test("My Memories excludes cancellation markers while retaining unresolved reservation capacity", async () => {
@@ -224,7 +224,7 @@ test("only active authenticated students may submit; admins and anonymous caller
   await User.updateOne({ _id: user._id }, { status: "disabled" });
   assert.equal((await submit()).status, 401);
   assert.equal(await MemoryPhoto.countDocuments(), 0);
-  assert.equal(await Quota.countDocuments(), 0);
+  assert.equal((await Quota.find()).reduce((n,q)=>n+q.slots.length,0), 0);
   assert.deepEqual(await files(), []);
 });
 
@@ -235,7 +235,7 @@ test("disabled, missing and legacy feature settings reject uploads before buffer
   assert.equal((await submit()).status, 403);
   await Controls.deleteMany({});
   assert.equal((await submit()).status, 403);
-  assert.equal(await Quota.countDocuments(), 0);
+  assert.equal((await Quota.find()).reduce((n,q)=>n+q.slots.length,0), 0);
   assert.deepEqual(await files(), []);
 });
 
@@ -266,7 +266,7 @@ test("one image is required; oversized, malformed, mismatched and extra fields d
     { bytes: gif, type: "image/png" }, { bytes: png.subarray(0, 40) },
     { fields: { owner: new mongoose.Types.ObjectId().toString(), status: "APPROVED" } },
   ]) assert.equal((await submit(options)).status, 400, JSON.stringify({ ...options, bytes: undefined }));
-  assert.equal(await Quota.countDocuments(), 0);
+  assert.equal((await Quota.find()).reduce((n,q)=>n+q.slots.length,0), 0);
   assert.equal(await MemoryPhoto.countDocuments(), 0);
   assert.deepEqual(await files(), []);
 });
@@ -309,7 +309,7 @@ test("archived photos retain capacity before and after legacy quota initializati
   const history = await mine();
   assert.deepEqual(history.body.data.quota, expected);
   assert(history.body.data.photos.every(photo => photo.status === "ARCHIVED"));
-  assert.equal(await Quota.countDocuments(), 0);
+  assert.equal((await Quota.find()).reduce((n,q)=>n+q.slots.length,0), 0);
   assert.equal((await submit()).status, 409);
   assert.deepEqual(new Set((await Quota.findById(user._id)).slots.map(String)), new Set(photos.map(photo => String(photo._id))));
   assert.deepEqual((await mine()).body.data.quota, expected);

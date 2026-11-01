@@ -10,7 +10,7 @@ const browser = await chromium.launch({ headless: true,
 const base = `http://127.0.0.1:${server.httpServer.address().port}`;
 
 try {
-  for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+  for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }, { width: 320, height: 760 }]) {
     const context = await browser.newContext({ viewport });
     const page = await context.newPage();
     const errors = [];
@@ -31,7 +31,7 @@ try {
     assert.equal(await player.locator('audio').evaluate(audio => audio.volume), 0.25);
     await player.getByRole('button', { name: 'Adjust volume' }).click();
     assert.ok(playerBox.width <= 96 && playerBox.height <= 80);
-    assert.equal(await player.getByRole('button').count(), 2);
+    assert.equal(await player.getByRole('button').count(), 3);
     assert.equal(await player.evaluate(element => getComputedStyle(element).backgroundImage), 'none');
     assert.equal(await player.locator('.music-player-play').evaluate(element => getComputedStyle(element).backgroundColor), 'rgba(0, 0, 0, 0)');
     const iconBox = await player.locator('.music-player-icon').boundingBox();
@@ -40,12 +40,20 @@ try {
     assert.equal(await player.locator('.music-player-icon i').count(), 12);
     assert.equal(iconBox.width, controlsBox.width);
     assert.ok(iconBox.y + iconBox.height < playBox.y);
+    const buttons = await player.getByRole('button').all();
+    let previousRight = controlsBox.x;
+    for (const button of buttons) {
+      const box = await button.boundingBox();
+      assert.ok(box.x >= previousRight - .5 && box.x + box.width <= iconBox.x + iconBox.width + .5, 'All three controls should fit in one row under the equalizer without overlap');
+      assert.ok(Math.abs(box.y - playBox.y) < .5);
+      previousRight = box.x + box.width;
+    }
     if (viewport.width < 580) {
       const actionsBox = await page.locator('.sky-actions').boundingBox();
       const stationBox = await page.locator('.firework-station').boundingBox();
       assert.ok(actionsBox.x + actionsBox.width <= stationBox.x && stationBox.x + stationBox.width <= playerBox.x, 'Mobile music controls should sit beside the firework sticks and release button');
       assert.ok(Math.abs(playerBox.y + playerBox.height - actionsBox.y - actionsBox.height) < 2, 'Mobile music and release controls should align along the bottom');
-      assert.ok(playBox.width >= 44 && playBox.height >= 44);
+      assert.ok(playBox.width >= 28 && playBox.height >= 44);
     }
     if (await player.getByRole('button', { name: 'Play music' }).count()) await player.getByRole('button', { name: 'Play music' }).click();
     await player.getByRole('button', { name: 'Pause music' }).waitFor();
@@ -55,11 +63,18 @@ try {
     await player.getByRole('button', { name: 'Play music' }).waitFor();
     assert.equal(await player.locator('audio').evaluate(audio => audio.paused), true);
     assert.equal(await player.locator('.music-player-icon i').first().evaluate(bar => getComputedStyle(bar).animationName), 'none');
-    for (const expected of ['/music/gintama-lofi.mp3', '/music/isabellas-lullaby-guitar.mp3', first]) {
-      await player.locator('audio').evaluate(audio => audio.dispatchEvent(new Event('ended')));
+    for (const expected of ['/music/merry-go-round-of-life-piano.mp3', '/music/gintama-lofi.mp3', '/music/isabellas-lullaby-guitar.mp3', first]) {
+      if (expected === '/music/merry-go-round-of-life-piano.mp3') await player.getByRole('button', { name: 'Skip music' }).click();
+      else await player.locator('audio').evaluate(audio => audio.dispatchEvent(new Event('ended')));
       await page.waitForFunction(src => document.querySelector('.music-player audio')?.getAttribute('src') === src, expected);
+      await page.waitForFunction(src => {
+        const audio = document.querySelector('.music-player audio');
+        return audio?.currentSrc.endsWith(src) && audio.readyState >= 2 && audio.duration > 0 && !audio.paused && audio.currentTime > 0;
+      }, expected);
     }
     assert.equal(await player.locator('audio').getAttribute('src'), first);
+    assert.equal(await player.locator('audio').evaluate(audio => audio.volume), .25, 'Skipping tracks should preserve volume');
+    await page.screenshot({ path: `/tmp/king-queen-music-controls-${viewport.width}.png` });
     await page.goto(`${base}/#lanterns`);
     assert.equal(await player.count(), 0);
     await page.goto(`${base}/#home`);
@@ -67,7 +82,7 @@ try {
     assert.deepEqual(errors, []);
     await context.close();
   }
-  console.log('Music player browser flow passed on desktop and mobile.');
+  console.log('Music player browser flow passed: skip, playback, volume and compact control layout on desktop, mobile and 320px.');
 } finally {
   await browser.close();
   await server.close();

@@ -15,7 +15,7 @@ exports.winner=async session=>{
 };
 exports.status=catchAsync(async(req,res)=>{
  const controls=await getControls();
- const winner=controls.lanternAnnouncementOpen?await exports.winner():null;
+ const winner=controls.lanternAnnouncementOpen?await require('../utils/publicCalculations').get(`lantern:${controls.lanternWindow}:${controls.revision}`,()=>exports.winner()):null;
  const after=await getControls();
  if(after.revision!==controls.revision) throw new AppError('Lantern status changed. Refresh to continue.',409);
  res.json({status:'success',data:{open:controls.lanternVotingOpen===true,announced:controls.lanternAnnouncementOpen===true,window:controls.lanternWindow||0,revision:controls.revision,winner}});

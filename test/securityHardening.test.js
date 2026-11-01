@@ -1,0 +1,55 @@
+const {test,before,beforeEach,after}=require('node:test');
+const assert=require('node:assert/strict');
+const {createV2Fixture}=require('./fixtures/v2Fixture.cjs');
+const sharp=require('sharp');
+let f;
+before(async()=>{f=await createV2Fixture();},{timeout:60000});
+beforeEach(async()=>{await f.reset();},{timeout:60000});
+after(async()=>{await f?.close();});
+test('staff password change revokes existing sessions, preserves students and records no secrets',async()=>{
+ const student=await f.student();
+ let result=await f.request('POST','/auth/admin/password',{token:f.token,body:{currentPassword:'wrong-password',password:'A unique testing passphrase 2026'}});assert.equal(result.status,400);
+ result=await f.request('POST','/auth/admin/password',{token:f.token,body:{currentPassword:f.password,password:'A unique testing passphrase 2026'}});assert.equal(result.status,200);
+ assert.equal((await f.request('GET','/auth/admin/me',{token:f.token})).status,401);
+ assert.equal((await f.request('GET','/auth/me',{token:student.token})).status,200);
+ const login=await f.login('v2-root','A unique testing passphrase 2026');assert.ok(login.token);
+ const audit=await f.db.collection('adminactions').findOne({action:'staff.password.change'});assert.ok(audit);assert(!JSON.stringify(audit).includes('passphrase'));
+ assert.equal((await f.request('POST','/auth/admin/revoke',{token:login.token,body:{currentPassword:'A unique testing passphrase 2026'}})).status,200);
+ assert.equal((await f.request('GET','/auth/admin/me',{token:login.token})).status,401);
+});
+test('Unicode wish limits, audited hide and pause preserve the three-slot quota and private identities',async()=>{
+ const student=await f.student();
+ const create=message=>f.request('POST','/wishes',{token:student.token,body:{message}});
+ assert.equal((await create('🙂'.repeat(281))).status,400);
+ assert.equal((await create('line\n'.repeat(9))).status,400);
+ const created=await create('မင်္ဂလာပါ '.repeat(20));assert.equal(created.status,201);
+ const id=created.body.data.wish.id;
+ assert.equal((await f.request('PATCH','/admin/wishes/'+id,{token:student.token,body:{hidden:true}})).status,401);
+ assert.equal((await f.request('PATCH','/admin/wishes/'+id,{token:f.token,body:{hidden:true}})).status,200);
+ assert.equal((await f.request('GET','/wishes')).body.data.wishes.length,0);
+ const own=await f.request('GET','/wishes/mine/wishes',{token:student.token});assert.equal(own.body.data.wishes[0].hidden,true);
+ assert.equal((await f.request('GET','/wishes/mine',{token:student.token})).body.data.used,1);
+ assert.ok(await f.db.collection('adminactions').findOne({action:'wish.hide'}));
+ assert.equal((await f.command('wishes.close')).status,200);
+ assert.equal((await create('paused')).status,403);
+ assert.equal((await f.command('wishes.open')).status,200);
+ assert.equal((await f.request('PATCH','/admin/wishes/'+id,{token:f.token,body:{hidden:false}})).status,200);
+ const publicRows=(await f.request('GET','/wishes')).body.data.wishes;assert.equal(publicRows.length,1);assert(!JSON.stringify(publicRows).includes(student.user.id));
+ assert.equal((await f.request('GET','/wishes?page=101')).status,400);
+});
+test('invalid image after reservation returns the slot and upload admission accepts the next request',async()=>{
+ const student=await f.student();assert.equal((await f.command('memory.open')).status,200);
+ const data=()=>{const form=new FormData();form.append('images',new Blob([Buffer.from('not an image')],{type:'image/png'}),'photo.png');return form;};
+ for(let n=0;n<2;n++)assert.equal((await f.request('POST','/memory-photos',{token:student.token,body:data()})).status,400);
+ const usage=await f.db.collection('memoryphotoquotas').findOne({_id:new (require('mongoose').Types.ObjectId)(student.user.id)});assert.equal(usage.slots.length,0);
+});
+test('staff uploads re-encode images and archived moderation labels remain accurate',async()=>{
+ const image=await sharp({create:{width:8,height:5,channels:3,background:'red'}}).withMetadata({orientation:6,exif:{IFD0:{Artist:'Private metadata test'}}}).jpeg().toBuffer();
+ const form=new FormData();form.append('section','about');form.append('images',new Blob([image],{type:'image/jpeg'}),'photo.jpg');
+ const result=await f.request('POST','/images',{token:f.token,body:form});assert.equal(result.status,201);
+ const stored=await f.asset(result.body.data.images[0].url);assert.equal(stored.status,200);const meta=await sharp(stored.bytes).metadata();assert.equal(meta.exif,undefined);assert.equal(meta.width,5);assert.equal(meta.height,8);
+ const user=await f.student();await f.db.collection('memoryphotos').insertOne({owner:new (require('mongoose').Types.ObjectId)(user.user.id),status:'APPROVED',archived:true,createdAt:new Date(),imageKey:'private-test'});
+ const rows=await f.request('GET','/admin/memory-photos',{token:f.token});assert.equal(rows.body.data.photos[0].status,'ARCHIVED');
+ assert.equal((await f.request('GET','/images?section=unknown')).status,400);
+ assert.equal((await f.request('GET','/images?section=about&section=lantern')).status,400);
+});

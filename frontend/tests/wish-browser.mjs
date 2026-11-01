@@ -26,6 +26,7 @@ try {
     await page.route('**/api/v1/**', route => {
       const path = new URL(route.request().url()).pathname;
       const ok = data => route.fulfill({ json: { status: 'success', data } });
+      if (path.endsWith('/wishes/status')) return ok({wishSky:{isOpen:true,moderationRevision:0}});
       if (path.endsWith('/config')) return ok({ csrfToken: 'wish-browser-csrf', googleClientId: null });
       if (path.endsWith('/pending')) return ok({ flow: null });
       if (path.endsWith('/login')) { signedIn = true; return ok({ sessionKey: 'wish-browser-session', user: { id: 'wish-user', email: 'demo@gmail.com', round: 1 } }); }
@@ -56,6 +57,13 @@ try {
       throw Error(`Unexpected API request: ${path}`);
     });
     await page.goto(`${base}/#wishes`);
+    await page.getByRole('tab',{name:/^Sign in/}).click();
+    const initialLogin=page.locator('dialog.account-dialog');
+    await initialLogin.getByLabel('Gmail address').fill('demo@gmail.com');
+    await initialLogin.getByLabel('Password',{exact:true}).fill('festival123');
+    await initialLogin.locator('form').getByRole('button',{name:'Sign in',exact:true}).click();
+    await initialLogin.waitFor({state:'detached'});
+
     await page.locator('.floating-wish').first().waitFor();
     await page.getByRole('heading', { name: 'Read a wish' }).waitFor();
     const spotlight = await page.locator('.wish-tour-spotlight').boundingBox();
@@ -83,16 +91,20 @@ try {
       assert.equal(await page.locator('.wish-tour-card').count(), 0, 'The skipped tour should stay dismissed');
     }
     assert.equal(await page.locator('.wish-tour-card').count(), 0);
+    await page.getByRole('button', { name: 'Launch fireworks' }).waitFor();
     assert.equal(await page.locator('.sky-actions .firework-station').count(), 0);
     assert.equal(await page.locator('.firework-station .firework-stick:visible').count(), viewport.width < 580 ? 2 : 5);
     await page.getByRole('button', { name: 'Launch fireworks' }).click();
     await page.locator('.firework-canvas').waitFor({ state: 'attached' });
+    const originalCanvas = await page.locator('.firework-canvas').elementHandle();
     assert.equal(await page.locator('.firework-display').evaluate(element => Math.round(element.getBoundingClientRect().width)), viewport.width);
     const firstBursts = JSON.parse(await page.locator('.firework-canvas').getAttribute('data-bursts'));
     const ordinary = ['round', 'chrysanthemum', 'willow'];
-    assert.equal(firstBursts.length, 4);
-    assert.ok(firstBursts.filter(burst => ordinary.includes(burst.shape)).length >= 3, 'Ordinary fireworks should dominate the show');
-    assert.ok(firstBursts.every(burst => [...ordinary, 'butterfly', 'flower', 'heart', 'star'].includes(burst.shape)));
+    const specialShapes = ['flower', 'butterfly', 'heart', 'star', 'saturn', 'spiral', 'clover', 'sunburst'];
+    const burstCount = viewport.width <= 580 ? 2 : 4;
+    assert.equal(firstBursts.length, burstCount);
+    assert.ok(firstBursts.filter(burst => ordinary.includes(burst.shape)).length >= burstCount - 1, 'Each launch should have at most one special shape');
+    assert.ok(firstBursts.every(burst => [...ordinary, ...specialShapes].includes(burst.shape)));
     await page.waitForTimeout(1800);
     assert.deepEqual(errors, [], 'The firework renderer should run without browser errors');
     const pixels = () => page.locator('.firework-canvas').evaluate(canvas => {
@@ -108,7 +120,35 @@ try {
     }
     await page.getByRole('button', { name: 'Launch fireworks' }).click();
     const nextBursts = JSON.parse(await page.locator('.firework-canvas').getAttribute('data-bursts'));
-    assert.notDeepEqual(nextBursts.map(burst => [burst.x, burst.y]), firstBursts.map(burst => [burst.x, burst.y]), 'Each launch should change burst positions');
+    assert.equal(nextBursts.length, burstCount * 2, 'Another launch should add bursts to the existing show');
+    assert.deepEqual(nextBursts.slice(0, burstCount), firstBursts, 'Earlier fireworks should remain in the sky');
+    assert.notDeepEqual(nextBursts.slice(burstCount).map(burst => [burst.x, burst.y]), firstBursts.map(burst => [burst.x, burst.y]), 'Each launch should change burst positions');
+    await page.getByRole('button', { name: 'Launch fireworks' }).evaluate((button, specialShapes) => {
+      const originalRandom = Math.random;
+      try {
+        for (let index = 0; index < 8; index++) {
+          // Select every special shape deterministically, then let particle randomness run normally.
+          const choices = [.3, 0, (index + .5) / specialShapes.length];
+          Math.random = () => choices.length ? choices.shift() : originalRandom();
+          button.click();
+        }
+      } finally { Math.random = originalRandom; }
+    }, specialShapes);
+    const rapidBursts = JSON.parse(await page.locator('.firework-canvas').getAttribute('data-bursts'));
+    assert.equal(rapidBursts.length, burstCount * 10, 'Rapid clicks should all add fireworks');
+    assert.deepEqual(specialShapes.map((_, index) => rapidBursts[(index + 2) * burstCount].shape), specialShapes, 'Every special shape should be available in overlapping launches');
+    await page.waitForTimeout(1000);
+    assert.ok(await pixels() > 150, 'Overlapping launches with new shapes should draw visible sparks');
+    assert.deepEqual(errors, [], 'All new shapes should render without browser errors');
+    assert.equal(await originalCanvas.evaluate(canvas => canvas === document.querySelector('.firework-canvas')), true, 'New launches should reuse the canvas without remounting the renderer');
+    await page.waitForFunction(expected => {
+      const canvas = document.querySelector('.firework-canvas');
+      return canvas && JSON.parse(canvas.dataset.bursts).length === expected;
+    }, burstCount * 9, { timeout: 7000 });
+    const remainingBursts = JSON.parse(await page.locator('.firework-canvas').getAttribute('data-bursts'));
+    assert.deepEqual(remainingBursts.slice(0, burstCount), nextBursts.slice(burstCount), 'The oldest launch should expire independently while newer fireworks remain');
+    await page.locator('.firework-display').waitFor({ state: 'detached', timeout: 7000 });
+    await originalCanvas.dispose();
     if (viewport.width < 580) assert.equal(await page.getByRole('heading', { name: /A sky full of/ }).isVisible(), false);
     assert.equal(await page.locator('.floating-wish').count(), viewport.width < 580 ? 8 : 24);
     assert.equal(await page.locator('.floating-wish .wish-lantern-shape').first().evaluate(element => parseFloat(getComputedStyle(element).width)), 60);
@@ -170,19 +210,12 @@ try {
     await page.keyboard.press('Escape');
     assert.equal(await firstWish.evaluate(element => document.activeElement === element), true);
     await page.getByRole('button', { name: 'Release a wish' }).click();
-    const login = page.locator('dialog.account-dialog');
-    await login.getByLabel('Gmail address').fill('demo@gmail.com');
-    await login.getByLabel('Password', { exact: true }).fill('festival123');
-    await login.locator('form').getByRole('button', { name: 'Sign in', exact: true }).click();
-    await page.waitForTimeout(200);
-    if (await login.getByRole('alert').count()) throw Error(`Wish fixture login failed: ${await login.getByRole('alert').innerText()}`);
-    await login.waitFor({ state: 'detached' });
-    if (!await page.getByRole('heading', { name: 'Send a little hope.' }).count()) await page.getByRole('button', { name: 'Release a wish' }).click();
+  if (!await page.getByRole('heading', { name: 'Send a little hope.' }).count()) await page.getByRole('button', { name: 'Release a wish' }).click();
     await page.getByRole('heading', { name: 'Send a little hope.' }).waitFor();
     for (let index = 1; index <= 3; index++) {
-      await page.getByLabel('Your wish', { exact: true }).fill(index === 1 ? 'a'.repeat(600) : `Wish ${index}`);
+      await page.getByLabel('Your wish', { exact: true }).fill(index === 1 ? 'a'.repeat(280) : `Wish ${index}`);
       if (index === 1) await page.getByLabel('Your name').fill('Aye');
-      if (index === 1) assert.equal((await page.getByLabel('Your wish', { exact: true }).inputValue()).length, 600);
+      if (index === 1) assert.equal((await page.getByLabel('Your wish', { exact: true }).inputValue()).length, 280);
       await page.getByRole('button', { name: 'Release my lantern' }).click();
       await page.getByRole('dialog').waitFor({ state: 'hidden' });
       await page.getByText(`${3 - index}/3`, { exact: true }).waitFor();
@@ -268,7 +301,7 @@ try {
     await page.getByRole('article', { name: 'Your wish 1', exact: true }).waitFor();
     assert.equal(await page.locator('.my-wish-card').count(), 3);
     assert.equal(await page.locator('.my-wish-message').first().innerText(), 'Wish 3');
-    assert.equal(await page.locator('.my-wish-message').last().innerText(), 'a'.repeat(600));
+    assert.equal(await page.locator('.my-wish-message').last().innerText(), 'a'.repeat(280));
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     assert.equal(await page.evaluate(() => localStorage.getItem('wish-sky-tour-v1')), 'done');
     await page.getByRole('link', { name: 'See tutorial', exact: true }).click();
@@ -289,8 +322,7 @@ try {
     await page.getByRole('link', { name: 'Back to account', exact: true }).click();
     await page.getByRole('button', { name: 'Sign out', exact: true }).click();
     await page.evaluate(() => { location.hash = 'my-wishes'; });
-    await page.getByRole('heading', { name: 'My wishes.' }).waitFor();
-    await page.getByText('Sign in to revisit the wishes you’ve released.').waitFor();
+    await page.getByRole('tab',{name:/^Sign in/}).waitFor();
     assert.equal(await page.locator('.my-wish-card').count(), 0, 'Signing out must clear the account wishes');
     assert.deepEqual(errors, []);
     await context.close();

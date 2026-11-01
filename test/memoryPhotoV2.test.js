@@ -67,13 +67,13 @@ test('feature disable blocks history, uploads, gallery, likes and like-status wi
 test('upload validates multipart shape, real image content, size and extra fields without consuming quota', async () => {
   const [student] = await students(1); await enable();
   const invalid = [
-    fixture.request('POST', '/memory-photos', { token: student.token, body: {} }),
-    upload(student, photoForm(Buffer.from('not an image'), 'image/png')),
-    upload(student, photoForm(Buffer.alloc(5 * 1024 * 1024 + 1), 'image/png')),
-    upload(student, photoForm(PNG, 'text/plain', 'bad.txt')),
-    upload(student, photoForm(PNG, 'image/png', 'memory.png', 'not-supported')),
+    ()=>fixture.request('POST', '/memory-photos', { token: student.token, body: {} }),
+    ()=>upload(student, photoForm(Buffer.from('not an image'), 'image/png')),
+    ()=>upload(student, photoForm(Buffer.alloc(5 * 1024 * 1024 + 1), 'image/png')),
+    ()=>upload(student, photoForm(PNG, 'text/plain', 'bad.txt')),
+    ()=>upload(student, photoForm(PNG, 'image/png', 'memory.png', 'not-supported')),
   ];
-  for (const response of await Promise.all(invalid)) assert.equal(response.status, 400);
+  for (const run of invalid) assert.equal((await run()).status, 400);
   const mine = await fixture.request('GET', '/memory-photos/mine', { token: student.token });
   assert.deepEqual(mine.body.data.quota, { limit: 3, acceptedCount: 0, remainingSlots: 3 });
   assert.equal(await fixture.db.collection('memoryphotos').countDocuments({ cancelled: { $ne: true } }), 0);

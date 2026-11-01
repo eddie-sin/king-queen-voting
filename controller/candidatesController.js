@@ -51,7 +51,11 @@ const discardUnusedPhotos = async (urls) => {
 
 // Uploads in order. If any upload fails, the ones that succeeded are removed again.
 const uploadPhotos = async (files = []) => {
-  const settled = await Promise.allSettled(files.map((file) => uploadImage(file, PHOTO_FOLDER)));
+  const settled = [];
+  for (const file of files) {
+    try { settled.push({status:'fulfilled',value:await uploadImage(file,PHOTO_FOLDER)}); }
+    catch (reason) { settled.push({status:'rejected',reason}); break; }
+  }
   const urls = settled.filter((result) => result.status === "fulfilled").map((result) => result.value);
   const failure = settled.find((result) => result.status === "rejected");
   if (failure) {
@@ -85,6 +89,7 @@ exports.getAdminCandidate = catchAsync(async (req, res) => {
 
 exports.createCandidate = catchAsync(async (req, res) => {
   const { fields, photoLayout } = readBody(req);
+  validateFields(fields);
   if (photoLayout !== undefined) throw new AppError("photoLayout is only used when editing a candidate.", 400);
   if (req.files?.length && fields.images !== undefined) {
     throw new AppError("Send photos either as uploaded files or as image URLs, not both.", 400);
@@ -92,6 +97,7 @@ exports.createCandidate = catchAsync(async (req, res) => {
   if (Array.isArray(fields.images) && fields.images.some(url => isOwnedImage(url, PHOTO_FOLDER))) {
     throw new AppError("Upload new photos rather than reusing another candidate's managed image URL.", 400);
   }
+  if (fields.images !== undefined) throw new AppError('Upload new candidate photos using the photo picker.', 400);
   const uploaded = await uploadPhotos(req.files);
   if (uploaded.length) fields.images = uploaded;
   let candidate;
@@ -114,6 +120,7 @@ exports.createCandidate = catchAsync(async (req, res) => {
 // uploads, in the final order. Without photoLayout the photos are left untouched.
 exports.updateCandidate = catchAsync(async (req, res) => {
   const { fields, photoLayout } = readBody(req);
+  validateFields(fields);
   if (fields.images !== undefined) {
     throw new AppError("Photos cannot be set by URL when editing. Use photoLayout to keep, reorder or add uploaded photos.", 400);
   }
@@ -174,3 +181,10 @@ exports.deleteCandidate = catchAsync(async (req, res) => {
   await discardUnusedPhotos(deleted.images || []);
   res.status(204).send();
 });
+
+function validateFields(fields) {
+  const limits = {fullName:150,nickname:100,batchNumber:100,bio:4000,zodiacSign:100,contactNumber:100};
+  for (const [key,max] of Object.entries(limits)) if (fields[key] != null &&
+      (typeof fields[key] !== 'string' || fields[key].length > max)) throw new AppError(`${key} must be text of at most ${max} characters.`,400);
+  if (fields.hobbiesAndInterests !== undefined && (!Array.isArray(fields.hobbiesAndInterests) || fields.hobbiesAndInterests.length > 20 || fields.hobbiesAndInterests.some(x=>typeof x!=='string'||x.length>200))) throw new AppError('Use at most 20 hobbies of up to 200 characters each.',400);
+}

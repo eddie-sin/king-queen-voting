@@ -3,6 +3,8 @@ const { admin, staff, permission } = require('../middleware/authMiddleware');
 const candidates = require('../controller/candidatesController');
 const settings = require('../controller/settingsController');
 const memory = require('../controller/adminMemoryPhotosController');
+router.get('/wishes', admin, require('../controller/wishesController').moderationList);
+router.patch('/wishes/:id', admin, require('../controller/wishesController').moderate);
 const accounts = require('../controller/adminAccountsController');
 router.get('/memory-photos', permission('memory.read'), memory.listPending);
 router.get('/memory-photos/:id/image', permission('memory.read'), memory.getImage);

@@ -86,7 +86,7 @@ function checkPasswordStrength(pwd) {
     };
   }
   const byteLength = new TextEncoder().encode(pwd).length;
-  const validLength = pwd.length >= 8 && byteLength <= 72;
+  const validLength = pwd.length >= 15 && byteLength <= 72;
   const rules = {
     length: validLength,
     upperLower: /[a-z]/.test(pwd) && /[A-Z]/.test(pwd),
@@ -101,7 +101,7 @@ function checkPasswordStrength(pwd) {
 
   let level = 0;
   let label = 'Weak';
-  if (pwd.length < 8) {
+  if (pwd.length < 15) {
     level = 0;
     label = 'Too short';
   } else if (byteLength > 72) {
@@ -167,7 +167,7 @@ export default function StaffManager({ token, report, notify }) {
   }
   const strength = checkPasswordStrength(form.password);
   return <div><div className="page-header"><div><p className="eyebrow">HIGHER ADMINISTRATOR</p><h1>Staff <em>accounts</em></h1><p className="muted">Create separate Voting, Memory and Lantern administrator accounts. Grant their control permissions individually.</p></div><button className="button primary" onClick={() => edit(null)}><Icon name="plus" size={17} />Create staff account</button></div>{error && <p className="message error" role="alert">{error}</p>}<section className="candidate-panel"><div className="panel-head"><h2>Staff accounts</h2><button className={`button secondary ${loading ? 'is-busy' : ''}`} onClick={refresh} disabled={loading}>{loading ? <><Spinner size={13} />Refreshing…</> : <><Icon name="refresh" size={14} />Refresh</>}</button></div>{loading ? <AdminLoader label="Loading staff accounts…" hint="Fetching authorized administrators and granted permissions" icon="users" /> : !accounts.length ? <p className="empty">No staff accounts yet.</p> : <div className="table-wrap"><table><thead><tr><th>Username</th><th>Role</th><th>Status</th><th>Permissions</th><th>Actions</th></tr></thead><tbody>{accounts.map(account => <tr key={account.id}><td>{account.username}</td><td>{account.role.replaceAll('_',' ')}</td><td>{account.status}</td><td>{account.permissions.length} granted</td><td><div className="actions"><button className="button secondary" onClick={() => edit(account)}>Edit access</button><button className="button delete" onClick={() => setRemove(account)}>Delete</button></div></td></tr>)}</tbody></table></div>}</section>
-    {editor && <div className="overlay center"><section className="modal" role="dialog" aria-modal="true" aria-labelledby="staff-title"><h2 id="staff-title">{editor === 'new' ? 'Create staff account' : 'Edit staff account'}</h2><form onSubmit={save}><label className="field"><span>Role</span><select disabled={editor!=='new'} value={form.role} onChange={e=>setForm({...form,role:e.target.value,permissions:[]})}><option value="voting_admin">Voting admin</option><option value="memory_admin">Memory admin</option><option value="lantern_admin">Lantern admin</option></select></label><label className="field"><span>Username</span><input autoComplete="off" value={form.username} maxLength={100} required onChange={e => setForm({ ...form, username: e.target.value })}/></label><label className="field"><span>{editor === 'new' ? 'Password' : 'New password (leave blank to keep)'}</span><input type={showPassword?'text':'password'} autoComplete="new-password" value={form.password} minLength={8} required={editor === 'new'} placeholder={editor === 'new' ? 'Create a strong password (8+ chars)' : 'Leave blank to keep current password'} onChange={e => { setCopied(false); setForm({ ...form, password: e.target.value }); }}/></label><label className="show-password"><input type="checkbox" checked={showPassword} onChange={e=>setShowPassword(e.target.checked)}/> Show password</label>
+    {editor && <div className="overlay center"><section className="modal" role="dialog" aria-modal="true" aria-labelledby="staff-title"><h2 id="staff-title">{editor === 'new' ? 'Create staff account' : 'Edit staff account'}</h2><form onSubmit={save}><label className="field"><span>Role</span><select disabled={editor!=='new'} value={form.role} onChange={e=>setForm({...form,role:e.target.value,permissions:[]})}><option value="voting_admin">Voting admin</option><option value="memory_admin">Memory admin</option><option value="lantern_admin">Lantern admin</option></select></label><label className="field"><span>Username</span><input autoComplete="off" value={form.username} maxLength={100} required onChange={e => setForm({ ...form, username: e.target.value })}/></label><label className="field"><span>{editor === 'new' ? 'Password' : 'New password (leave blank to keep)'}</span><input type={showPassword?'text':'password'} autoComplete="new-password" value={form.password} minLength={15} required={editor === 'new'} placeholder={editor === 'new' ? 'Create a strong password (15+ chars)' : 'Leave blank to keep current password'} onChange={e => { setCopied(false); setForm({ ...form, password: e.target.value }); }}/></label><label className="show-password"><input type="checkbox" checked={showPassword} onChange={e=>setShowPassword(e.target.checked)}/> Show password</label>
       <div className="pw-tools">
         <div className="pw-generator-row">
           <button
@@ -212,7 +212,7 @@ export default function StaffManager({ token, report, notify }) {
             </div>
             <div className="pw-strength-rules">
               <span className={`pw-rule-pill ${strength.rules.length ? 'is-met' : ''}`}>
-                {strength.rules.length ? '✓' : '○'} 8+ chars
+                {strength.rules.length ? '✓' : '○'} 15+ chars
               </span>
               <span className={`pw-rule-pill ${strength.rules.upperLower ? 'is-met' : ''}`}>
                 {strength.rules.upperLower ? '✓' : '○'} Upper &amp; lower

@@ -1,7 +1,7 @@
 const { Mail, Flow, Limit } = require("../../model/studentAuthModels");
 const { unseal } = require("./security");
 const { hit } = require("./challenges");
-const { withControls } = require("../eventControls");
+const { transaction } = require("../transactions");
 let timer,
   running = null;
 let stopped = false;
@@ -84,7 +84,7 @@ async function tick(transport) {
   const day = now.toISOString().slice(0, 10);
   if ((job.budgetDay || flow.createdAt.toISOString().slice(0, 10)) !== day) {
     try {
-      await withControls(async ({ session }) => {
+      await transaction(async session => {
         const current = await Mail.findById(job._id).session(session);
         if (current.budgetDay === day) return;
         const end = new Date(

@@ -25,7 +25,7 @@ export default function PrivacyPage() {
           organisers open announcements. Wishes are public. Approved Memory
           Photos and their images appear in the public gallery. Pending and
           rejected images are available to authorised staff for moderation.
-          You can check your submission status and allowance in My Memories.
+          Archived images are hidden from the public gallery but remain accessible to you and authorised moderators. You can check your submission status and allowance in My Memories.
           Moderation decisions, likes and submission limits are linked to accounts.
         </p>
         <h2>Service providers and retention</h2>

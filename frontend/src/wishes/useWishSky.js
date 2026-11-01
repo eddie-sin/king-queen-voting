@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { WishFeed } from './WishFeed.js';
 import { normalizeAllowance } from './wishApi.js';
 export function useWishSky(api,session,capacity){
+  const [postingOpen,setPostingOpen]=useState(true),[moderationRevision,setModerationRevision]=useState(null);
+  const moderationVersion=useRef(null);
   const [total,setTotal]=useState(null);
   const [slots,setSlots]=useState([]),[state,setState]=useState('loading'),[error,setError]=useState('');
   const [quota,setQuota]=useState(null),[quotaError,setQuotaError]=useState(''),[busy,setBusy]=useState(false),[uncertain,setUncertain]=useState(false);
@@ -10,8 +12,8 @@ export function useWishSky(api,session,capacity){
   const token=session?.token;
   useEffect(()=>{
     const controller=new AbortController();
-    const update=async()=>{try{const value=await api.list({limit:1,signal:controller.signal});if(!controller.signal.aborted&&Number.isSafeInteger(value.total))setTotal(value.total);}catch{}};
-    const timer=setInterval(update,30000);window.addEventListener('focus',update);
+    const update=async()=>{try{if(api.status){const status=await api.status();if(controller.signal.aborted)return;setPostingOpen(status.isOpen!==false);const revision=status.moderationRevision||0;if(moderationVersion.current!==null&&moderationVersion.current!==revision){setRelease(null);setReload(x=>x+1);}moderationVersion.current=revision;setModerationRevision(revision);}const value=await api.list({limit:1,signal:controller.signal});if(!controller.signal.aborted&&Number.isSafeInteger(value.total))setTotal(value.total);}catch{}};
+    update(); const timer=setInterval(update,30000);window.addEventListener('focus',update);
     return()=>{controller.abort();clearInterval(timer);window.removeEventListener('focus',update);};
   },[api]);
   const quotaVersion=useRef(0);
@@ -51,6 +53,7 @@ export function useWishSky(api,session,capacity){
   async function submit(message,name=''){
     if(mutex.current)throw new Error('Your lantern is already being released.');
     if(!token)throw new Error('Sign in to release a wish.');
+    if(!postingOpen)throw new Error('New wishes are paused. Your draft is still here.');
     if(!quota||!quota.remaining||uncertain)throw new Error('Please check your remaining wishes before releasing.');
     mutex.current=true;setBusy(true);const generation=epoch.current;
     try{
@@ -75,5 +78,5 @@ export function useWishSky(api,session,capacity){
     }throw e;}
     finally{mutex.current=false;setBusy(false);}
   }
-  return {total,slots,state,error,quota,quotaError,busy,uncertain,release,rotate,react,submit,loadQuota,retry:()=>setReload(x=>x+1),acknowledgeUncertain:async()=>{if(await loadQuota())setUncertain(false);}};
+  return {postingOpen,moderationRevision,total,slots,state,error,quota,quotaError,busy,uncertain,release,rotate,react,submit,loadQuota,retry:()=>setReload(x=>x+1),acknowledgeUncertain:async()=>{if(await loadQuota())setUncertain(false);}};
 }

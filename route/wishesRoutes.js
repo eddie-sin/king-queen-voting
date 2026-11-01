@@ -8,6 +8,6 @@ router.get("/mine", authenticate, controller.getMyWishAllowance);
 router.get("/mine/wishes", authenticate, controller.getMyWishes);
 router.get("/", controller.getWishes);
 router.post("/", authenticate, controller.createWish);
-router.post("/:id/reaction", security.guard, controller.reactToWish);
+router.post("/:id/reaction", security.guard, require('../middleware/reactionRateLimit'), controller.reactToWish);
 
 module.exports = router;

@@ -5,7 +5,7 @@ const catchAsync = require('../utils/catchAsync');
 const { getControls, publicControls, staffMutation, withControls, audit, authorizeStaff } = require('../utils/eventControls');
 const admission = require('../utils/voteAdmission');
 const { can } = require('../utils/permissions');
-const ACTIONS = ['registration.open', 'registration.close', 'voting.open', 'voting.close', 'announcement.open', 'announcement.close', 'votes.clear', 'memory.open', 'memory.close', 'lantern.open', 'lantern.close', 'lantern.announce', 'lantern.hide'];
+const ACTIONS = ['registration.open', 'registration.close', 'voting.open', 'voting.close', 'announcement.open', 'announcement.close', 'votes.clear', 'memory.open', 'memory.close', 'lantern.open', 'lantern.close', 'lantern.announce', 'lantern.hide', 'wishes.open', 'wishes.close'];
 let commandBusy = false;
 const settingsResponse = async (req, controls, result) => {
   const data = { controls };
@@ -29,7 +29,7 @@ exports.command = catchAsync(async (req, res) => {
     || !Number.isSafeInteger(revision) || revision < 0 || typeof operationId !== 'string'
     || !/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(operationId)) throw new AppError('Refresh controls before performing this action.', 400);
   if (action === 'votes.clear' && confirmation !== 'CLEAR ALL VOTES') throw new AppError('Confirm by entering CLEAR ALL VOTES.', 400);
-  const permission = action;
+  const permission = action.startsWith('wishes.') ? 'admin' : action;
   await authorizeStaff(req.admin, permission);
   if (commandBusy) throw new AppError('Another control is being updated. Refresh and retry shortly.', 409);
   commandBusy = true;
@@ -41,10 +41,10 @@ exports.command = catchAsync(async (req, res) => {
     if (previous && !(action === 'voting.close' && before.votingStatus === 'closing' && previous.details?.window === before.window)) {
       if (String(previous.actor) !== String(req.admin._id) || previous.action !== action) throw new AppError('This operation ID was already used.', 409);
       const current = await staffMutation(req, permission, async ({ controls }) => publicControls(controls));
-      if (action === 'voting.open' && current.votingStatus === 'open' && current.window === previous.details?.window) admission.open();
+      if (action === 'voting.open' && current.votingStatus === 'open' && current.window === previous.details?.window) admission.open(current);
       return res.json({ status: 'success', data: await settingsResponse(req, current, { clearedBallots: previous.details?.clearedBallots || 0 }) });
     }
-    if (action === 'voting.close') admission.close();
+    if (action === 'voting.close') admission.close(before);
     const result = await staffMutation(req, permission, async ({ controls, session, actor }) => {
       const existing = await Action.findOne({ operationId }).session(session);
       if (existing) {
@@ -54,6 +54,8 @@ exports.command = catchAsync(async (req, res) => {
       if (controls.revision !== revision) throw new AppError('Controls changed. Refresh and try again.', 409);
       let clearedBallots = 0;
       switch (action) {
+        case 'wishes.open': controls.wishPostingOpen=true; break;
+        case 'wishes.close': controls.wishPostingOpen=false; break;
         case 'registration.open': controls.registrationOpen = true; break;
         case 'registration.close': controls.registrationOpen = false; break;
         case 'voting.open':
@@ -84,6 +86,7 @@ exports.command = catchAsync(async (req, res) => {
         case 'memory.open': controls.memoryPhotosEnabled = true; break;
         case 'memory.close': controls.memoryPhotosEnabled = false; break;
       }
+      require('../utils/publicCalculations').clear();
       controls.revision++;
       await audit(session, actor, action, { round: controls.round, window: controls.window, clearedBallots }, operationId);
       return { clearedBallots };
@@ -97,15 +100,15 @@ exports.command = catchAsync(async (req, res) => {
       });
     }
     const current = await getControls();
-    if (current.votingStatus === 'open') admission.open();
-    else admission.close();
+    if (current.votingStatus === 'open') admission.open(current);
+    else admission.close(current);
     res.json({ status: 'success', data: await settingsResponse(req, publicControls(current), result) });
   } catch (error) {
     // A rejected command has no committed transition. Restore admission only
     // for a confirmed validation/authorization failure, never an uncertain commit.
     if (action === 'voting.close' && error.isOperational && error.statusCode < 500) {
       const current = await getControls();
-      if (current.votingStatus === 'open') admission.open();
+      if (current.votingStatus === 'open') admission.open(current);
     }
     throw error;
   } finally { commandBusy = false; }
