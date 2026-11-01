@@ -66,7 +66,7 @@ Each account may submit one King and one Queen ballot per round. Ballots link us
 
 The internal round/window/revision fields prevent delayed requests from crossing reset/reopen boundaries. They are not voting credentials. Short transactions write a shared controls fence as well as the ballot or mutation. A bounded, single-process admission queue allows closure to finish admitted votes while preventing waiting work from starting afterward. The queue and password-worker limits still need the deferred concurrency/capacity measurements.
 
-Results are calculated from actual ballots whenever announcement is open. All candidates and actual counts are shown, including zero counts and already-counted inactive candidates. Equal counts are ties; no random winner selection or frozen result document exists. Inactive candidates are unavailable for new votes but their recorded votes remain visible in announced totals. There is no public endpoint for individual voters' choices.
+The Results tab announces King and Queen first, then Mrs Thadingyut (King category) and Miss Thadingyut (Queen category), with their actual recorded vote totals. Before publication, the voting administrator reviews the closed vote results and either uses default first/second rankings or manually selects title holders. Default ties require an explicit choice. Selections persist across restarts; closing the announcement clears them so the next announcement starts a fresh review. The scoped preview requires `announcement.open`, fully closed voting and a hidden announcement, without granting general `votes.read`. See [the announcement workflow](docs/award-announcements.md) for the API and edge cases. There is no public endpoint for individual voters' choices.
 
 ## API contracts
 
@@ -83,7 +83,7 @@ All paths below start with `/api/v1`. Student requests use same-origin HttpOnly 
 | GET | `/candidates`, `/candidates/:id` | Active public profiles; excludes contact numbers |
 | POST | `/voting/submit` | `{candidateId,contest,round,window}`; identifiers come from the latest settings response |
 | GET | `/voting/my-votes` | Own votes plus round/window, available even while voting is closed |
-| GET | `/results` | Actual `data.results.kings`/`queens`, entries `{candidate,votes}`, plus round/revision; 403 while announcement is hidden |
+| GET | `/results` | Actual `data.results.kings`/`queens`, entries `{candidate,votes,title}` in published title order, plus round/revision; 403 while announcement is hidden |
 
 A repeated vote for the same candidate in an open window returns its existing successful outcome; a different candidate in the same category is rejected. If a response is interrupted, refresh `my-votes` before retrying. A timeout does not prove that a vote failed. Students' browsers refresh status periodically and on focus; the server enforces every control independently of the UI.
 

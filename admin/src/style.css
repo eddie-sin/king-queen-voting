@@ -366,3 +366,31 @@ button.photo-add{width:100%;font:inherit;padding:0}button.photo-add:focus-visibl
   color: #93a5bd;
   font-size: 11px;
 }
+
+/* Announcement review stays inside the viewport, with native dialog focus handling. */
+.announcement-dialog { width: min(760px, calc(100vw - 32px)); max-height: calc(100dvh - 40px); overflow-y: auto; margin: auto; color: var(--text, #eee5d3); }
+.announcement-dialog::backdrop { background: #020b1cbd; backdrop-filter: blur(6px); }
+.announcement-dialog h2 { margin: 8px 0; }
+.announcement-mode { border: 0; padding: 0; margin: 24px 0; display: grid; gap: 12px; }
+.announcement-mode legend { margin-bottom: 10px; }
+.announcement-mode label { display: block; border: 1px solid #a68c5c66; border-radius: 12px; padding: 14px; cursor: pointer; }
+.announcement-mode input { width: auto; margin-right: 10px; accent-color: #d9b86d; }
+.announcement-mode span { display: block; margin: 8px 0 0 26px; font-size: 13px; line-height: 1.5; opacity: .75; }
+.announcement-selections { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; margin: 24px 0; }
+.announcement-slot { min-width: 0; border: 1px solid #a68c5c66; padding: 18px; border-radius: 12px; }
+.announcement-slot h3 { margin-top: 0; }
+.announcement-slot select { width: 100%; min-width: 0; }
+.announcement-portrait { width: 72px; height: 88px; object-fit: cover; border-radius: 8px; margin-top: 12px; }
+.announcement-totals { margin: 20px 0; }
+.announcement-totals summary { cursor: pointer; padding: 12px 0; }
+.announcement-totals ol { padding-left: 24px; }
+.announcement-totals li { padding: 8px 0; }
+.announcement-totals li span { display: inline-block; width: 70%; overflow-wrap: anywhere; }
+.announcement-totals li strong { white-space: nowrap; font-size: 13px; }
+.announcement-review { margin: 24px 0; }
+.announcement-review > div { display: grid; grid-template-columns: 145px minmax(0,1fr) auto; gap: 12px; padding: 16px 0; border-bottom: 1px solid #a68c5c44; overflow-wrap: anywhere; }
+.announcement-review span { color: #e5c377; }
+.announcement-error { padding: 12px; border: 1px solid #f3a18488; border-radius: 8px; color: #ffc3ad; }
+@media(max-width:600px) { .announcement-selections { grid-template-columns: 1fr; } .announcement-review > div { grid-template-columns: 1fr; gap: 5px; } .announcement-dialog .drawer-actions { flex-wrap: wrap; } }
+
+.announcement-dialog .button:not(.secondary):not(.delete) { background: linear-gradient(135deg,#e7c582,#bf9954); color: #101d30; }

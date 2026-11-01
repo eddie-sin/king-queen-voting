@@ -19,6 +19,7 @@ router.get('/candidates', permission('candidates.read'), candidates.getAdminCand
 router.get('/candidates/:id', permission('candidates.read'), candidates.getAdminCandidate);
 router.get('/vote-totals',permission('votes.read'),require('../controller/voteTotalsController').candidates);
 router.get('/lantern-vote-totals',permission('lantern.votes.read'),require('../controller/voteTotalsController').lanterns);
+router.get('/announcement-preview', permission('announcement.open'), settings.announcementPreview);
 router.get('/settings', staff, settings.getSettings);
 router.post('/controls/:action', staff, settings.command);
 module.exports = router;

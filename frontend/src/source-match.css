@@ -1851,3 +1851,31 @@
   top: 0;
   z-index: 50;
 }
+
+/* Published awards are ordered by title, including organiser selections. */
+.award-category-links { display: flex; flex-wrap: wrap; gap: 10px 24px; justify-content: center; margin-top: 28px; font-size: 14px; }
+.award-category-links a { color: #d2dbe9; text-decoration: none; padding-bottom: 6px; }
+.award-category-links a[aria-current] { color: #f5d590; border-bottom: 1px solid; }
+.official-awards { max-width: 940px; margin: 0 auto; }
+.award-tier { margin: 0 0 64px; }
+.award-tier-heading { text-align: center; margin-bottom: 28px; }
+.award-tier-heading h2 { margin: 8px 0 0; font-size: clamp(28px,4vw,44px); }
+.award-pair { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 28px; }
+.official-award-card { min-width: 0; border-radius: 24px; border: 1px solid #c49f5c60; overflow: hidden; background: linear-gradient(150deg,#17334d,#09182d); box-shadow: 0 20px 50px #0003; }
+.award-tier--royal .official-award-card { border-color: #e9c57099; box-shadow: 0 16px 55px #d6a44012; }
+.award-portrait { position: relative; aspect-ratio: 4/4.5; display: grid; place-items: center; background: #10263c; }
+.award-portrait img { width: 100%; height: 100%; object-fit: cover; position: absolute; inset: 0; }
+.award-portrait::after { content: ''; position: absolute; inset: 55% 0 0; background: linear-gradient(transparent,#071628dc); }
+.award-title { position: absolute; bottom: 22px; left: 24px; right: 24px; z-index: 1; color: #ffe2a6; font-family: 'Cormorant Garamond',Georgia,serif; font-size: clamp(28px,4vw,44px); line-height: 1.1; }
+.award-copy { padding: 24px; }
+.award-copy h3 { font-size: clamp(24px,3vw,32px); margin: 0 0 8px; overflow-wrap: anywhere; }
+.award-copy .meta { margin: 0; color: #aebed2; }
+.award-recorded-votes { font-size: 13px; color: #b9c8da; margin: 20px 0 0; }
+.award-recorded-votes strong { color: #f4d38e; font-size: 22px; padding-right: 5px; }
+.award-note { text-align: center; font-size: 14px; line-height: 1.7; color: #aebed2; max-width: 580px; margin: 0 auto; }
+.award-unfilled { min-height: 270px; display: grid; align-content: center; justify-items: center; padding: 24px; text-align: center; }
+.award-unfilled h3 { margin: 14px 0 0; }
+.award-unfilled p { color: #aebed2; font-size: 14px; }
+@media(max-width:600px) { .award-pair { grid-template-columns: 1fr; gap: 20px; max-width: 380px; margin: 0 auto; } .award-tier { margin-bottom: 44px; } }
+
+.award-portrait > svg { width: 104px; height: 104px; opacity: .8; }

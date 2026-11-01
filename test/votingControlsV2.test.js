@@ -190,8 +190,8 @@ test('announcements reject unresolved title ties and return ranked King/Queen re
   assert.equal(result.status, 200);
   assert.deepEqual(result.body.data.results.kings.map(row => [row.candidate.fullName, row.votes]), [[kingA.fullName, 2], [kingB.fullName, 1]]);
   assert.deepEqual(result.body.data.results.queens.map(row => [row.candidate.fullName, row.votes]), [[queenA.fullName, 2], [queenB.fullName, 1]]);
-  assert.deepEqual(result.body.data.results.queens.map(row => row.title), ['Miss Thadingyut', 'Princess']);
-  assert.deepEqual(result.body.data.results.kings.map(row => row.title), ['Mrs Thadingyut', 'Prince']);
+  assert.deepEqual(result.body.data.results.queens.map(row => row.title), ['Queen', 'Miss Thadingyut']);
+  assert.deepEqual(result.body.data.results.kings.map(row => row.title), ['King', 'Mrs Thadingyut']);
   assert.equal(result.body.data.results.round, state.round);
 });
 

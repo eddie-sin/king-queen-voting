@@ -39,7 +39,7 @@ test("announced results preserve vote totals and titles while stripping contacts
     round: 1,
     revision: 4,
     kings: [
-      entry("Prince", 80, "Prince"),
+      entry("Manual King", 80, "King"),
       entry("Winner", 90, "Mrs Thadingyut"),
     ],
     queens: [
@@ -52,9 +52,9 @@ test("announced results preserve vote totals and titles while stripping contacts
   });
   assert.deepEqual(
     result.king.map((p) => p.votes),
-    [90, 80],
+    [80, 90],
   );
-  assert.equal(result.king[0].title, "Mrs Thadingyut");
+  assert.equal(result.king[0].title, "King");
   assert.equal(result.queen[0].title, "Miss Thadingyut");
   assert.equal(JSON.stringify(result).includes("PRIVATE"), false);
   assert.throws(() => publicResults(null));

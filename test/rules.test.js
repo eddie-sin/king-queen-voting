@@ -2,7 +2,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const EventControls = require('../model/eventControlsModel');
 const Ballot = require('../model/ballotsModel');
-const { awards } = require('../utils/voteTotals');
+const awards = rows => require('../utils/voteTotals').awards(rows.map((row, i) => ({ ...row, candidate: { ...row.candidate, _id: String(i) } })));
 const { can, ROLE_PERMISSIONS } = require('../utils/permissions');
 
 test('v2 event controls start closed and keep announcements incompatible with open voting', async () => {
@@ -37,7 +37,7 @@ test('ADMIN receives every voting capability while VOTING_ADMIN needs each expli
   assert.equal(can({ role: 'memory_admin', status: 'active', permissions: ['memory.open'] }, 'votes.read'), false);
 });
 
-test('results omit zero-vote candidates and calculate both ranked titles deterministically', () => {
+test('results calculate both ranked titles deterministically', () => {
   const rows = [
     { candidate: { category: 'king', fullName: 'King A' }, votes: 5 },
     { candidate: { category: 'king', fullName: 'King B' }, votes: 2 },
@@ -46,8 +46,8 @@ test('results omit zero-vote candidates and calculate both ranked titles determi
     { candidate: { category: 'queen', fullName: 'Queen B' }, votes: 1 },
   ];
   const result = awards(rows);
-  assert.deepEqual(result.kings.map(row => [row.candidate.fullName, row.votes, row.title]), [['King A', 5, 'Mrs Thadingyut'], ['King B', 2, 'Prince']]);
-  assert.deepEqual(result.queens.map(row => [row.candidate.fullName, row.votes, row.title]), [['Queen A', 4, 'Miss Thadingyut'], ['Queen B', 1, 'Princess']]);
+  assert.deepEqual(result.kings.map(row => [row.candidate.fullName, row.votes, row.title]), [['King A', 5, 'King'], ['King B', 2, 'Mrs Thadingyut']]);
+  assert.deepEqual(result.queens.map(row => [row.candidate.fullName, row.votes, row.title]), [['Queen A', 4, 'Queen'], ['Queen B', 1, 'Miss Thadingyut']]);
 });
 
 test('ties affecting either title position block announcement calculations', () => {
