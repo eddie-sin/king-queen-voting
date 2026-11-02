@@ -36,6 +36,7 @@ exports.listMine = catchAsync(async (req, res) => {
   await requireEnabled();
   res.status(200).json({ status: "success", results: photos.length, data: {
     photos: photos.map(photo => ({ id: photo._id, status: photo.archived ? "ARCHIVED" : photo.status, createdAt: photo.createdAt })),
+    participationAllowed: require('../utils/participation').allowed(await require('../utils/eventControls').getControls(), req.user),
     quota: { limit: 3, acceptedCount: occupied.size, remainingSlots: Math.max(0, 3 - occupied.size) },
   } });
 });
@@ -112,7 +113,11 @@ exports.submitPhoto = catchAsync(async (req, res) => {
     // Do not accept a submission if an admin disabled the feature during upload.
     await requireEnabled();
     const photo = new MemoryPhoto({ _id: photoId, owner: req.userId, imageKey, status: "PENDING" });
-    await photo.save({ writeConcern: { w: "majority", j: true } });
+    await require('../utils/eventControls').withControls(async ({ controls, session }) => {
+      await require('../utils/participation').require(req, controls, session);
+      if (!controls.memoryPhotosEnabled) throw new AppError('Memory Photo submissions are disabled.', 403);
+      await photo.save({ session });
+    });
     return res.status(201).json({ status: "success", data: { photo: {
       id: photo._id, status: photo.status, createdAt: photo.createdAt,
     } } });
@@ -137,7 +142,7 @@ exports.submitPhoto = catchAsync(async (req, res) => {
       console.error("Memory Photo persistence needs reconciliation; quota retained.");
     }
     // Never include storage errors, private keys or database documents in API errors.
-    if (error instanceof AppError && [400, 403, 409].includes(error.statusCode)) throw error;
+    if (error instanceof AppError && [400, 401, 403, 409].includes(error.statusCode)) throw error;
     throw new AppError("Could not accept the Memory Photo submission. Please retry.", 503);
   }
 });

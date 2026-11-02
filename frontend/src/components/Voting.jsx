@@ -228,7 +228,7 @@ export function ChoicesPage({
   );
 }
 
-export function VoteConfirmation({ pending, busy, canConfirm, onConfirm, onClose }) {
+export function VoteConfirmation({ pending, busy, participationBlocked, canConfirm, onConfirm, onClose }) {
   return (
     <Dialog
       title="Confirm your final choice."
@@ -249,7 +249,7 @@ export function VoteConfirmation({ pending, busy, canConfirm, onConfirm, onClose
       </p>
       {!canConfirm && !busy && (
         <p className="inline-error" role="alert">
-          Voting or your account status changed. Close this dialog and refresh.
+          {participationBlocked ? 'Participation access is not enabled for your account. Please contact the festival organisers.' : 'Voting or your account status changed. Close this dialog and refresh.'}
         </p>
       )}
       <div className="actions">

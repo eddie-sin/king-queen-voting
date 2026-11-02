@@ -1,3 +1,4 @@
+import {participationMessage} from '../useParticipation.js';
 import { useEffect, useRef, useState } from 'react';
 import { readStoredSession, writeStoredSession } from '../hooks/useFestival.js';
 import { useMyMemories } from './useMyMemories.js';
@@ -92,6 +93,7 @@ export default function ConnectedUpload({ api }) {
   }, [model.phase]);
 
   const ready = model.phase === 'ready';
+  const participationAllowed=model.participationAllowed!==false;
   const remaining = ready ? model.quota.remainingSlots : 0;
   const selectionLimit = ready ? remaining : 3;
 
@@ -154,6 +156,7 @@ export default function ConnectedUpload({ api }) {
         );
         return;
       }
+      if(history.participationAllowed===false){setError(participationMessage);return;}
       for (let index = 0; index < batch.length; index++) {
         if (!current()) break;
         const item = batch[index];
@@ -179,6 +182,7 @@ export default function ConnectedUpload({ api }) {
           setSelected([...items.current]);
         } catch (failure) {
           if (!current()) break;
+          if(failure.reason==='PARTICIPATION_REQUIRED'){setError(failure.message);break;}
           const uncertain =
             failure.interrupted || !failure.status || failure.status >= 500;
           if (uncertain) {
@@ -272,6 +276,7 @@ export default function ConnectedUpload({ api }) {
           A memory worth <em>keeping.</em>
         </h2>
         <p className="mp-muted">Choose a few little pieces of your celebration.</p>
+        {!participationAllowed && <p role="status">{participationMessage}</p>}
         {!ready && (
           <div className="mp-local-note" role="status">
             <span>
@@ -424,7 +429,7 @@ export default function ConnectedUpload({ api }) {
         <button
           className="mp-button mp-gold mp-submit"
           disabled={
-            !ready ||
+            !participationAllowed || !ready ||
             busy ||
             !selected.some(item => !item.blocked) ||
             selected.filter(item => !item.blocked).length > remaining

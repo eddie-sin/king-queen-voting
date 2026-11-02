@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import {useParticipation,participationMessage} from '../useParticipation.js';
 import { Dialog } from './Dialog.jsx';
 
 export function LanternGallery({
@@ -10,6 +11,7 @@ export function LanternGallery({
   session,
   onRequireLogin,
 }) {
+  const participationAllowed=useParticipation(api);
   const [status, setStatus] = useState(null);
   const [mine, setMine] = useState(null);
   const [owner, setOwner] = useState(null);
@@ -55,7 +57,7 @@ export function LanternGallery({
   }, [api, token]);
 
   async function vote() {
-    if (lock.current || !pending || !status?.open) return;
+    if (!participationAllowed || lock.current || !pending || !status?.open) return;
     lock.current = true;
     setBusy(true);
     const n = version.current;
@@ -69,7 +71,7 @@ export function LanternGallery({
       if (n === version.current) {
         setPending(null);
         await refresh();
-        setMessage(
+        setMessage(e.reason==='PARTICIPATION_REQUIRED'?e.message:
           `${e.message} Your vote may have been recorded; check your selection before retrying.`,
         );
       }
@@ -118,6 +120,7 @@ export function LanternGallery({
         </div>
       </div>
 
+      {!participationAllowed && <p role="status">{participationMessage}</p>}
       {message && (
         <p className="lantern-status-message" role="status">
           {message}
@@ -154,7 +157,7 @@ export function LanternGallery({
                 <button
                   className="btn secondary full-width"
                   disabled={
-                    busy ||
+                    !participationAllowed || busy ||
                     !status?.open ||
                     Boolean(selected) ||
                     (Boolean(token) && owner !== token)
@@ -195,7 +198,7 @@ export function LanternGallery({
             </button>
             <button
               className="btn primary"
-              disabled={busy || !status?.open || Boolean(selected)}
+              disabled={!participationAllowed || busy || !status?.open || Boolean(selected)}
               onClick={vote}
             >
               {busy ? 'Recording…' : 'Confirm final vote'}

@@ -131,6 +131,11 @@ exports.createV2Fixture = async () => {
         csrf: mac(`csrf:${browser}`),
       } };
     },
+    async pauseMemoryUpload() {
+      await new Promise(resolve=>{const listener=m=>{if(m.fixture==='uploadArmed'){api.off('message',listener);resolve();}};api.on('message',listener);api.send({fixture:'pauseUpload'});});
+    },
+    waitMemoryUploadPaused() { return new Promise(resolve=>{const listener=m=>{if(m.fixture==='uploadPaused'){api.off('message',listener);resolve();}};api.on('message',listener);}); },
+    resumeMemoryUpload() { api.send({fixture:'resumeUpload'}); },
     async recoverMemoryQuota(owner) {
       assert(/^[a-f0-9]{24}$/i.test(owner));
       const worker = spawn(process.execPath, [path.join(__dirname, 'v2QuotaRecovery.cjs')], {

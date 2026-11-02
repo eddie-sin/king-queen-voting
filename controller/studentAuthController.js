@@ -34,6 +34,8 @@ async function profile(user) {
   return {
     id: String(user._id),
     email: user.email,
+    participationEnabled: user.participationEnabled === true,
+    participationAllowed: require('../utils/participation').allowed(c, user),
     round: c.round,
     hasVotedKing: votes.some((v) => v.contest === "king"),
     hasVotedQueen: votes.some((v) => v.contest === "queen"),

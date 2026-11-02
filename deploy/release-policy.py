@@ -1,6 +1,6 @@
 """Pure checks shared by activation and the isolated rollback rehearsal."""
 import hashlib, json, pathlib
-COMPATIBILITY={'databaseSchema':2,'authentication':1}
+COMPATIBILITY={'databaseSchema':2,'authentication':1,'participationAccess':1}
 def manifest(path):
     try: return json.loads((path/'RELEASE_MANIFEST.json').read_text())
     except (OSError,ValueError): return {}

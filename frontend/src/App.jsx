@@ -312,7 +312,8 @@ function FestivalApp({ api, wishApi, fixtureMode = false }) {
   const [pending, setPending] = useState(null);
 
   const viewable = model.choiceState === 'ready';
-  const allDisabled = model.busy || model.status.voting !== 'open';
+  const participationBlocked = model.participationAllowed === false;
+  const allDisabled = participationBlocked || model.busy || model.status.voting !== 'open';
   const category = route === 'queen' ? 'queen' : 'king';
   const gallery = model.candidates.filter(c => c.category === category);
   const go = next => {
@@ -368,7 +369,7 @@ function FestivalApp({ api, wishApi, fixtureMode = false }) {
     setPending({ candidate, contest: candidate.category });
   };
 
-  const label = allDisabled
+  const label = participationBlocked ? 'Participation access required' : allDisabled
     ? 'Voting closed'
     : !model.session
       ? 'Sign in to vote'
@@ -436,6 +437,7 @@ function FestivalApp({ api, wishApi, fixtureMode = false }) {
       )}
 
       <main id="main" tabIndex="-1">
+        {participationBlocked && ['king','queen','candidates'].includes(route) && <div className="schedule-banner" role="status"><p>Participation access is not enabled for your account. Please contact the festival organisers.</p></div>}
         <div className="source-page" key={route}>
           {route === 'privacy' && <PrivacyPage />}
           {route === 'home' ? (
@@ -701,8 +703,9 @@ function FestivalApp({ api, wishApi, fixtureMode = false }) {
           pending={pending}
           previous={model.choices[pending.contest]}
           busy={model.busy}
+          participationBlocked={participationBlocked}
           canConfirm={
-            viewable &&
+            !participationBlocked && viewable &&
             Boolean(model.session) &&
             model.status.voting === 'open' &&
             !model.choices[pending.contest]

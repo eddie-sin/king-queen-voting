@@ -19,6 +19,7 @@ const sendErrorDev = (err, res) => {
     status: err.status || "error",
     error: err,
     message: err.message,
+    ...(err.reason === 'PARTICIPATION_REQUIRED' ? { reason: err.reason } : {}),
     stack: err.stack,
   });
 };
@@ -28,6 +29,7 @@ const sendErrorProd = (err, res) => {
     return res.status(err.statusCode).json({
       status: err.status,
       message: err.message,
+      ...(err.reason === 'PARTICIPATION_REQUIRED' ? { reason: err.reason } : {}),
     });
   }
 

@@ -27,6 +27,7 @@ exports.submitVote = catchAsync(async (req, res) => {
         if (String(existing.candidate) !== candidateId) throw new AppError('You have already voted in this category. Votes cannot be changed.', 409);
         return { alreadyRecorded: true };
       }
+      await require('../utils/participation').require(req, controls, session);
       if (!['open', 'closing'].includes(controls.votingStatus) || controls.announcementOpen) throw new AppError('Voting is closed.', 409);
       const candidate = await Candidate.findOne({ _id: candidateId, category: contest, isActive: true }).session(session);
       if (!candidate) throw new AppError('This candidate is not available in that category.', 400);

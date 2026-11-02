@@ -1,3 +1,4 @@
+import {useParticipation,participationMessage} from '../useParticipation.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { announcementState, eventState, savedChoices } from '../domain.js';
 const EMPTY = { king: null, queen: null };
@@ -155,7 +156,9 @@ export function useFestival(api) {
     if (!current.current.controls?.registrationOpen) throw new Error('Registration is closed.');
     return api.register(email, password, operationId);
   }
+  const participationAllowed=useParticipation(api);
   async function mutate({ contest, candidate }) {
+    if(!participationAllowed){setNotice({type:'info',text:participationMessage});return false;}
     if (locked.current) return false;
     const snapshot = current.current.controls, active = current.current.session;
     if (!active || current.current.choiceState !== 'ready' || !snapshot || eventState(snapshot).voting !== 'open'
@@ -173,6 +176,7 @@ export function useFestival(api) {
       return true;
     } catch (error) {
       if (!mounted.current || generation !== epoch.current) return false;
+      if(error.reason==='PARTICIPATION_REQUIRED'){setNotice({type:'info',text:error.message});return false;}
       markChoices('uncertain'); setNotice({ type: 'info', text: `${error.message} Checking whether your vote was recorded…` });
       await loadControls();
       const checked = await refreshChoices();
@@ -187,6 +191,6 @@ export function useFestival(api) {
     lanterns, lanternState, lanternError, reloadLanterns: loadLanterns, controls, controlsError,
     status: fresh ? eventState(controls) : { registration: 'unknown', voting: 'unknown' }, reloadControls: loadControls,
     resultsStage: fresh ? announcementState(controls) : 'unknown', results: fresh ? results : null, resultsLoad, resultsError, reloadResults: loadResults,
-    session, sessionReady, choices, choiceState, busy, notice, celebration, dismissNotice: () => setNotice(null),
+    participationAllowed, session, sessionReady, choices, choiceState, busy, notice, celebration, dismissNotice: () => setNotice(null),
     login, register, acceptLogin, signOut, refreshChoices, mutate };
 }

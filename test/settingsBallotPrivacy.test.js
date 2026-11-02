@@ -51,7 +51,7 @@ const onlyControls = data => {
   assert.deepEqual(Object.keys(data), ['controls'], 'No private count or alternate count field may be returned');
   assert.deepEqual(Object.keys(data.controls).sort(), [
     'announcementOpen', 'candidateManagementLocked', 'lanternAnnouncementOpen', 'lanternVotingOpen', 'lanternWindow',
-    'memoryPhotosEnabled', 'registrationOpen', 'revision', 'round', 'votingStatus', 'window', 'wishPostingOpen',
+    'memoryPhotosEnabled', 'participationRequired', 'registrationOpen', 'revision', 'round', 'votingStatus', 'window', 'wishPostingOpen',
   ], 'Public controls must not contain nested private totals');
   assert.equal(typeof data.controls.votingStatus, 'string');
 };

@@ -156,7 +156,7 @@ test("My Memories returns only the cookie session owner's safe metadata in deter
 });
 
 test("My Memories uses legacy records without creating quota state and handles an empty history", async () => {
-  assert.deepEqual((await mine()).body.data, { photos: [], quota: { limit: 3, acceptedCount: 0, remainingSlots: 3 } });
+  assert.deepEqual((await mine()).body.data, { photos: [], participationAllowed: true, quota: { limit: 3, acceptedCount: 0, remainingSlots: 3 } });
   await MemoryPhoto.create({ owner: user._id, imageKey: "legacy", status: "REJECTED" });
   assert.deepEqual((await mine()).body.data.quota, { limit: 3, acceptedCount: 0, remainingSlots: 3 });
   assert.equal((await Quota.find()).reduce((n,q)=>n+q.slots.length,0), 0);
@@ -169,7 +169,7 @@ test("My Memories excludes cancellation markers while retaining unresolved reser
   const converted = await MemoryPhoto.create({ owner: user._id, imageKey: "cancelled-key", status: "APPROVED" });
   await quota.cancel(user._id, converted._id);
   assert.equal(await MemoryPhoto.collection.countDocuments({ owner: user._id, cancelled: true }), 2);
-  assert.deepEqual((await mine()).body.data, { photos: [], quota: { limit: 3, acceptedCount: 0, remainingSlots: 3 } });
+  assert.deepEqual((await mine()).body.data, { photos: [], participationAllowed: true, quota: { limit: 3, acceptedCount: 0, remainingSlots: 3 } });
   const accepted = await submit();
   assert.equal(accepted.status, 201);
   const unresolved = new mongoose.Types.ObjectId();
