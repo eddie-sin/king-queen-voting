@@ -199,11 +199,17 @@ let server, vite, browser;
       .getByRole("button", { name: "Open navigation menu", exact: true })
       .click();
     await page.getByRole("button", { name: "Sign out", exact: true }).click();
-    await page
-      .getByRole("tab", { name: /^Sign in/ })
-      .first()
-      .waitFor();
+    // The public gallery remains available after logout. Check the guest
+    // header and cleared session before exercising both private memory routes.
+    await page.getByRole("button", { name: "Sign in", exact: true }).first().waitFor();
+    await page.getByRole("heading", { name: "Our day, in lights." }).waitFor();
+    assert.equal(new URL(page.url()).hash, "#memory-gallery");
+    assert.equal(await page.getByRole("link", { name: "Account and my choices", exact: true }).count(), 0);
     assert.ok(!(await context.cookies()).some((c) => c.name === "kq_session"));
+    for (const route of ["#my-memories", "#memory-upload"]) {
+      await page.goto(origin + "/" + route);
+      await page.getByRole("tab", { name: /^Sign in/ }).first().waitFor();
+    }
     await page.goto(origin + "/privacy");
     await page.getByRole("heading", { name: "Accounts and sign-in" }).waitFor();
     await page.setViewportSize({ width: 390, height: 844 });
