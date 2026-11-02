@@ -80,11 +80,10 @@ try {
     await page.getByRole('link', { name: 'Sign in at the festival' }).waitFor();
     assert.equal(requests.length, 0);
     assert.equal(await page.locator('.mp-my-page img').count(), 0);
-    await page.getByRole('link', { name: 'View explicitly labeled sample states' }).click();
-    await page.getByText('Sample review state · no real submission').first().waitFor();
+    assert.equal(await page.getByRole('link', { name: /sample|demo/i }).count(), 0);
     assert.equal(requests.length, 0); await context.close();
   }
-  reports.push('Anonymous view requires the existing sign-in flow; explicit demo makes no API requests');
+  reports.push('Anonymous view requires the existing sign-in flow; obsolete demo links are absent');
   for (const [state, heading] of [[{ status: 401 }, 'A fresh hello.'], [{ status: 403, accountStatus: 403 }, 'Student access is unavailable.'], [{ network: true }, 'Your memories need a moment.']]) {
     const { page, context } = await setup(state);
     await page.getByRole('heading', { name: heading }).waitFor();
