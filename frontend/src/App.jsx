@@ -26,6 +26,7 @@ import PrivacyPage from './components/PrivacyPage.jsx';
 import HomePage from './components/HomePage.jsx';
 import AuthLanding from './components/AuthLanding.jsx';
 import DevelopersPage from './components/DevelopersPage.jsx';
+import DeveloperCredits from './components/DeveloperCredits.jsx';
 import './home.css';
 import './authLanding.css';
 import { ResultsPage } from './components/Results.jsx';
@@ -293,6 +294,7 @@ export default function App(props) {
           api={props.api}
           onRequireLogin={memoryLogin}
         />
+        <DeveloperCredits pageKey={memoryRoute} items={NAV_ITEMS} />
       </div>
     );
   }
@@ -656,6 +658,7 @@ function FestivalApp({ api, wishApi, fixtureMode = false }) {
       </footer>
 
       {route === 'wishes' && <MusicPlayer />}
+      <DeveloperCredits pageKey={route} items={NAV_ITEMS} />
 
       {profile && (
         <CandidateProfile

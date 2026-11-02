@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
 import { Brand, UserIcon } from '../components.jsx';
-import DeveloperCredits from './DeveloperCredits.jsx';
 
 export function SiteHeader({
   items,
@@ -60,7 +59,6 @@ export function SiteHeader({
         </nav>
 
         <div className="header-actions">
-          <DeveloperCredits pageKey={route} items={items} />
           {session ? (
             <a
               href="#account"
