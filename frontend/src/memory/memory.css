@@ -156,16 +156,6 @@
   line-height: 1.8;
 }
 
-.mp-demo .mp-sample-link {
-  display: block;
-  width: fit-content;
-  margin: var(--space-4) auto 0;
-  color: var(--mp-gold);
-  font-size: var(--text-fine);
-  text-decoration: underline;
-  text-underline-offset: 4px;
-}
-
 .mp-demo .mp-quota {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -208,10 +198,6 @@
   gap: var(--space-4);
   margin: var(--space-6) auto;
   align-items: center;
-}
-
-.mp-demo .mp-mine-actions .mp-sample-link {
-  margin: 0;
 }
 
 .mp-demo .mp-image-unavailable {

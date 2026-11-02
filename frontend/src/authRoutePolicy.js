@@ -1,9 +1,3 @@
-const DEMO_MEMORY_HASHES = new Set(['#my-memories-demo', '#memory-gallery-demo', '#memory-upload-demo']);
-
-export function isMemoryDemoHash(hash = '') {
-  return DEMO_MEMORY_HASHES.has(String(hash).toLowerCase());
-}
-
 export function shouldShowGuestLanding({ sessionReady, session, fixtureMode = false } = {}) {
   return !fixtureMode && Boolean(sessionReady) && !session;
 }

@@ -129,9 +129,8 @@ try {
     const { page, context } = await setup();
     await page.getByText('Limit: 3 · Accepted: 0 · Remaining: 3').waitFor();
     await page.locator('input[type=file][multiple]').setInputFiles(file('one.png'));
-    await page.getByRole('link', { name: 'Open explicitly labeled demo upload studio' }).click();
-    await page.getByRole('button', { name: 'Preview submission' }).waitFor();
-    assert.deepEqual(await page.evaluate(() => [previewCreated.length, new Set(previewRevoked).size]), [1, 1]);
+    await page.goto(`${base}/#memory-upload-demo`);
+    assert.equal(await page.locator('input[type=file][multiple]').count(), 0);
     await context.close();
   }
   console.log('PASS: desktop/mobile sequential multipart uploads, progress, PENDING refresh, quota/file validation, preview cleanup, partial failures, expired/disabled access, uncertain-write stop and changed quota');

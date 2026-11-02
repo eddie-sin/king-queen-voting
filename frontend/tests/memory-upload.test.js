@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createApi } from '../src/api.js';
 import { uploadSelectionError, parseUploadedMemory } from '../src/memory/upload.js';
-import { memoryTabFromHash } from '../src/memory/demo.js';
+import { memoryTabFromHash } from '../src/memory/config.js';
 import './auth-fixture.js';
 const photo = { id: 'a'.repeat(24), status: 'PENDING', createdAt: '2026-10-22T10:00:00Z' };
 test('upload sends one FormData images file with cookie/CSRF and browser-generated content type', async () => {
@@ -20,7 +20,7 @@ test('upload sends one FormData images file with cookie/CSRF and browser-generat
 test('upload selection respects server remaining slots and exact file type/size limits', () => {
   for (const type of ['image/jpeg', 'image/png', 'image/webp']) assert.equal(uploadSelectionError({ type, size: 5 * 1024 * 1024 }, 0, 1), '');
   for (const [file, count, slots] of [[{ type: 'image/png', size: 1 }, 1, 1], [{ type: 'image/png', size: 1 }, 0, 0], [{ type: 'image/gif', size: 1 }, 0, 3], [{ type: 'image/png', size: 5242881 }, 0, 3], [{ type: 'image/png', size: 0 }, 0, 3]]) assert(uploadSelectionError(file, count, slots));
-  assert.equal(memoryTabFromHash('#memory-upload-demo'), 'upload');
+  assert.equal(memoryTabFromHash('#memory-upload-demo'), null);
 });
 test('upload confirmation validates PENDING and strips private data', () => {
   assert.deepEqual(parseUploadedMemory({ ...photo, url: 'private' }), photo);

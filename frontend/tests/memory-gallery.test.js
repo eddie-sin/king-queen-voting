@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createApi } from '../src/api.js';
 import { parseMemoryGallery } from '../src/memory/gallery.js';
-import { memoryTabFromHash } from '../src/memory/demo.js';
+import { memoryTabFromHash } from '../src/memory/config.js';
 const photo = { id: 'a'.repeat(24), createdAt: '2026-10-22T10:00:00Z', likeCount: 7 };
 const payload = () => ({ status: 'success', results: 1, pagination: { page: 1, limit: 20, hasMore: false }, data: { photos: [{ ...photo }] } });
 test('public gallery uses bounded pagination without authentication and preserves backend counts', async () => {
@@ -13,7 +13,7 @@ test('public gallery uses bounded pagination without authentication and preserve
   } });
   assert.deepEqual((await api.memoryPhotos()).photos, [photo]);
   await assert.rejects(api.memoryPhotos(1001));
-  assert.equal(memoryTabFromHash('#memory-gallery-demo'), 'all');
+  assert.equal(memoryTabFromHash('#memory-gallery-demo'), null);
 });
 test('gallery projection strips storage and identity fields', () => {
   const data = payload(); Object.assign(data.data.photos[0], { imageKey: 'private', url: 'https://example.test', reviewedBy: 'admin' });

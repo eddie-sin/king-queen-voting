@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { isMemoryDemoHash, resumeAfterLogin, shouldShowGuestLanding, shouldShowSessionCheckShell, shouldShowSessionLoader } from '../src/authRoutePolicy.js';
+import { resumeAfterLogin, shouldShowGuestLanding, shouldShowSessionCheckShell, shouldShowSessionLoader } from '../src/authRoutePolicy.js';
 import { withSessionTimeout } from '../src/hooks/useFestival.js';
 import { readStoredSession, writeStoredSession } from '../src/authSession.js';
 
@@ -27,10 +27,9 @@ test('stored session markers show only the navigation shell until server verific
   assert.equal(shouldShowSessionLoader({ sessionReady: true, session: null }), false);
 });
 
-test('memory demo hashes are explicitly separated from real memory routes', () => {
-  assert.equal(isMemoryDemoHash('#memory-gallery-demo'), true);
-  assert.equal(isMemoryDemoHash('#memory-upload'), false);
-  assert.equal(isMemoryDemoHash('#MEMORY-GALLERY-DEMO'), true);
+test('obsolete memory demo hashes are not treated as real memory routes', async () => {
+  const { memoryTabFromHash } = await import('../src/memory/config.js');
+  for (const hash of ['#memory-gallery-demo', '#memory-upload-demo', '#my-memories-demo']) assert.equal(memoryTabFromHash(hash), null);
 });
 
 test('session checks time out instead of leaving a loading screen forever', async () => {

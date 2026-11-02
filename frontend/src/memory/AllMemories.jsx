@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useMemoryLikes } from './useMemoryLikes.js';
 import { Icon } from './MemoryIcon.jsx';
 import { Dialog } from '../components/Dialog.jsx';
-import { MEMORY_ASSETS as A } from './demo.js';
+import { MEMORY_ASSETS as A } from './config.js';
 
 const dateLabel = value =>
   new Date(value).toLocaleDateString('en-GB', {
@@ -325,9 +325,6 @@ export default function AllMemories({ api, onRequireLogin }) {
           </div>
         )}
 
-        <a className="mp-sample-link" href="#memory-gallery-demo">
-          View explicitly labeled demo gallery
-        </a>
       </section>
 
       {viewer && state.phase === 'ready' && (

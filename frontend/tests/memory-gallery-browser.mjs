@@ -54,9 +54,9 @@ try {
     await page.locator('.mp-print').first().scrollIntoViewIfNeeded();
     await page.getByText('This photo could not be loaded.').first().waitFor();
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)); assert.deepEqual(errors, []);
-    await page.getByRole('link', { name: 'View explicitly labeled demo gallery' }).click();
-    await page.getByRole('button', { name: 'Enlarge demo photo 1', exact: true }).waitFor();
+    await page.goto(`${base}/#memory-gallery-demo`);
+    assert.equal(await page.locator('.mp-print').count(), 0);
     await context.close();
   }
-  console.log('PASS: desktop/mobile public gallery, loading, pagination, counts, keyboard viewer, disable, malformed/network/empty/image errors and explicit demo');
+  console.log('PASS: desktop/mobile public gallery, loading, pagination, counts, keyboard viewer, disable, malformed/network/empty/image errors and obsolete demo route unavailable');
 } finally { await browser?.close(); await server.close(); }

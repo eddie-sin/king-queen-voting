@@ -15,11 +15,10 @@ using the configured backend `/memory-photos/:id/image` URL, never a storage
 URL. Pending/rejected submissions use sealed envelopes without image requests.
 Archived owner photos use the authenticated owner image endpoint and remain private; they are not requested from the public gallery endpoint. Gallery hearts use the authenticated like APIs. The connected Upload tab submits images for review.
 
-`/#my-memories-demo` explicitly selects sample review states. The existing
-Vite fixture mode also shows only clearly labeled samples. `/#memory-gallery`
-(alias `/#memory`) is the connected public gallery. `/#memory-gallery-demo`
-is its explicitly labeled sample route; `/#memory-upload` is the connected student upload studio; its demo is at `/#memory-upload-demo`.
-Demo photos are never substituted for real records, empty data or errors.
+`/#memory-gallery` (alias `/#memory`) is the connected public gallery.
+`/#memory-upload` is the connected student upload studio. Obsolete demo hashes
+are not routed and never render sample content. Real records, empty data and
+errors are never replaced with demo content.
 These routes mount independently of unrelated festival API hooks. No backend,
 AWS or existing authentication behavior is changed. Selected files stay in memory
 and are released when removed or when leaving the upload view. Only the explicitly labeled demo studio keeps submission feedback local.
@@ -83,7 +82,7 @@ photography in the live hero; original backgrounds, fonts and card styles remain
 
 Preview: point `VOTING_API_TARGET` at the local backend before starting Vite,
 then visit `http://localhost:5173/#memory-gallery` (or the port Vite reports).
-No sign-in is needed. Use `/#memory-gallery-demo` for sample images.
+No sign-in is needed for the approved public gallery.
 Run `node tests/memory-gallery-browser.mjs` for intercepted HTTP browser checks
 on desktop/mobile, including pagination, counts, keyboard viewer, loading,
 disabled, malformed/network, empty/image errors and demo isolation. This does
@@ -112,8 +111,7 @@ Unmount/sign-out aborts in-flight work; an already accepted request may still
 finish on the backend. Check history when returning. Preview URLs are revoked on
 removal, success, account change and unmount. Gallery/My Memories remain separate.
 
-`/#memory-upload-demo` keeps the original local-only previews. No demo action
-sends real uploads. Dedicated checks: `node tests/memory-upload-browser.mjs`;
+Dedicated checks: `node tests/memory-upload-browser.mjs`;
 all HTTP requests are intercepted with generated fixture sessions, not live
 accounts or AWS. Start Vite with `VOTING_API_TARGET=http://127.0.0.1:5002`
 (adjust backend port), open `http://localhost:5173/#account`, sign in and visit

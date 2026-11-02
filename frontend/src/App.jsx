@@ -29,9 +29,9 @@ import DevelopersPage from './components/DevelopersPage.jsx';
 import './home.css';
 import './authLanding.css';
 import { ResultsPage } from './components/Results.jsx';
-import MemoryPhotoDemo from './memory/MemoryPhotoDemo.jsx';
-import { memoryTabFromHash } from './memory/demo.js';
-import { isMemoryDemoHash, shouldShowGuestLanding, shouldShowSessionCheckShell, shouldShowSessionLoader } from './authRoutePolicy.js';
+import MemoryPhoto from './memory/MemoryPhoto.jsx';
+import { memoryTabFromHash } from './memory/config.js';
+import { shouldShowGuestLanding, shouldShowSessionCheckShell, shouldShowSessionLoader } from './authRoutePolicy.js';
 
 const NAV_ITEMS = [
   {
@@ -136,7 +136,8 @@ export default function App(props) {
   const [returnToMemories, setReturnToMemories] = useState(false);
   const [memoryHash, setMemoryHash] = useState(() => location.hash);
   const memoryTab = memoryTabFromHash(memoryHash);
-  const memoryRoute = memoryHash.slice(1).replace(/-demo$/, '') || 'memory-gallery';
+  const memoryRoute = memoryHash.slice(1) || 'memory-gallery';
+  const memoryRequiresAuth = memoryTab && memoryTab !== 'all';
 
   useEffect(() => {
     const changed = () => {
@@ -187,12 +188,8 @@ export default function App(props) {
     };
   }, [Boolean(memoryTab)]);
 
-  // Demo pages are available only in the explicit fixture preview, never in a
-  // normal production build where their sample content could be mistaken for live data.
-  const isDemo = Boolean(props.fixtureMode) && isMemoryDemoHash(memoryHash);
-
   useEffect(() => {
-    if (!memoryTab || isDemo || !props.api?.session) {
+    if (!memoryTab || !props.api?.session) {
       setMemorySessionReady(true);
       return;
     }
@@ -226,7 +223,7 @@ export default function App(props) {
       window.removeEventListener('focus', restore);
       window.removeEventListener('storage', external);
     };
-  }, [Boolean(memoryTab), isDemo, props.api]);
+  }, [Boolean(memoryTab), props.api]);
 
   const memorySignOut = async () => {
     try {
@@ -250,13 +247,13 @@ export default function App(props) {
   };
 
   // Memory pages reuse the session store without mounting unrelated API hooks.
-  if (memoryTab && !isDemo && shouldShowSessionLoader({ sessionReady: memorySessionReady, session: memorySession })) {
+  if (memoryRequiresAuth && shouldShowSessionLoader({ sessionReady: memorySessionReady, session: memorySession })) {
     return <div className="festival-app source-app auth-route"><Sky /><main className="auth-loading" aria-live="polite">Preparing your festival welcome…</main></div>;
   }
-  if (memoryTab && !isDemo && shouldShowSessionCheckShell({ sessionReady: memorySessionReady, session: memorySession })) {
+  if (memoryRequiresAuth && shouldShowSessionCheckShell({ sessionReady: memorySessionReady, session: memorySession })) {
     return <div className="festival-app source-app memory-route"><Sky /><SiteHeader items={NAV_ITEMS} route="memory-gallery" session={memorySession} menuOpen={memoryMenuOpen} setMenuOpen={setMemoryMenuOpen} onLogin={memoryLogin} onRegister={memoryLogin} onSignOut={memorySignOut} /><main className="auth-session-check" aria-live="polite">Checking your festival account…</main></div>;
   }
-  if (memoryTab && !isDemo && !memorySession) {
+  if (memoryRequiresAuth && !memorySession) {
     return (
       <div className="festival-app source-app auth-route">
         <Sky />
@@ -291,11 +288,10 @@ export default function App(props) {
           onSignOut={memorySignOut}
         />
         {memoryAuthError && <p role="alert">{memoryAuthError}</p>}
-        <MemoryPhotoDemo
+        <MemoryPhoto
           tab={memoryTab}
           api={props.api}
           onRequireLogin={memoryLogin}
-          demo={isDemo}
         />
       </div>
     );

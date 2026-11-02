@@ -231,11 +231,6 @@ export default function MyMemories({ api }) {
               Try again
             </button>
           )}
-          {model.phase !== 'loading' && (
-            <a className="mp-sample-link" href="#my-memories-demo">
-              View explicitly labeled sample states
-            </a>
-          )}
         </div>
       ) : (
         <>
@@ -317,9 +312,6 @@ export default function MyMemories({ api }) {
             <button className="mp-button mp-outline" onClick={refreshImages}>
               Refresh my memories
             </button>
-            <a className="mp-sample-link" href="#my-memories-demo">
-              View sample design
-            </a>
           </div>
         </>
       )}

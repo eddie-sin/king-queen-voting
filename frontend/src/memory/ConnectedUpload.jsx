@@ -3,7 +3,7 @@ import { readStoredSession, writeStoredSession } from '../hooks/useFestival.js';
 import { useMyMemories } from './useMyMemories.js';
 import { uploadSelectionError } from './upload.js';
 import { Icon } from './MemoryIcon.jsx';
-import { MEMORY_ASSETS as A } from './demo.js';
+import { MEMORY_ASSETS as A } from './config.js';
 
 function SubmissionStatusCard({ photo, index, filename }) {
   const status = String(photo.status || 'PENDING').toUpperCase();
@@ -468,9 +468,6 @@ export default function ConnectedUpload({ api }) {
         )}
         <a className="mp-sample-link" href="#my-memories">
           View My Memories and current allowance →
-        </a>
-        <a className="mp-sample-link" href="#memory-upload-demo">
-          Open explicitly labeled demo upload studio
         </a>
       </section>
     </div>
