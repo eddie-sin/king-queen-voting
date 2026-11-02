@@ -1,7 +1,7 @@
 const jwt = require('jsonwebtoken');
 const Admin = require('../model/adminsModel');
 const passwords = require('../utils/passwords');
-const { staffResponse } = require('../utils/permissions');
+const { staffResponse, ROLE_PERMISSIONS } = require('../utils/permissions');
 const AppError = require('../utils/appError');
 const catchAsync = require('../utils/catchAsync');
 let dummyHash;
@@ -23,7 +23,7 @@ exports.adminLogin = catchAsync(async (req, res) => {
   const username = passwords.username(req.body.username);
   const admin = await Admin.findOne({ username }).select('+passwordHash');
   if (!(await checkPassword(req.body.password, admin)) || !admin) throw new AppError('Invalid username or password.', 401);
-  if (admin.status !== 'active' || !['admin', 'voting_admin', 'memory_admin', 'lantern_admin'].includes(admin.role)) throw new AppError('This staff account is not active.', 403);
+  if (admin.status !== 'active' || !(admin.role === 'admin' || Object.hasOwn(ROLE_PERMISSIONS, admin.role))) throw new AppError('This staff account is not active.', 403);
   res.json({ status: 'success', data: { ...tokenResponse(admin, 'admin'), admin: staffResponse(admin) } });
 });
 exports.getAdminMe = catchAsync(async (req, res) => res.json({ status: 'success', data: { admin: staffResponse(req.admin) } }));

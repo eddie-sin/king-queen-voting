@@ -12,5 +12,5 @@ export function parseMyMemories(data) {
     return { id: photo.id, status: photo.status, createdAt: photo.createdAt };
   });
   if (new Set(photos.map(photo => photo.id)).size !== photos.length) throw new Error('Duplicate Memory Photo');
-  return { photos, quota: { limit: quota.limit, acceptedCount: quota.acceptedCount, remainingSlots: quota.remainingSlots } };
+  return { photos, ...(typeof data.participationAllowed === 'boolean' ? {participationAllowed:data.participationAllowed} : {}), quota: { limit: quota.limit, acceptedCount: quota.acceptedCount, remainingSlots: quota.remainingSlots } };
 }

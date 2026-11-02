@@ -32,7 +32,7 @@ exports.announcementPreview = catchAsync(async (req, res) => {
   res.json({ status: 'success', data });
 });
 const sameSelection = (receipt, selection) => JSON.stringify(normalizeSelection(receipt.details?.selectionRequest)) === JSON.stringify(selection);
-const ACTIONS = ['registration.open', 'registration.close', 'voting.open', 'voting.close', 'announcement.open', 'announcement.close', 'votes.clear', 'memory.open', 'memory.close', 'lantern.open', 'lantern.close', 'lantern.announce', 'lantern.hide', 'lantern.votes.reset', 'wishes.open', 'wishes.close'];
+const ACTIONS = ['participation.require', 'participation.bypass', 'registration.open', 'registration.close', 'voting.open', 'voting.close', 'announcement.open', 'announcement.close', 'votes.clear', 'memory.open', 'memory.close', 'lantern.open', 'lantern.close', 'lantern.announce', 'lantern.hide', 'lantern.votes.reset', 'wishes.open', 'wishes.close'];
 let commandBusy = false;
 const settingsResponse = async (req, controls, result) => {
   const data = { controls };
@@ -61,7 +61,7 @@ exports.command = catchAsync(async (req, res) => {
     || !/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(operationId)) throw new AppError('Refresh controls before performing this action.', 400);
   if (action === 'votes.clear' && confirmation !== 'CLEAR ALL VOTES') throw new AppError('Confirm by entering CLEAR ALL VOTES.', 400);
   const selectionRequest = action === 'announcement.open' ? normalizeSelection(req.body.awardSelection) : undefined;
-  const permission = action.startsWith('wishes.') ? 'admin' : action;
+  const permission = (action.startsWith('wishes.') || action.startsWith('participation.')) ? 'admin' : action;
   await authorizeStaff(req.admin, permission);
   if (commandBusy) throw new AppError('Another control is being updated. Refresh and retry shortly.', 409);
   commandBusy = true;
@@ -93,6 +93,8 @@ exports.command = catchAsync(async (req, res) => {
       if (controls.revision !== revision) throw new AppError('Controls changed. Refresh and try again.', 409);
       let clearedBallots = 0;
       switch (action) {
+        case 'participation.require': controls.participationRequired = true; break;
+        case 'participation.bypass': controls.participationRequired = false; break;
         case 'wishes.open': controls.wishPostingOpen=true; break;
         case 'wishes.close': controls.wishPostingOpen=false; break;
         case 'registration.open': controls.registrationOpen = true; break;

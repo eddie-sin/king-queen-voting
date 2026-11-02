@@ -2,7 +2,7 @@
 """Build provenance and exact-commit packaging. No credentials or dependencies."""
 import argparse, gzip, hashlib, io, json, pathlib, re, subprocess, tarfile
 RUNTIME = ['app.js','server.js','package.json','package-lock.json','controller','middleware','model','route','utils']
-COMPATIBILITY = {'databaseSchema':2,'authentication':1}
+COMPATIBILITY = {'databaseSchema':2,'authentication':1,'participationAccess':1}
 def git(root,*args):
     return subprocess.check_output(['git',*args],cwd=root)
 def clean_commit(root):

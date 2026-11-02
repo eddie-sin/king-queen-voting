@@ -28,6 +28,7 @@ exports.submit=catchAsync(async(req,res)=>{
   if(!await User.exists({_id:req.userId,status:'active',emailVerifiedAt:{$exists:true},tokenVersion:req.user.tokenVersion}).session(session))throw new AppError('Active account required.',403);
   const existing=await Vote.findOne({user:req.userId}).session(session);
   if(existing){if(String(existing.lantern)===body.lanternId)return;throw new AppError('Your lantern vote is final and cannot be changed.',409);}
+  await require('../utils/participation').require(req,controls,session);
   if(!controls.lanternVotingOpen||controls.lanternAnnouncementOpen||controls.lanternWindow!==body.window)throw new AppError('Lantern voting is closed or has changed. Refresh first.',409);
   if(!await Image.exists({_id:body.lanternId,section:'lantern'}).session(session))throw new AppError('Lantern not found.',404);
   await Vote.create([{user:req.userId,lantern:body.lanternId}],{session});

@@ -7,6 +7,7 @@ const schema = new mongoose.Schema({
   lanternWindow: { type: Number, default: 0 },
   wishModerationRevision: { type:Number, default:0 },
   wishPostingOpen: { type:Boolean, default:true },
+  participationRequired: { type: Boolean, default: false },
   registrationOpen: { type: Boolean, default: false },
   votingStatus: { type: String, enum: ['closed', 'open', 'closing'], default: 'closed' },
   announcementOpen: { type: Boolean, default: false },

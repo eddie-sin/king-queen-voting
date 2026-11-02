@@ -6,8 +6,8 @@ import { publicCandidate, publicResults, publicLantern } from './domain.js';
 import { parseMyMemories } from './memory/mine.js';
 
 export class ApiError extends Error {
-  constructor(message, { status = 0, interrupted = false } = {}) {
-    super(message); this.name = 'ApiError'; this.status = status; this.interrupted = interrupted;
+  constructor(message, { status = 0, interrupted = false, reason = '' } = {}) {
+    super(message); this.name = 'ApiError'; this.status = status; this.reason = reason; this.interrupted = interrupted;
   }
 }
 
@@ -30,10 +30,11 @@ export function createApi({ baseUrl = '/api/v1', fetchImpl = (...args) => fetch(
         throw new ApiError('The server returned an unreadable response. Please try refreshing.', { status: response.status, interrupted: method !== 'GET' });
       }
       if (response.status === 403) clearAuthConfig();
+      if(payload.reason==='PARTICIPATION_REQUIRED' && typeof window!=='undefined')window.dispatchEvent(new Event('focus'));
       if (!response.ok || payload.status !== 'success') {
         // Keep accidental long secret-like strings out of error messages.
         const message = typeof payload.message === 'string' ? payload.message.replace(/[a-f0-9]{64}/gi, '[redacted]') : 'The request could not be completed.';
-        throw new ApiError(message, { status: response.status, interrupted: response.status >= 500 });
+        throw new ApiError(message, { status: response.status, interrupted: response.status >= 500, reason: payload.reason === 'PARTICIPATION_REQUIRED' ? payload.reason : '' });
       }
       return payload;
     } catch (error) {
