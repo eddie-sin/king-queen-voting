@@ -33,10 +33,10 @@ export function useFestival(api) {
     try { const value = await api.candidates(); if (mounted.current) { setCandidates(value); setCandidateState('ready'); setCandidateError(''); } }
     catch (error) { if (mounted.current) { setCandidateState('error'); setCandidateError(error.message); } }
   }, [api]);
-  const loadLanterns = useCallback(async () => {
-    setLanternState('loading');
+  const loadLanterns = useCallback(async ({quiet=false} = {}) => {
+    if(!quiet)setLanternState('loading');
     try { const value = await api.lanterns(); if (mounted.current) { setLanterns(value); setLanternState('ready'); setLanternError(''); } }
-    catch (error) { if (mounted.current) { setLanternState('error'); setLanternError(error.message); } }
+    catch (error) { if (mounted.current && !quiet) { setLanternState('error'); setLanternError(error.message); } }
   }, [api]);
   const refreshChoices = useCallback(async () => {
     const active = current.current.session;
@@ -109,7 +109,7 @@ export function useFestival(api) {
       if (!stopped) timer = setTimeout(poll, document.hidden ? 30000 : 4500 + Math.random() * 1000);
     };
     timer = setTimeout(poll, 5000);
-    const focus = () => { loadControls(); restoreSession(); };
+    const focus = () => { loadControls(); restoreSession(); loadLanterns({quiet:true}); };
     const external = event => { if(event.key==='festival-account-change') restoreSession(); };
     const sync = () => {
       const next = readStoredSession();
