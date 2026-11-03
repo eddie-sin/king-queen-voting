@@ -8,7 +8,6 @@ import { readStoredSession, writeStoredSession, useFestival } from './hooks/useF
 import { titleCase } from './domain.js';
 import {
   Brand,
-  Crown,
   Sky,
   CategorySelection,
   CandidateCard,
@@ -26,6 +25,7 @@ import PrivacyPage from './components/PrivacyPage.jsx';
 import HomePage from './components/HomePage.jsx';
 import AuthLanding from './components/AuthLanding.jsx';
 import DevelopersPage from './components/DevelopersPage.jsx';
+import EntertainmentAgenda from './components/EntertainmentAgenda.jsx';
 import DeveloperCredits from './components/DeveloperCredits.jsx';
 import './home.css';
 import './authLanding.css';
@@ -104,28 +104,6 @@ function readRoute() {
     return raw;
   }
   return 'home';
-}
-
-function PlaceholderStage({ badge, title, description, primaryAction }) {
-  return (
-    <section className="source-section placeholder-section">
-      <div className="placeholder-card">
-        <div className="placeholder-ornament" aria-hidden="true">
-          <Crown />
-        </div>
-        <span className="placeholder-badge">{badge}</span>
-        <h2>{title}</h2>
-        <p>{description}</p>
-        {primaryAction && (
-          <div className="placeholder-actions">
-            <a className="btn primary" href={primaryAction.href}>
-              {primaryAction.label}
-            </a>
-          </div>
-        )}
-      </div>
-    </section>
-  );
 }
 
 export default function App(props) {
@@ -581,25 +559,7 @@ function FestivalApp({ api, wishApi, fixtureMode = false }) {
           ) : route === 'my-wishes' ? (
             <MyWishes api={wishApi} session={model.session} onRequireLogin={() => setAccountMode('login')}/>
           ) : route === 'entertainment' ? (
-            <>
-              {heading(
-                'FESTIVAL STAGE & LINEUP',
-                <>
-                  Event day <em>entertainment.</em>
-                </>,
-                'Explore the full agenda of live performances, cultural showcases, music, and activities on festival day.',
-              )}
-              <PlaceholderStage
-                badge="ENTERTAINMENT · EVENT AGENDA"
-                title={
-                  <>
-                    Stage schedule &amp; <em>performances</em>
-                  </>
-                }
-                description="The complete event-day timetable, performance lineup, and celebration activities will be published here."
-                primaryAction={{ href: '#home', label: 'Back to Festival Home' }}
-              />
-            </>
+            <EntertainmentAgenda />
           ) : route === 'account' ? (
             <>
               {heading(
