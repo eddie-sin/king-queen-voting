@@ -19,11 +19,11 @@ test('public lantern API requests only the lantern gallery and sanitizes entries
   const api = createApi({ fetchImpl: async (url, options) => {
     seen.push({ url, options });
     return new Response(JSON.stringify({ status: 'success', data: { images: [
-      { _id: 'l1', section: 'lantern', url: '/uploads/gallery/lantern/a.png', title: 'Moon', description: 'Glow' },
+      { _id: 'l1', section: 'lantern', url: '/uploads/gallery/lantern/a.png', title: 'Moon', description: 'Glow', thumbnailPosition: {x:50,y:100} },
       { _id: 'm1', section: 'memory', url: '/uploads/gallery/memory/a.png', title: 'Private mismatch' },
     ] } }));
   } });
-  assert.deepEqual(await api.lanterns(), [{ _id: 'l1', url: '/uploads/gallery/lantern/a.png', title: 'Moon', description: 'Glow' }]);
+  assert.deepEqual(await api.lanterns(), [{ _id: 'l1', url: '/uploads/gallery/lantern/a.png', title: 'Moon', description: 'Glow', thumbnailPosition: {x:50,y:100} }]);
   assert.equal(seen[0].url, '/api/v1/images?section=lantern');
   assert.equal(seen[0].options.method, 'GET');
 });

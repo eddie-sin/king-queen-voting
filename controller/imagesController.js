@@ -6,6 +6,12 @@ const { staffMutation, getControls } = require('../utils/eventControls');
 const guard = controls => { if(controls.lanternVotingOpen || controls.lanternAnnouncementOpen) throw new AppError('Close lantern voting and hide announcement before editing lanterns.',409); };
 const { uploadImage, deleteImage } = require("../utils/imageStorage");
 
+const thumbnailPosition = value => {
+  if (value === undefined) return undefined;
+  if (typeof value === 'string') { try { value = JSON.parse(value); } catch { throw new AppError('Invalid thumbnail position.',400); } }
+  if (!value || Array.isArray(value) || typeof value !== 'object' || Object.keys(value).length !== 2 || Object.keys(value).some(k=>!['x','y'].includes(k)) || [value.x,value.y].some(n=>typeof n!=='number'||!Number.isFinite(n)||n<0||n>100)) throw new AppError('Thumbnail position must contain x and y between 0 and 100.',400);
+  return { x:value.x, y:value.y };
+};
 const lanternMetadata = (body) => {
   if (body.description !== undefined && typeof body.description !== "string") {
     throw new AppError("Lantern description must be text.", 400);
@@ -15,7 +21,8 @@ const lanternMetadata = (body) => {
   if (!title) throw new AppError("Lantern title is required.", 400);
   if (title.length > 120) throw new AppError("Lantern title cannot exceed 120 characters.", 400);
   if (description.length > 1000) throw new AppError("Lantern description cannot exceed 1000 characters.", 400);
-  return { title, description };
+  const position=thumbnailPosition(body.thumbnailPosition);
+  return { title, description, ...(position ? {thumbnailPosition:position} : {}) };
 };
 
 exports.getImages = catchAsync(async (req, res) => {
@@ -72,16 +79,17 @@ exports.createImages = catchAsync(async (req, res, next) => {
 });
 
 exports.updateLantern = catchAsync(async (req, res, next) => {
-  if (!req.body || Object.keys(req.body).some((field) => !["title", "description"].includes(field))) {
-    return next(new AppError("Only lantern title and description can be updated.", 400));
+  if (!req.body || Object.keys(req.body).some((field) => !["title", "description", "thumbnailPosition"].includes(field))) {
+    return next(new AppError("Only lantern title, description and thumbnail position can be updated.", 400));
   }
   const image = await staffMutation(req, 'lantern.manage', async ({session,controls})=>{ guard(controls);
   const image = await Image.findById(req.params.id).session(session);
   if (!image) throw new AppError("No image found with that ID", 404);
   if (image.section !== "lantern") throw new AppError("Only lantern metadata can be updated.", 400);
-  const metadata = lanternMetadata({ title: req.body.title ?? image.title, description: req.body.description ?? image.description });
+  const metadata = lanternMetadata({ title: req.body.title ?? image.title, description: req.body.description ?? image.description, thumbnailPosition: req.body.thumbnailPosition });
   image.title = metadata.title;
   image.description = metadata.description;
+  if (metadata.thumbnailPosition) image.thumbnailPosition = metadata.thumbnailPosition;
   await image.save({session}); return image; });
   res.status(200).json({ status: "success", data: { image } });
 });

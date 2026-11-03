@@ -19,6 +19,10 @@ const imageSchema = new mongoose.Schema({
     trim: true,
     maxlength: [1000, "Lantern description cannot exceed 1000 characters"],
   },
+  thumbnailPosition: { type: new mongoose.Schema({
+    x: { type: Number, min: 0, max: 100, required: true },
+    y: { type: Number, min: 0, max: 100, required: true },
+  }, { _id: false }), default: undefined },
   createdAt: { type: Date, default: Date.now },
 });
 

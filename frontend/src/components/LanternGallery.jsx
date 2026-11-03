@@ -7,7 +7,7 @@ function LanternImage({ lantern, detail = false }) {
   const [failed, setFailed] = useState(false);
   useEffect(() => setFailed(false), [lantern.url]);
   return <div className={detail ? 'lantern-detail-image' : 'lantern-thumbnail'}>
-    {failed ? <span className="lantern-image-fallback">Image unavailable</span> : <img src={lantern.url} alt={lantern.title} loading={detail ? 'eager' : 'lazy'} decoding="async" onError={() => setFailed(true)} />}
+    {failed ? <span className="lantern-image-fallback">Image unavailable</span> : <img src={lantern.url} alt={lantern.title} style={detail ? undefined : {objectPosition:`${lantern.thumbnailPosition?.x ?? 50}% ${lantern.thumbnailPosition?.y ?? 50}%`}} loading={detail ? 'eager' : 'lazy'} decoding="async" onError={() => setFailed(true)} />}
   </div>;
 }
 

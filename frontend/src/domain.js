@@ -23,6 +23,7 @@ export function publicLantern(value) {
   return {
     _id: clean(value._id), url: value.url,
     title: clean(value.title) || 'Festival lantern', description: clean(value.description),
+    ...(value.thumbnailPosition && [value.thumbnailPosition.x,value.thumbnailPosition.y].every(n=>Number.isFinite(n)&&n>=0&&n<=100) ? {thumbnailPosition:{x:value.thumbnailPosition.x,y:value.thumbnailPosition.y}} : {}),
   };
 }
 
