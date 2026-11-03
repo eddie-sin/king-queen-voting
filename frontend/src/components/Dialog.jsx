@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef } from 'react';
 
-export function Dialog({ title, children, onClose, locked = false, className = '' }) {
+export function Dialog({ title, children, onClose, locked = false, className = '', dismissOnBackdrop = false }) {
   const ref = useRef(null); const titleId = useId(); const closeRef = useRef(onClose); closeRef.current = onClose;
   useEffect(() => {
     const previous = document.activeElement;
@@ -9,6 +9,11 @@ export function Dialog({ title, children, onClose, locked = false, className = '
     return () => { document.body.style.overflow = oldOverflow; previous?.focus?.(); };
   }, []);
   return <dialog ref={ref} className={`festival-dialog ${className}`} aria-labelledby={titleId}
+    onClick={event => {
+      if (!dismissOnBackdrop || locked || event.target !== event.currentTarget) return;
+      const bounds = event.currentTarget.getBoundingClientRect();
+      if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) onClose();
+    }}
     onCancel={event => { event.preventDefault(); if (!locked) closeRef.current(); }}>
     {!locked && <button className="close-button" aria-label="Close dialog" onClick={onClose}>×</button>}
     <h2 id={titleId} className="dialog-title">{title}</h2>

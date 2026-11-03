@@ -1,0 +1,34 @@
+// Component browser checks with local images and a deterministic API; no live data.
+const assert=require('node:assert/strict'),fs=require('node:fs/promises'),path=require('node:path');
+(async()=>{
+ const root=path.resolve(__dirname,'../frontend'),directory=path.join(root,'test-artifacts/lantern-preview');await fs.mkdir(directory,{recursive:true});
+ await fs.writeFile(path.join(directory,'index.html'),'<html><meta name="viewport" content="width=device-width, initial-scale=1"><div id="root"></div><script type="module" src="./fixture.jsx"></script></html>');
+ await fs.writeFile(path.join(directory,'fixture.jsx'),`import React from 'react';import{createRoot}from'react-dom/client';import{LanternGallery}from'../../src/components/LanternGallery.jsx';import{writeStoredSession}from'../../src/authSession.js';import '../../src/style.css';import '../../src/festival.css';import '../../src/source-match.css';
+ let allowed=true,open=true,mine=null;window.votes=0;window.gate=value=>{allowed=value;window.dispatchEvent(new Event('focus'));};window.voting=value=>{open=value;window.dispatchEvent(new Event('focus'));};
+ const api={session:async()=>({user:{participationAllowed:allowed}}),lanternStatus:async()=>({open}),myLanternVote:async()=>({vote:mine?{lantern:mine}:null}),voteLantern:async(token,id)=>{window.votes++;mine=id;}};writeStoredSession({token:'local',user:{id:'local'}});
+ const titles=['ရွှေရောင်လင်းလက် အနီရောင် မီးပုံး (Gleaming Red Paper Lantern)','Rainbow Glow Lantern','A little light'];const lanterns=titles.map((title,i)=>({_id:String(i),title,url:'/sample-'+i+'.svg',description:i===0?'A lantern made with care.\\n'+('သီတင်းကျွတ် အမှတ်တရ · A warm festival memory. '.repeat(30)):'Handcrafted light for our festival community.'}));
+ createRoot(document.getElementById('root')).render(<div className="festival-app source-app"><main style={{maxWidth:1240,margin:'auto',padding:'32px 20px'}}><h1>Festival lanterns</h1><LanternGallery lanterns={lanterns} state="ready" api={api} session={{token:'local'}} onRequireLogin={()=>{}}/></main></div>);`);
+ const{createServer}=await import('../frontend/node_modules/vite/dist/node/index.js');const server=await createServer({root,server:{host:'127.0.0.1',port:0,strictPort:false}});await server.listen();let browser;
+ try{for(const engine of ['chromium','webkit']){
+ browser=await require('../frontend/node_modules/playwright')[engine].launch(engine==='chromium'&&!process.env.CI?{channel:'chrome',headless:true}:{headless:true});
+ for(const width of [1280,390]){
+ const page=await browser.newPage({viewport:{width,height:900},reducedMotion:'reduce'}),errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.route('**/sample-*.svg',route=>{const id=Number(route.request().url().match(/sample-(\d)/)[1]);const [w,h]=[[320,1100],[1500,400],[500,500]][id];return route.fulfill({contentType:'image/svg+xml',body:`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><rect width="100%" height="100%" fill="${['#813221','#1e676b','#715323'][id]}"/><circle cx="${w/2}" cy="${h/2}" r="${Math.min(w,h)*.35}" fill="#f2c561"/><path d="M0 0L${w} ${h}M${w} 0L0 ${h}" stroke="#fff0ce" stroke-width="8"/></svg>`});});
+ await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/test-artifacts/lantern-preview/index.html`);await page.getByRole('button',{name:/^View lantern:/}).first().waitFor();
+ const heights=await page.locator('.lantern-summary').evaluateAll(cards=>cards.map(c=>c.getBoundingClientRect().height));assert(Math.max(...heights)-Math.min(...heights)<2,'Summary cards must have equal heights');assert.equal(await page.locator('.lantern-summary .lantern-description').count(),0);
+ if(process.env.LANTERN_SCREENSHOTS&&engine==='chromium')await page.screenshot({path:path.join(process.env.LANTERN_SCREENSHOTS,'lantern-summary-'+width+'.png'),fullPage:true});
+ for(let i=0;i<3;i++){
+ const trigger=page.getByRole('button',{name:/^View lantern:/}).nth(i);await trigger.click();const dialog=page.locator('.lantern-detail-dialog');await dialog.waitFor();const picture=dialog.locator('img');await picture.evaluate(img=>img.decode());
+ const fit=await picture.evaluate(img=>{const r=img.getBoundingClientRect();return{ratio:r.width/r.height,natural:img.naturalWidth/img.naturalHeight,width:r.width,parent:img.parentElement.clientWidth,objectFit:getComputedStyle(img).objectFit};});assert(Math.abs(fit.ratio-fit.natural)<.01,'Detail image must retain its complete aspect ratio');assert(fit.width<=fit.parent+1);assert.equal(fit.objectFit,'contain');assert.equal(await dialog.evaluate(el=>el.scrollWidth<=el.clientWidth),true);
+ if(process.env.LANTERN_SCREENSHOTS&&engine==='chromium'&&i===0)await page.screenshot({path:path.join(process.env.LANTERN_SCREENSHOTS,'lantern-detail-'+width+'.png')});
+ await page.keyboard.press('Escape');await dialog.waitFor({state:'hidden'});assert.equal(await trigger.evaluate(el=>el===document.activeElement),true);
+ }
+ await page.evaluate(()=>window.gate(false));await page.getByRole('button',{name:/^View lantern:/}).first().click();let detail=page.locator('.lantern-detail-dialog');await detail.getByText('Participation access is not enabled for your account. Please contact the festival organisers.',{exact:true}).waitFor();assert.equal(await detail.getByRole('button',{name:'Vote for this lantern',exact:true}).isEnabled(),false);
+ await page.evaluate(()=>window.gate(true));await detail.getByRole('button',{name:'Vote for this lantern',exact:true}).click();let confirm=page.getByRole('dialog',{name:'Confirm your lantern vote'});await confirm.getByRole('button',{name:'Cancel',exact:true}).click();await detail.waitFor();assert.equal(await page.evaluate(()=>window.votes),0);
+ await detail.getByRole('button',{name:'Vote for this lantern',exact:true}).click();await page.getByRole('dialog',{name:'Confirm your lantern vote'}).getByRole('button',{name:'Confirm final vote',exact:true}).click();await detail.getByRole('button',{name:'Your recorded vote',exact:true}).waitFor();assert.equal(await page.evaluate(()=>window.votes),1);await page.keyboard.press('Escape');assert.equal(await page.locator('.lantern-recorded-badge').count(),1);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+ // Backdrop dismisses the preview, without needing to click the close icon.
+ await page.getByRole('button',{name:/^View lantern:/}).nth(2).click();await page.mouse.click(2,2);await detail.waitFor({state:'hidden'});assert.deepEqual(errors,[]);await page.close();console.log(engine+' '+width+': equal cards, portrait/wide/square uncropped images, long copy, focus/Escape/backdrop, permission gate and single confirmed vote passed.');
+ }await browser.close();browser=null;
+ }
+ }finally{await browser?.close();await server.close();}
+})().catch(e=>{console.error(e);process.exitCode=1;});

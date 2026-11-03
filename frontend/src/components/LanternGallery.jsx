@@ -1,6 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import {useParticipation,participationMessage} from '../useParticipation.js';
 import { Dialog } from './Dialog.jsx';
+import './lantern-gallery.css';
+
+function LanternImage({ lantern, detail = false }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [lantern.url]);
+  return <div className={detail ? 'lantern-detail-image' : 'lantern-thumbnail'}>
+    {failed ? <span className="lantern-image-fallback">Image unavailable</span> : <img src={lantern.url} alt={lantern.title} loading={detail ? 'eager' : 'lazy'} decoding="async" onError={() => setFailed(true)} />}
+  </div>;
+}
 
 export function LanternGallery({
   lanterns,
@@ -15,6 +24,7 @@ export function LanternGallery({
   const [status, setStatus] = useState(null);
   const [mine, setMine] = useState(null);
   const [owner, setOwner] = useState(null);
+  const [detail, setDetail] = useState(null);
   const [pending, setPending] = useState(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
@@ -120,7 +130,7 @@ export function LanternGallery({
         </div>
       </div>
 
-      {!participationAllowed && <p role="status">{participationMessage}</p>}
+      {!participationAllowed && <p className="lantern-access-note" role="status">{participationMessage}</p>}
       {message && (
         <p className="lantern-status-message" role="status">
           {message}
@@ -148,34 +158,40 @@ export function LanternGallery({
       ) : (
         <div className="lantern-grid">
           {lanterns.map(lantern => (
-            <article className="lantern-card" key={lantern._id}>
-              <img src={lantern.url} alt={lantern.title} loading="lazy" />
-              <div className="lantern-card-body">
-                <p className="eyebrow">FESTIVAL LANTERN</p>
-                <h2>{lantern.title}</h2>
-                <p>{lantern.description}</p>
-                <button
-                  className="btn secondary full-width"
-                  disabled={
-                    !participationAllowed || busy ||
-                    !status?.open ||
-                    Boolean(selected) ||
-                    (Boolean(token) && owner !== token)
-                  }
-                  onClick={() => (token ? setPending(lantern) : onRequireLogin())}
-                >
-                  {selected === lantern._id
-                    ? 'Your recorded vote'
-                    : selected
-                      ? 'Already voted'
-                      : token
-                        ? 'Vote for this lantern'
-                        : 'Sign in to vote'}
+            <article className={`lantern-card lantern-summary ${selected === lantern._id ? 'is-selected' : ''}`} key={lantern._id}>
+              <LanternImage lantern={lantern} />
+              {selected === lantern._id && <span className="lantern-recorded-badge">Your recorded vote</span>}
+              <div className="lantern-summary-copy">
+                <h2 title={lantern.title}>{lantern.title}</h2>
+                <button className="btn secondary full-width" aria-label={`View lantern: ${lantern.title}`} onClick={event => { event.currentTarget.focus(); setDetail(lantern); }}>
+                  View lantern <span aria-hidden="true">↗</span>
                 </button>
               </div>
             </article>
           ))}
         </div>
+      )}
+
+      {detail && (
+        <Dialog title={detail.title} onClose={() => setDetail(null)} className="lantern-detail-dialog" dismissOnBackdrop>
+          <div className="lantern-detail-layout">
+            <div className="lantern-detail-art"><LanternImage lantern={detail} detail />
+              <a className="lantern-original-link" href={detail.url} target="_blank" rel="noopener noreferrer">Open original image <span aria-hidden="true">↗</span></a>
+            </div>
+            <div className="lantern-detail-copy">
+              <p className="eyebrow">FESTIVAL LANTERN</p>
+              <h3>{detail.title}</h3>
+              <div className="lantern-description">{detail.description || 'A little light, shared with our festival community.'}</div>
+              <div className="lantern-detail-action">
+                {!participationAllowed && <p role="status">{participationMessage}</p>}
+                <button className="btn primary full-width" disabled={!participationAllowed || busy || !status?.open || Boolean(selected) || (Boolean(token) && owner !== token)} onClick={() => token ? setPending(detail) : onRequireLogin()}>
+                  {selected === detail._id ? 'Your recorded vote' : selected ? 'Already voted' : token ? 'Vote for this lantern' : 'Sign in to vote'}
+                </button>
+                <p className="fine-print">{selected ? 'Your final choice has been saved.' : status?.open ? 'One lantern, one final choice.' : 'Explore the lanterns. Voting is currently closed.'}</p>
+              </div>
+            </div>
+          </div>
+        </Dialog>
       )}
 
       {pending && (
