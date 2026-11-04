@@ -18,7 +18,6 @@ const agenda = [
 
 const songs = [
   { name: 'ဆီမီး', duration: '5 Min' },
-  { name: 'King & Queen X Lantern', duration: '-' },
   { name: 'သီတင်းကျွတ်မီးထွန်းပွဲတော်, ပင်စိမ်းသီးပိုးထိုး', duration: '5 Min' },
   { name: 'မမြင့်', duration: '5 Min' },
   { name: 'ဥ◌ီးရွှေရိုး နှင့် ဒေါ်မိုး', duration: '6 Min' },
@@ -28,8 +27,6 @@ const songs = [
   { name: 'Band', duration: '15 Min' },
   { name: 'ရှမ်းအက + တိဘက်', duration: '3 Min' },
   { name: 'Band', duration: '15 Min' },
-  { name: 'King & Queen X Lantern', duration: '-' },
-  { name: 'BREAK (Nate Ban Zayy)', duration: '' },
   { name: 'ပြဇာတ်', duration: '25 Min' },
   { name: 'Indian Dance', duration: '5 Min' },
   { name: 'မင်းရဲ့အရိပ်ကလေး', duration: '5 Min' },
@@ -43,7 +40,7 @@ const songs = [
   { name: 'Mask', duration: '5 Min' },
   { name: 'လွမ်းလွန်းလို့', duration: '5 Min' },
   { name: 'လိုက်ဖက်တဲ့ဘဝ', duration: '5 Min' },
-  { name: 'မသုံးမကျတဲ့ နှင်းဆီ', duration: '5 Min' },
+  { name: 'အသုံးမကျတဲ့ နှင်းဆီ', duration: '5 Min' },
 ];
 
 const agendaTabs = [
