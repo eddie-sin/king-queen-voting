@@ -3,11 +3,11 @@ import '../developers.css';
 
 // Roles and overlapping team memberships are transcribed from developers/TEAM.txt.
 const people = [
-  ['Thant Sin Aung', ['System Architect', 'Team Lead']],
+  ['Lin Khant Kyaw', ['System Architect', 'Team Lead']],
   ['Shun Lak Thaw Tar', ['Backend Lead']],
   ['Kaung Zaw Hein', ['QA']],
   ['Zin Zin Pwint Han', ['Frontend Lead', 'UI/UX Designer', 'Frontend Developer']],
-  ['Lin Khant Kyaw', ['UI/UX Designer', 'Frontend Developer']],
+  ['Thant Sin Aung', ['UI/UX Designer', 'Frontend Developer']],
   ['Shin Thant', ['UI/UX Designer']],
   ['Pwint Phyu Soe', ['UI/UX Designer']],
   ['Hnin Thiri', ['Backend Developer']],
