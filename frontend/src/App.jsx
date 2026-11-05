@@ -6,6 +6,7 @@ import WishSky from './wishes/WishSky.jsx';
 import MyWishes from './wishes/MyWishes.jsx';
 import { readStoredSession, writeStoredSession, useFestival } from './hooks/useFestival.js';
 import { titleCase } from './domain.js';
+import { candidateInGallery } from './waistNumbers.js';
 import {
   Brand,
   Sky,
@@ -293,7 +294,7 @@ function FestivalApp({ api, wishApi, fixtureMode = false }) {
   const participationBlocked = model.participationAllowed === false;
   const allDisabled = participationBlocked || model.busy || model.status.voting !== 'open';
   const category = route === 'queen' ? 'queen' : 'king';
-  const gallery = model.candidates.filter(c => c.category === category);
+  const gallery = model.candidates.filter(c => candidateInGallery(c, category));
   const go = next => {
     location.hash = next;
   };
@@ -489,11 +490,10 @@ function FestivalApp({ api, wishApi, fixtureMode = false }) {
                   </div>
                 ) : (
                   <div className="gallery">
-                    {gallery.map((c, i) => (
+                    {gallery.map(c => (
                       <CandidateCard
                         key={c._id}
                         candidate={c}
-                        number={i + 1}
                         selected={viewable && model.choices[category]?._id === c._id}
                         onView={setProfile}
                       />

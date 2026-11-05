@@ -2,6 +2,7 @@ import { Crown } from './Artwork.jsx';
 import { Dialog } from './Dialog.jsx';
 import { PhotoCarousel } from './PhotoCarousel.jsx';
 import { titleCase } from '../domain.js';
+import { waistNumberFor } from '../waistNumbers.js';
 
 export function CategorySelection({ onSelect }) {
   return (
@@ -41,7 +42,8 @@ export function CategorySelection({ onSelect }) {
   );
 }
 
-export function CandidateCard({ candidate, selected, onView, paused, number = 1 }) {
+export function CandidateCard({ candidate, selected, onView, paused }) {
+  const waistNumber = waistNumberFor(candidate);
   return (
     <article className={`candidate-card ${selected ? 'is-selected' : ''}`}>
       <PhotoCarousel
@@ -51,9 +53,10 @@ export function CandidateCard({ candidate, selected, onView, paused, number = 1 
       />
       {selected && <span className="saved-badge">✓ Your choice</span>}
       <div className="candidate-copy">
-        <span className="eyebrow">
-          {candidate.category.toUpperCase()} · {String(number).padStart(2, '0')}
-        </span>
+        <div className="candidate-identity">
+          <span className="eyebrow">{candidate.category.toUpperCase()} CANDIDATE</span>
+          {waistNumber && <span className="waist-number">WAIST NO. {String(waistNumber).padStart(2, '0')}</span>}
+        </div>
         <h3>{candidate.fullName}</h3>
         {candidate.batchNumber && (
           <p className="meta">Batch of {candidate.batchNumber}</p>
@@ -76,6 +79,7 @@ export function CandidateProfile({
   paused,
   votingStatus,
 }) {
+  const waistNumber = waistNumberFor(candidate);
   return (
     <Dialog title={candidate.fullName} onClose={onClose} className="profile-dialog">
       <div className="profile-layout">
@@ -87,6 +91,7 @@ export function CandidateProfile({
         <div className="profile-copy">
           <h2>{candidate.fullName}</h2>
           <span className="eyebrow">{titleCase(candidate.category)} candidate</span>
+          {waistNumber && <span className="waist-number">WAIST NO. {String(waistNumber).padStart(2, '0')}</span>}
           {candidate.nickname && <p className="nickname">“{candidate.nickname}”</p>}
           <dl className="profile-facts">
             {candidate.batchNumber && (
